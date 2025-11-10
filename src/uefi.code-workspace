@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "uefi"
+		},
+		{
+			"path": "hvcore"
+		}
+	],
+	"settings": {
+		"rust-analyzer.checkOnSave.overrideCommand": [
+			"cargo",
+			"check",
+			"--tests",
+		]
+	}
+}

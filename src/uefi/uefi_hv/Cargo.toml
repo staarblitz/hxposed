@@ -1,0 +1,25 @@
+[package]
+name = "uefi_hv"
+description = "Barevisor as an UEFI driver"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "uefi_hv"
+test = false
+bench = false
+
+[dependencies]
+hv = { path = "../../hvcore", features = ["uefi"] }
+uefi = { version = "0.35.0", default-features = false }
+x86 = "0.52.0"

@@ -1,0 +1,26 @@
+[package]
+name = "check_hv_vendor"
+description = "The hypervisor vendor checker for UEFI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "check_hv_vendor"
+test = false
+bench = false
+
+[dependencies]
+raw-cpuid = "11.2.0"
+uefi = { version = "0.35.0", default-features = false, features = [
+    "global_allocator",
+] }

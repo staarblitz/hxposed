@@ -1,0 +1,21 @@
+[package]
+name = "hxposed_core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+bitfield-struct = "0.12.1"
+x86 = "0.52.0"
+static_assertions = "1.1.0"
+
+[profile.dev]
+debug = true
+panic="abort"
+
+[profile.test]
+panic="abort"
+
+[lib]
+crate-type = ["cdylib", "rlib"]

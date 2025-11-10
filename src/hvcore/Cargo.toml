@@ -1,0 +1,86 @@
+[package]
+name = "hv"
+version = "0.1.0"
+edition = "2024"
+categories = ["development-tools::testing", "no-std"]
+rust-version = "1.90"
+publish = false
+
+[profile.dev]
+debug = true
+
+[dependencies]
+hxposed_core = {path = "../hxposed_core"}
+bit_field = "0.10.3"
+bitfield = "0.19.2"
+bitvec = { version = "1.0.1", default-features = false }
+derive_deref = "1.1.1"
+derive_more = { version = "2.0.1", default-features = false, features = [
+    "full",
+] }
+log = { version = "0.4.28", default-features = false }
+num-derive = { version = "0.4.2", default-features = false }
+num-traits = { version = "0.2.19", default-features = false }
+spin = "0.10.0"
+thiserror = { version = "2.0.16", default-features = false }
+x86 = "0.52.0"
+bitfield-struct = "0.12.1"
+
+[dev-dependencies]
+ctor = "0.5.0"
+env_logger = "0.11.8"
+
+[features]
+default = []
+
+# Enables logic to support being loaded as a UEFI driver. Note that even without
+# this feature, UEFI specific logic is still compiled in, without never executed.
+uefi = []
+
+[workspace.lints.rust]
+# groups: https://doc.rust-lang.org/rustc/lints/groups.html
+deprecated_safe = { level = "warn", priority = -1 }
+future_incompatible = { level = "warn", priority = -1 }
+keyword_idents = { level = "warn", priority = -1 }
+let_underscore = { level = "warn", priority = -1 }
+nonstandard_style = { level = "warn", priority = -1 }
+refining_impl_trait = { level = "warn", priority = -1 }
+rust_2018_compatibility = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
+rust_2021_compatibility = { level = "warn", priority = -1 }
+rust_2024_compatibility = { level = "warn", priority = -1 }
+unused = { level = "warn", priority = -1 }
+
+# warnings that are not enabled by default or covered by groups
+# https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html
+macro_use_extern_crate = "warn"
+meta_variable_misuse = "warn"
+missing_abi = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+non_ascii_idents = "warn"
+noop_method_call = "warn"
+single_use_lifetimes = "warn"
+trivial_numeric_casts = "warn"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+unused_crate_dependencies = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+unused_results = "warn"
+
+# https://github.com/rust-lang/rust-clippy/
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+multiple_crate_versions = "allow"
+doc_markdown = "allow"
+cast_possible_truncation = "allow"
+
+# https://doc.rust-lang.org/rustdoc/lints.html
+[workspace.lints.rustdoc]
+missing_crate_level_docs = "warn"
+private_doc_tests = "warn"
+invalid_html_tags = "warn"
+unescaped_backticks = "warn"
