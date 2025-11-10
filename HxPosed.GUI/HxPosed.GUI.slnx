@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="HxPosed.Core/HxPosed.Core.csproj" />
+  <Project Path="HxPosed.GUI/HxPosed.GUI.csproj" />
+  <Project Path="HxPosed.Plugins/HxPosed.Plugins.csproj" Id="cc93e012-a64f-401c-99d1-25fddb77b786" />
+</Solution>

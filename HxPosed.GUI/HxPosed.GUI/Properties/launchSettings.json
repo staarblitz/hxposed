@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "HxPosed.GUI": {
+      "commandName": "Project",
+      "hotReloadEnabled": false,
+      "nativeDebugging": true
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "HxPosed.Core": {
+      "commandName": "Project",
+      "nativeDebugging": true,
+      "hotReloadEnabled": false
+    }
+  }
+}
