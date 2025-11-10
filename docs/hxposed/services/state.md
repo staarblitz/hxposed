@@ -18,4 +18,4 @@ All other fields are ignored.
 `RSI` - `HypervisorResult` (Only func bit is set to `0x1`)
 
 
-`RCX` - If anything else than `0x2009`, hypervisor did NOT catch the trap.
+`RCX` - If anything else than `0x2009`, hypervisor did NOT catch the trap. It's safe to assume hypervisor is not loaded.
