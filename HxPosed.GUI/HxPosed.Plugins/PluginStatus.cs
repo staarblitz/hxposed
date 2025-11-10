@@ -7,7 +7,8 @@ namespace HxPosed.Plugins
     public enum PluginStatus : uint
     {
         Ready = 0,
-        Loaded = 1,
+        Enabled = 1,
+        Disabled = 2,
         Error = 3
     }
 

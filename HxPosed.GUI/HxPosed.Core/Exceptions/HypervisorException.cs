@@ -6,6 +6,10 @@
         public override string Message => _message;
         public override string Source => _source;
 
+        /// <summary>
+        /// Exception generated from Rust's HypervisorError struct.
+        /// </summary>
+        /// <param name="error">Error struct returned from P/Invoke to hxposed_core</param>
         internal HypervisorException(HypervisorError error)
         {
             _source = error.Source.ToString();

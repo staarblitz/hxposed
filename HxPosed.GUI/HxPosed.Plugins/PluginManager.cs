@@ -7,6 +7,10 @@ namespace HxPosed.Plugins
 {
     public class PluginManager
     {
+        /// <summary>
+        /// Checks the sanity of registry keys for plugin management.
+        /// Adds a default plugin if doesn't exists in DEBUG mode.
+        /// </summary>
         public static void HealthCheck()
         {
             using var key = Registry.LocalMachine.OpenSubKey("Software", true);
@@ -19,13 +23,19 @@ namespace HxPosed.Plugins
             if (!mainKey.GetSubKeyNames().Contains("Plugins"))
             {
                 mainKey.CreateSubKey("Plugins").Dispose();
+#if DEBUG
                 Plugin.New(Guid.NewGuid(), "Test Plugin", "Showcases how the UI looks", 1, "https://github.com/Staarblitz", "Staarblitz", "App24");
+#endif
             }
                 
 
             mainKey.Dispose();
         }
 
+        /// <summary>
+        /// Gets the plugins, saves them to global _plugins collection.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">Throws if OpenSubKey returns null</exception>
         private static void GetPlugins()
         {
             _plugins.Clear();

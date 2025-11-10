@@ -1,0 +1,17 @@
+﻿<UserControl x:Class="HxPosed.GUI.Controls.CardControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <StackPanel>
+        <ui:TextBlock
+            Margin="0"
+            FontTypography="BodyStrong"
+            Text="{Binding Header,RelativeSource={RelativeSource AncestorType=UserControl}}"
+            TextWrapping="WrapWithOverflow" />
+
+        <ui:TextBlock
+            Appearance="Secondary"
+            Text="{Binding Subtitle,RelativeSource={RelativeSource AncestorType=UserControl}}"
+            TextWrapping="WrapWithOverflow" />
+    </StackPanel>
+</UserControl>

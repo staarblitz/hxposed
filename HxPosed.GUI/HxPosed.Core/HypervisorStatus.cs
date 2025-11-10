@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace HxPosed.Core
+﻿namespace HxPosed.Core
 {
     public enum HypervisorStatus
     {

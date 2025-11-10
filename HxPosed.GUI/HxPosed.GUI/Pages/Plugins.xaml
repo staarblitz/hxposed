@@ -5,6 +5,7 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
       xmlns:local="clr-namespace:HxPosed.GUI.Pages"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:ctrls="clr-namespace:HxPosed.GUI.Controls"
       xmlns:pl="clr-namespace:HxPosed.Plugins;assembly=HxPosed.Plugins"
       mc:Ignorable="d" 
       d:DesignHeight="450" d:DesignWidth="800"
@@ -33,18 +34,40 @@
                         <DataTemplate>
                             <ui:CardExpander Margin="0,5,0,5" Icon="{Binding Icon}" IsExpanded="False">
                                 <ui:CardExpander.Header>
-                                    <StackPanel>
-                                        <ui:TextBlock
-      Margin="0"
-      FontTypography="BodyStrong"
-      Text="{Binding Plugin.Name}"
-      TextWrapping="WrapWithOverflow" />
-                                        <ui:TextBlock
-      Appearance="Secondary"
-      Text="{Binding Plugin.Description}"
-      TextWrapping="WrapWithOverflow" />
-                                    </StackPanel>
+                                    <ctrls:CardControl Header="{Binding Plugin.Name}" Subtitle="{Binding Plugin.Description}"/>
                                 </ui:CardExpander.Header>
+                                <StackPanel>
+                                    <ui:CardExpander Icon="{ui:SymbolIcon Eye24}">
+                                        <ui:CardExpander.Header>
+                                            <ctrls:CardControl Header="Permissions" Subtitle="Allow or deny permissions to system components."/>
+                                        </ui:CardExpander.Header>
+                                        <ItemsControl ItemsSource="{Binding PermissionEntries, Mode=OneWay}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <ui:CardControl>
+                                                        <ui:CardControl.Header>
+                                                            <ctrls:CardControl Header="{Binding Header}"
+       Subtitle="{Binding Subtitle}" />
+                                                        </ui:CardControl.Header>
+                                                        <ui:ToggleSwitch IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                                    </ui:CardControl>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ui:CardExpander>
+                                    <ui:CardControl Icon="{ui:SymbolIcon ArchiveSettings24}">
+                                        <ui:CardControl.Header>
+                                            <ctrls:CardControl Header="Operations" Subtitle="Decide what to do."/>
+                                        </ui:CardControl.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:Button Margin="5" Content="Enable" Click="Button_Click"/>
+                                            <ui:Button Margin="5" Content="Disable" Click="Button_Click"/>
+                                            <ui:Button Margin="5" Content="Remove" Click="Button_Click"/>
+                                            <ui:Button Margin="5" Content="Visit URL" Click="Button_Click_1"/>
+                                        </StackPanel>
+                                    </ui:CardControl>
+                                </StackPanel>
+                                
                             </ui:CardExpander>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
