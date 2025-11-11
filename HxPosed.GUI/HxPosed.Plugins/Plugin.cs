@@ -64,8 +64,11 @@ namespace HxPosed.Plugins
                 Url = url,
                 Author = author,
                 Icon = icon,
-                Status = PluginStatus.Ready,
-                Error = PluginError.None
+                Error = PluginError.None,
+
+                // Use the private fields since the setter calls SetStatus when the registry key isn't prepared yet.
+                _status = PluginStatus.Ready,
+                _permissions = PluginPermissions.None,
             };
 
             using var pluginKey = key.CreateSubKey(guid.ToString());
@@ -107,9 +110,9 @@ namespace HxPosed.Plugins
                 Url = key.GetValue("URL").ToString(),
                 Author = key.GetValue("Author").ToString(),
                 Icon = key.GetValue("Icon").ToString(),
-                Status = (PluginStatus)(uint.Parse(key.GetValue("Status").ToString())),
+                _status = (PluginStatus)(uint.Parse(key.GetValue("Status").ToString())),
                 Error = (PluginError)(uint.Parse(key.GetValue("Error").ToString())),
-                Permissions = (PluginPermissions)(ulong.Parse(key.GetValue("Permissions").ToString()))
+                _permissions = (PluginPermissions)(ulong.Parse(key.GetValue("Permissions").ToString()))
             };
         }
 
