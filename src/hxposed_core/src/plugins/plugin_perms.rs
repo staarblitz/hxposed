@@ -43,15 +43,3 @@ bitflags! {
         const SECURITY_DELETE   = 1 << 29;
     }
 }
-
-impl From<u64> for PluginPermissions {
-    fn from(value: u64) -> Self {
-        PluginPermissions::from_bits_truncate(value)
-    }
-}
-
-impl From<PluginPermissions> for u64 {
-    fn from(perm: PluginPermissions) -> Self {
-        perm.bits()
-    }
-}
