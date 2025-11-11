@@ -11,7 +11,6 @@ use win::alloc::PoolAllocSized;
 mod cback;
 mod ops;
 mod win;
-mod nt;
 
 use crate::cback::registry_callback;
 use alloc::boxed::Box;
@@ -26,8 +25,8 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
 use hxposed_core::hxposed::error::{ErrorCode, ErrorSource};
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::response::VmcallResponse;
 use hxposed_core::hxposed::responses::status::StatusResponse;
+use hxposed_core::hxposed::responses::VmcallResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
@@ -173,5 +172,6 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             guest.regs().rsi = response.result.into_bits() as _;
         }
         ServiceFunction::Unknown => {}
+        _ => {}
     }
 }

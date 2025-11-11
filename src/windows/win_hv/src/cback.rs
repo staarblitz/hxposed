@@ -75,15 +75,6 @@ pub(crate) extern "C" fn registry_callback(
             if status != STATUS_SUCCESS {
                 return STATUS_SUCCESS; // Let the registry manager handle this one.
             }
-
-            let mut proc_file = HANDLE::default();
-            let status = unsafe {
-                ZwOpenFile(
-                    &mut proc_file,
-                    FILE_GENERIC_READ,
-
-                )
-            }
         }
         _ => {}
     }
