@@ -8,7 +8,7 @@ pub mod hxposed;
 mod intern;
 pub mod svcs;
 mod nt;
-mod plugins;
+pub mod plugins;
 
 #[cfg(not(test))]
 #[panic_handler]
