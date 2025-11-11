@@ -11,7 +11,7 @@ HxPosed has a simple goal, give a hypervisor service that exposes various hidden
 
 ### Ask yourself...
 - Aren't you bored of checking the build number of the system?
-- Aren't you bored of getting STATUS_INVALID_PARAMETER's with no explanation whatsoever?
+- Aren't you bored of jumping around struct fields that change position per build?
 - Didn't you just once think a *single* kernel API export to user-mode make the life a lot easier?
 
 You were right.
@@ -22,7 +22,7 @@ You were right.
 - ✅ No-nonsense. It just works.
 - ✅ Different languages, same API with respect to programming style.
 
-What are you waiting for? Grab your GUID and send us a CPUID, asking for authorization.
+What are you waiting for? Grab your GUID and send us a CPUID, asking for authorization free of charge today!
 
 ### Contact
 [Telegram](https://t.me/staarblitz)
