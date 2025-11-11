@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 bitfield-struct = "0.12.1"
 x86 = "0.52.0"
-uuid = "1.18.1"
+uuid = {version = "1.18.1", default-features = false}
 bitflags = "2.10.0"
 static_assertions = "1.1.0"
 

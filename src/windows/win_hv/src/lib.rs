@@ -27,9 +27,9 @@ use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
 use hxposed_core::hxposed::error::{ErrorCode, ErrorSource};
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
+use hxposed_core::hxposed::responses::VmcallResponse;
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::status::StatusResponse;
-use hxposed_core::hxposed::responses::VmcallResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
@@ -80,17 +80,17 @@ extern "C" fn driver_entry(
 
     println!("Loaded win_hv.sys");
 
-    let mut cookie = LARGE_INTEGER::default();
-    let status = unsafe {
-        CmRegisterCallback(
-            Some(registry_callback),
-            PVOID::default(), /* What lol */
-            &mut cookie,
-        )
-    };
-    if status != STATUS_SUCCESS {
-        println!("Error registering registry callbacks");
-    }
+    // let mut cookie = LARGE_INTEGER::default();
+    // let status = unsafe {
+    //     CmRegisterCallback(
+    //         Some(registry_callback),
+    //         PVOID::default(), /* What lol */
+    //         &mut cookie,
+    //     )
+    // };
+    // if status != STATUS_SUCCESS {
+    //     println!("Error registering registry callbacks");
+    // }
 
     STATUS_SUCCESS
 }
@@ -112,7 +112,10 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             let mut object_attributes: OBJECT_ATTRIBUTES = Default::default();
             init_object_attributes!(
                 &mut object_attributes,
-                format!("\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}", req.uuid),
+                format!(
+                    "\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}",
+                    req.uuid
+                ),
                 0,
                 null_mut(),
                 null_mut()
@@ -155,14 +158,12 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 return;
             }
 
-            let data = unsafe{*get_data!(info, PluginPermissions)};
+            let data = unsafe { *get_data!(info, PluginPermissions) };
 
             // And the masks to find out allowed permissions.
             let permissions = data.bitand(req.permissions);
 
-            let resp = AuthorizationResponse {
-                permissions
-            }.into_raw();
+            let resp = AuthorizationResponse { permissions }.into_raw();
 
             guest.regs().r8 = resp.arg1;
             guest.regs().r9 = resp.arg2;
