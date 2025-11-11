@@ -3,6 +3,7 @@ pub enum ServiceFunction {
     Authorize,
     GetState,
     Unknown,
+    OpenProcess
 }
 
 impl ServiceFunction {
@@ -14,6 +15,7 @@ impl ServiceFunction {
         match value {
             0 => Self::Authorize,
             1 => Self::GetState,
+            3 => Self::OpenProcess,
             _ => Self::Unknown,
         }
     }

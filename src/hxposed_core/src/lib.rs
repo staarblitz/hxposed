@@ -6,6 +6,7 @@ mod error;
 pub mod hxposed;
 mod intern;
 pub mod svcs;
+mod nt;
 
 #[cfg(not(test))]
 #[panic_handler]

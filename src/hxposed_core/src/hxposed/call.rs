@@ -21,6 +21,10 @@ impl HypervisorCall {
         // For this call, other fields are ignored.
         Self::new().with_func(ServiceFunction::GetState)
     }
+
+    pub(crate) fn open_process() -> Self {
+        Self::new().with_func(ServiceFunction::OpenProcess)
+    }
 }
 
 #[bitfield(u32)]
