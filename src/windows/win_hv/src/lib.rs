@@ -102,6 +102,8 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             let mut key_name = UNICODE_STRING::default();
             RtlInitUnicodeString(&mut key_name, as_utf16!("Status"));
 
+            let guid = uuid::Uuid::from_u128(guid);
+
             let mut object_attributes: OBJECT_ATTRIBUTES = Default::default();
             init_object_attributes!(
                 &mut object_attributes,
