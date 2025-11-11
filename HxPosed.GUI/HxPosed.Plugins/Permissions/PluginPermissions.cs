@@ -64,5 +64,7 @@ namespace HxPosed.Plugins.Permissions
         SecurityDelete = 1 << 29,
 
         // Rest is reserved
+
+        MaximumAllowed = ulong.MaxValue
     }
 }
