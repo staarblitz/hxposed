@@ -22,6 +22,10 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::GetState)
     }
 
+    pub(crate) fn auth() -> Self {
+        Self::new().with_func(ServiceFunction::Authorize)
+    }
+
     pub(crate) fn open_process() -> Self {
         Self::new().with_func(ServiceFunction::OpenProcess)
     }

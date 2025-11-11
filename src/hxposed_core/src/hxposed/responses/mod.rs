@@ -2,7 +2,7 @@ use crate::hxposed::call::HypervisorResult;
 
 pub mod status;
 pub mod process;
-
+pub mod auth;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct HypervisorResponse {

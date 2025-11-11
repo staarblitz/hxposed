@@ -1,4 +1,5 @@
 #![no_std]
+extern crate alloc;
 
 use core::panic::PanicInfo;
 
@@ -7,6 +8,7 @@ pub mod hxposed;
 mod intern;
 pub mod svcs;
 mod nt;
+mod plugins;
 
 #[cfg(not(test))]
 #[panic_handler]

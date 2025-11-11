@@ -4,7 +4,7 @@ use crate::intern::instructions::{vmcall, vmcall_typed};
 
 pub mod status;
 mod process;
-
+pub mod auth;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct HypervisorRequest {
