@@ -18,6 +18,7 @@ use alloc::format;
 use alloc::vec::Vec;
 use bit_field::BitField;
 use core::iter::once;
+use core::ops::BitAnd;
 use core::ptr::null_mut;
 use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
@@ -25,9 +26,13 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
 use hxposed_core::hxposed::error::{ErrorCode, ErrorSource};
 use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
+use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::VmcallResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
+use hxposed_core::plugins::plugin_perms::PluginPermissions;
+use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{CmRegisterCallback, RtlInitUnicodeString, ZwOpenKey, ZwQueryValueKey};
@@ -96,18 +101,18 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         ServiceFunction::Authorize => unsafe {
             // All other fields are ignored.
 
-            let mut guid: u128 = guest.regs().r8 as _;
-            guid.set_bits(64..127, guest.regs().r9 as _);
+            let mut req = AuthorizationRequest {
+                uuid: Uuid::from_u64_pair(guest.regs().r8, guest.regs().r9),
+                permissions: PluginPermissions::from_bits(guest.regs().r10).unwrap(),
+            };
 
             let mut key_name = UNICODE_STRING::default();
             RtlInitUnicodeString(&mut key_name, as_utf16!("Status"));
 
-            let guid = uuid::Uuid::from_u128(guid);
-
             let mut object_attributes: OBJECT_ATTRIBUTES = Default::default();
             init_object_attributes!(
                 &mut object_attributes,
-                format!("\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}", guid),
+                format!("\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}", req.uuid),
                 0,
                 null_mut(),
                 null_mut()
@@ -150,28 +155,33 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 return;
             }
 
-            let data = get_data!(info, bool);
-            if !*data {
-                let err = HypervisorResult::error(ErrorSource::Hv, ErrorCode::NotAllowed);
-                guest.regs().rax = err.into_bits() as _;
-            }
+            let data = unsafe{*get_data!(info, PluginPermissions)};
 
-            let ok = HypervisorResult::error(ErrorSource::Hv, ErrorCode::Ok);
-            guest.regs().rax = ok.into_bits() as _;
+            // And the masks to find out allowed permissions.
+            let permissions = data.bitand(req.permissions);
+
+            let resp = AuthorizationResponse {
+                permissions
+            }.into_raw();
+
+            guest.regs().r8 = resp.arg1;
+            guest.regs().r9 = resp.arg2;
+            guest.regs().r10 = resp.arg3;
+            guest.regs().rsi = resp.result.into_bits() as _;
         },
         ServiceFunction::GetState => {
             // All other fields of HxPosedCall are ignored.
 
-            let response = StatusResponse {
+            let resp = StatusResponse {
                 state: HypervisorStatus::SystemVirtualized,
                 version: 1,
             }
             .into_raw();
 
-            guest.regs().r8 = response.arg1;
-            guest.regs().r9 = response.arg2;
-            guest.regs().r10 = response.arg3;
-            guest.regs().rsi = response.result.into_bits() as _;
+            guest.regs().r8 = resp.arg1;
+            guest.regs().r9 = resp.arg2;
+            guest.regs().r10 = resp.arg3;
+            guest.regs().rsi = resp.result.into_bits() as _;
         }
         ServiceFunction::Unknown => {}
         _ => {}
