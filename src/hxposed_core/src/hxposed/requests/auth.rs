@@ -3,11 +3,13 @@ use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::process::OpenProcessRequest;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::auth::AuthorizationResponse;
+use crate::plugins::plugin_perms::PluginPermissions;
 
 #[derive(Clone, Default, Debug)]
 #[repr(C)]
 pub struct AuthorizationRequest {
-    pub uuid: Uuid
+    pub uuid: Uuid,
+    pub permissions: PluginPermissions
 }
 
 impl VmcallRequest for AuthorizationRequest {
@@ -19,7 +21,7 @@ impl VmcallRequest for AuthorizationRequest {
             call: HypervisorCall::auth(),
             arg1: uuid.0,
             arg2: uuid.1,
-            arg3: 0
+            arg3: self.permissions.bits(),
         }
     }
 }
