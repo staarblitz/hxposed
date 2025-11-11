@@ -8,16 +8,19 @@ extern crate wdk_alloc;
 extern crate wdk_sys;
 use win::alloc::PoolAllocSized;
 
+mod cback;
 mod ops;
 mod win;
+mod nt;
 
+use crate::cback::registry_callback;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
 use bit_field::BitField;
-use core::arch::asm;
 use core::iter::once;
 use core::ptr::null_mut;
+use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
@@ -28,12 +31,14 @@ use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{RtlInitUnicodeString, ZwOpenKey, ZwQueryValueKey};
+use wdk_sys::ntddk::{CmRegisterCallback, RtlInitUnicodeString, ZwOpenKey, ZwQueryValueKey};
 use wdk_sys::{
-    DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, NTSTATUS, OBJECT_ATTRIBUTES,
-    PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
-    UNICODE_STRING, ntddk::ExAllocatePool2,
+    DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS,
+    OBJECT_ATTRIBUTES, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES,
+    STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2,
 };
+
+static mut CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
@@ -70,6 +75,19 @@ extern "C" fn driver_entry(
     hv::virtualize_system(host_data);
 
     println!("Loaded win_hv.sys");
+
+    let mut cookie = LARGE_INTEGER::default();
+    let status = unsafe {
+        CmRegisterCallback(
+            Some(registry_callback),
+            PVOID::default(), /* What lol */
+            &mut cookie,
+        )
+    };
+    if status != STATUS_SUCCESS {
+        println!("Error registering registry callbacks");
+    }
+
     STATUS_SUCCESS
 }
 
@@ -148,8 +166,6 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 version: 1,
             }
             .into_raw();
-
-            unsafe { asm!("int 0x3") }
 
             guest.regs().r8 = response.arg1;
             guest.regs().r9 = response.arg2;
