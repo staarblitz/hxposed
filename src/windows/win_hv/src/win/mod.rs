@@ -39,12 +39,18 @@ pub unsafe fn InitializeObjectAttributes(
     }
 }
 
-#[inline]
-pub unsafe fn to_utf16(s: &str) -> Box<UNICODE_STRING> {
-    let mut str = UTF8_STRING::default();
-    let mut ustr = UNICODE_STRING::default();
-    RtlInitUTF8String(&mut str, s.as_ptr() as _);
-    let _ = RtlUTF8StringToUnicodeString(&mut ustr, &mut str, TRUE as _);
+pub trait Utf8ToUnicodeString {
+    fn to_unicode_string(&self) -> Box<UNICODE_STRING>;
+}
 
-    Box::new(ustr)
+impl Utf8ToUnicodeString for str {
+    fn to_unicode_string(&self) -> Box<UNICODE_STRING> {
+        let mut str = UTF8_STRING::default();
+        let mut ustr = UNICODE_STRING::default();
+        unsafe {
+            RtlInitUTF8String(&mut str, self.as_ptr() as _);
+            let _ = RtlUTF8StringToUnicodeString(&mut ustr, &mut str, TRUE as _);
+        }
+        Box::new(ustr)
+    }
 }

@@ -13,11 +13,10 @@ mod ops;
 mod win;
 
 use crate::cback::registry_callback;
-use crate::win::{InitializeObjectAttributes, to_utf16};
+use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use alloc::boxed::Box;
 use alloc::format;
 use core::ops::BitAnd;
-use core::ptr::null_mut;
 use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
@@ -106,18 +105,17 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 permissions: PluginPermissions::from_bits(guest.regs().r10).unwrap(),
             };
 
-            let mut key_name = to_utf16("Permissions");
+            let mut key_name = "Permissions".to_unicode_string();
 
             let mut object_attributes: OBJECT_ATTRIBUTES = Default::default();
             InitializeObjectAttributes(
                 &mut object_attributes,
-                to_utf16(
-                    format!(
-                        "\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}",
-                        req.uuid
-                    )
-                    .as_str(),
+                format!(
+                    "\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}",
+                    req.uuid
                 )
+                .as_str()
+                .to_unicode_string()
                 .as_mut(),
                 0,
                 Default::default(),
