@@ -13,13 +13,11 @@ mod ops;
 mod win;
 
 use crate::cback::registry_callback;
+use crate::win::InitializeObjectAttributes;
 use alloc::boxed::Box;
 use alloc::format;
-use alloc::vec::Vec;
-use bit_field::BitField;
-use core::iter::once;
 use core::ops::BitAnd;
-use core::ptr::null_mut;
+use core::ptr::{null_mut};
 use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
@@ -33,7 +31,7 @@ use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
-use wdk::println;
+use wdk::{dbg_break, println};
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{CmRegisterCallback, RtlInitUnicodeString, ZwOpenKey, ZwQueryValueKey};
 use wdk_sys::{
@@ -101,7 +99,9 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         ServiceFunction::Authorize => unsafe {
             // All other fields are ignored.
 
-            let mut req = AuthorizationRequest {
+            dbg_break();
+
+            let req = AuthorizationRequest {
                 uuid: Uuid::from_u64_pair(guest.regs().r8, guest.regs().r9),
                 permissions: PluginPermissions::from_bits(guest.regs().r10).unwrap(),
             };
@@ -110,15 +110,15 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             RtlInitUnicodeString(&mut key_name, as_utf16!("Permissions"));
 
             let mut object_attributes: OBJECT_ATTRIBUTES = Default::default();
-            init_object_attributes!(
+            InitializeObjectAttributes(
                 &mut object_attributes,
                 format!(
                     "\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}",
                     req.uuid
                 ),
                 0,
-                null_mut(),
-                null_mut()
+                Default::default(),
+                Default::default(),
             );
 
             let mut key_handle = HANDLE::default();

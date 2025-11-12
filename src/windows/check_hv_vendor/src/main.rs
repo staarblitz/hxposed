@@ -1,7 +1,6 @@
 use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
-use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 
