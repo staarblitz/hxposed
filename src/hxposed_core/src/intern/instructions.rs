@@ -1,17 +1,13 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::error::{ErrorCode, ErrorSource};
-use core::arch::asm;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use core::arch::asm;
 
 pub fn vmcall_typed<R: VmcallRequest>(req: R) -> Result<R::Response, HypervisorError> {
     let raw_resp = vmcall(req.into_raw());
-    let err = HypervisorError::from(raw_resp.result);
-    if err.is_err() {
-        return Err(err);
-    }
-    Ok(R::Response::from_raw(raw_resp))
+    R::Response::from_raw(raw_resp)
 }
 pub(crate) fn vmcall(request: HypervisorRequest) -> HypervisorResponse {
     let mut response = HypervisorResponse::default();

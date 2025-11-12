@@ -1,18 +1,45 @@
-use std::arch::asm;
-use hxposed_core::hxposed::request::VmcallRequest;
+use hxposed_core::hxposed::requests::Vmcall;
+use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
+use hxposed_core::hxposed::responses::status::StatusResponse;
+use hxposed_core::plugins::plugin_perms::PluginPermissions;
+use uuid::Uuid;
 
 fn main() {
-    unsafe{
-        asm!("mov rcx, 0x2009", "cpuid");
-    }
-
     println!("Preparing status request...");
     let req = StatusRequest::default();
     println!("Status request: {:?}", req);
-    let response = req.send();
+    let resp = req.send();
+    match resp {
+        Err(e) => {
+            println!("Error status request! {:?}", e);
+        }
+        _ => {}
+    }
+
+    let resp = unsafe { resp.unwrap_unchecked() };
+
     println!(
         "Hypervisor status: Current: {}, Version: {}",
-        response.state, response.version
+        resp.state, resp.version
     );
+
+    let uuid = Uuid::from_u64_pair(0, 0);
+    println!("Authorizing with UUID {}", uuid);
+    let req = AuthorizationRequest {
+        permissions: PluginPermissions::all(),
+        uuid,
+    };
+
+    let resp = req.send();
+    match resp {
+        Err(e) => {
+            println!("Error authorization request! {:?}", e);
+        }
+        _ => {}
+    }
+
+    let resp = unsafe { resp.unwrap_unchecked() };
+
+    println!("Permissions: {:?}", resp.permissions);
 }

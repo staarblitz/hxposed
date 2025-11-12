@@ -44,6 +44,10 @@ pub struct HypervisorResult {
 }
 
 impl HypervisorResult {
+    pub fn is_error(&self) -> bool {
+        !(self.error_source() == ErrorSource::Hx && self.error_code() == ErrorCode::Ok)
+    }
+
     pub fn ok(func: ServiceFunction) -> Self {
         Self::error(ErrorSource::Hx, ErrorCode::Ok).with_func(func)
     }

@@ -1,3 +1,4 @@
+use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 
 pub mod status;
@@ -13,6 +14,6 @@ pub struct HypervisorResponse {
 }
 
 pub trait VmcallResponse: Sized {
-    fn from_raw(raw: HypervisorResponse) -> Self;
+    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError>;
     fn into_raw(self) -> HypervisorResponse;
 }

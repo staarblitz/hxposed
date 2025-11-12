@@ -1,3 +1,4 @@
+use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
@@ -10,10 +11,13 @@ pub struct AuthorizationResponse {
 }
 
 impl VmcallResponse for AuthorizationResponse {
-    fn from_raw(raw: HypervisorResponse) -> Self {
-        Self {
-            permissions: PluginPermissions::from_bits(raw.arg1).unwrap()
+    fn from_raw(raw: HypervisorResponse) -> Result<AuthorizationResponse, HypervisorError> {
+        if raw.result.is_error() {
+            return Err(HypervisorError::from(raw.result));
         }
+        Ok(Self {
+            permissions: PluginPermissions::from_bits(raw.arg1).unwrap()
+        })
     }
 
     fn into_raw(self) -> HypervisorResponse {

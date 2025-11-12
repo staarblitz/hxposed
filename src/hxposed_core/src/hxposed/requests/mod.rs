@@ -1,10 +1,11 @@
+use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::responses::VmcallResponse;
 use crate::intern::instructions::{vmcall, vmcall_typed};
 
-pub mod status;
-mod process;
 pub mod auth;
+mod process;
+pub mod status;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct HypervisorRequest {
@@ -20,14 +21,15 @@ pub trait VmcallRequest {
     fn into_raw(self) -> HypervisorRequest;
 }
 
-
-trait Vmcall<T: VmcallRequest> {
-    fn send(self) -> T::Response;
+pub trait Vmcall<T: VmcallRequest> {
+    fn send(self) -> Result<T::Response, HypervisorError>;
 }
 
 impl<T> Vmcall<T> for T
-where T: VmcallRequest {
-    fn send(self) -> T::Response {
+where
+    T: VmcallRequest,
+{
+    fn send(self) -> Result<T::Response, HypervisorError> {
         T::Response::from_raw(vmcall(self.into_raw()))
     }
 }
