@@ -13,11 +13,11 @@ mod ops;
 mod win;
 
 use crate::cback::registry_callback;
-use crate::win::InitializeObjectAttributes;
+use crate::win::{InitializeObjectAttributes, to_utf16};
 use alloc::boxed::Box;
 use alloc::format;
 use core::ops::BitAnd;
-use core::ptr::{null_mut};
+use core::ptr::null_mut;
 use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
@@ -106,16 +106,19 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 permissions: PluginPermissions::from_bits(guest.regs().r10).unwrap(),
             };
 
-            let mut key_name = UNICODE_STRING::default();
-            RtlInitUnicodeString(&mut key_name, as_utf16!("Permissions"));
+            let mut key_name = to_utf16("Permissions");
 
             let mut object_attributes: OBJECT_ATTRIBUTES = Default::default();
             InitializeObjectAttributes(
                 &mut object_attributes,
-                format!(
-                    "\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}",
-                    req.uuid
-                ),
+                to_utf16(
+                    format!(
+                        "\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}",
+                        req.uuid
+                    )
+                    .as_str(),
+                )
+                .as_mut(),
                 0,
                 Default::default(),
                 Default::default(),
@@ -133,9 +136,9 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             let mut ret_len = 0;
             let _ = ZwQueryValueKey(
                 key_handle,
-                &mut key_name,
+                key_name.as_mut(),
                 KeyValueFullInformation,
-                null_mut(),
+                Default::default(),
                 0,
                 &mut ret_len,
             );
@@ -144,7 +147,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
 
             let status = ZwQueryValueKey(
                 key_handle,
-                &mut key_name,
+                key_name.as_mut(),
                 KeyValueFullInformation,
                 as_pvoid!(info),
                 ret_len,

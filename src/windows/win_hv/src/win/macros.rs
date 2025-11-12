@@ -1,12 +1,3 @@
-use wdk_sys::OBJECT_ATTRIBUTES;
-use wdk_sys::ntddk::RtlInitUnicodeString;
-
-#[macro_export]
-macro_rules! as_utf16 {
-    ($str:expr) => {
-       WString::from($str).as_mut_wstr().as_mut()
-    };
-}
 
 #[macro_export]
 macro_rules! as_pvoid {
