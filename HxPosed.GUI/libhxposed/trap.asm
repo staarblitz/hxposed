@@ -25,11 +25,13 @@ trap proc
 	mov r9, [rsi + 16]
 	mov r10, [rsi + 24]
 
-	mov rsi, [rsi] ; dereference the hypervisor_call_t inside hypervisor_req_resp_t
+	mov rsi, [rsi]	; dereference the hypervisor_call_t inside hypervisor_req_resp_t
+	; tip: could have used esi
 
-	mov rcx, 2009h ; we want our hypervisor to catch this trap
+	; not necessary	
+	; mov rcx, 2009h ; we want our hypervisor to catch this trap
 
-	cpuid ; where we were?
+	cpuid	; where we were?
 
 	cmp rcx, 2009h
 	jne notequal ; hypervisor did NOT catch our trap
@@ -42,11 +44,11 @@ trap proc
 	mov qword ptr [rdi + 16], r9
 	mov qword ptr [rdi + 24], r10
 
-	xor rax, rax ; call was ok
-	ret ; we are done here.
+	xor rax, rax	; call was ok
+	ret	; we are done here.
 
 	notequal:
-	mov rax, -1 ; indicate that hypervisor did not catch the trap
+	mov rax, -1	; indicate that hypervisor did not catch the trap
 	ret
 trap endp
 
