@@ -18,12 +18,14 @@ trap proc
 	; in our hypervisor calling convention, the args are in this order:
 	; r8, r9, r10
 	; result and response will be in rsi register.
-	mov rdi, rcx
+	mov rsi, rcx
 
 	; extract args from the hypervisor_req_resp_t
-	mov r8, [rdi + 8]
-	mov r9, [rdi + 16]
-	mov r10, [rdi + 24]
+	mov r8, [rsi + 8]
+	mov r9, [rsi + 16]
+	mov r10, [rsi + 24]
+
+	mov rsi, [rsi] ; dereference the hypervisor_call_t inside hypervisor_req_resp_t
 
 	mov rcx, 2009h ; we want our hypervisor to catch this trap
 
