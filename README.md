@@ -1,7 +1,7 @@
 # hxposed
 The dream-come-true, user mode kernel driver framework, the NT kernel standardizer...
 
-[▶ Watch the demo](assets/prev.mp4)
+![the demo](assets/prev.gif)
 
 ## Have you ever thought you don't "own" your computer?
 Have you ever thought that you need "more" of it? That you need to be in more control?
