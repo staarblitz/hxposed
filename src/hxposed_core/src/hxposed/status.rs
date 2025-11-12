@@ -1,11 +1,11 @@
 use core::fmt::{Display, Formatter};
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
 pub enum HypervisorStatus {
     #[default]
-    Unknown,
-    SystemVirtualized,
-    SystemDeVirtualized,
+    Unknown = 0,
+    SystemVirtualized = 1,
+    SystemDeVirtualized =2,
 }
 
 impl From<u32> for HypervisorStatus {

@@ -1,9 +1,8 @@
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::error::{ErrorCode, ErrorSource};
-use bitfield_struct::bitfield;
 use static_assertions::assert_eq_size;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(C)]
 pub struct HypervisorError {
     pub error_source: ErrorSource,

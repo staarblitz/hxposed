@@ -1,5 +1,11 @@
 <Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
   <Project Path="HxPosed.Core/HxPosed.Core.csproj" />
   <Project Path="HxPosed.GUI/HxPosed.GUI.csproj" />
   <Project Path="HxPosed.Plugins/HxPosed.Plugins.csproj" Id="cc93e012-a64f-401c-99d1-25fddb77b786" />
+  <Project Path="libhxposed/libhxposed.vcxproj" Id="cf554df4-2e49-4c91-814a-1058abf4e44a" />
 </Solution>

@@ -17,6 +17,7 @@ use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use alloc::boxed::Box;
 use alloc::format;
 use core::ops::BitAnd;
+use core::ptr::null_mut;
 use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
@@ -32,12 +33,10 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::{dbg_break, println};
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{CmRegisterCallback, RtlInitUnicodeString, ZwOpenKey, ZwQueryValueKey};
-use wdk_sys::{
-    DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS,
-    OBJECT_ATTRIBUTES, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES,
-    STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2,
+use wdk_sys::ntddk::{
+    CmRegisterCallback, RtlInitUnicodeString, ZwCreateKey, ZwOpenKey, ZwQueryValueKey,
 };
+use wdk_sys::{DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY, REG_OPTION_NON_VOLATILE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2, OBJ_CASE_INSENSITIVE};
 
 static mut CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 
@@ -111,19 +110,27 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             InitializeObjectAttributes(
                 &mut object_attributes,
                 format!(
-                    "\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}",
+                    "\\Registry\\Machine\\SOFTWARE\\HxPosed\\Plugins\\{}",
                     req.uuid
                 )
                 .as_str()
                 .to_unicode_string()
                 .as_mut(),
-                0,
+                OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
                 Default::default(),
                 Default::default(),
             );
 
             let mut key_handle = HANDLE::default();
-            let status = ZwOpenKey(&mut key_handle, KEY_ALL_ACCESS, &mut object_attributes);
+            let status = ZwCreateKey(
+                &mut key_handle,
+                KEY_ALL_ACCESS,
+                &mut object_attributes,
+                0,
+                Default::default(),
+                REG_OPTION_NON_VOLATILE,
+                REG_OPENED_EXISTING_KEY as _,
+            );
             if status != STATUS_SUCCESS {
                 let err =
                     HypervisorResult::error(ErrorSource::Nt, ErrorCode::from_bits(status as _));
@@ -159,7 +166,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 return;
             }
 
-            let data = unsafe { *get_data!(info, PluginPermissions) };
+            let data =  *get_data!(info, PluginPermissions);
 
             // And the masks to find out allowed permissions.
             let permissions = data.bitand(req.permissions);

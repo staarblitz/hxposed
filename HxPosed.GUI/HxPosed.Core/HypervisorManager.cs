@@ -12,7 +12,7 @@ namespace HxPosed.Core
     /// </summary>
     public class HypervisorManager
     {
-        [DllImport("hxposed_core.dll", EntryPoint = "get_hx_state", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libhxposed.dll", EntryPoint = "get_hx_state", CallingConvention = CallingConvention.Cdecl)]
         private static extern HypervisorError GetHypervisorState(ref StatusResponse response);
 
         /// <summary>

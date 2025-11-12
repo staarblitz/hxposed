@@ -19,5 +19,6 @@ panic="abort"
 [profile.test]
 panic="abort"
 
+
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]

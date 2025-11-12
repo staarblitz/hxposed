@@ -5,12 +5,5 @@ use core::panic::PanicInfo;
 mod error;
 pub mod hxposed;
 mod intern;
-pub mod svcs;
 mod nt;
 pub mod plugins;
-
-#[cfg(not(test))]
-#[panic_handler]
-pub fn panic(_info: &PanicInfo) -> ! {
-    loop {}
-}

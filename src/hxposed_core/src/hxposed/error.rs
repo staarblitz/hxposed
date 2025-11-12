@@ -1,4 +1,4 @@
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u32)]
 pub enum ErrorCode {
     Unknown = 0,
@@ -23,7 +23,7 @@ impl ErrorCode {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u32)]
 pub enum ErrorSource {
     Nt = 0,

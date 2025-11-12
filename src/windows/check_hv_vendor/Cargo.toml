@@ -13,5 +13,5 @@ workspace = true
 debug = true
 
 [dependencies]
-hxposed_core = { path = "../../hxposed_core", default-features = false}
+hxposed_core = { path = "../../hxposed_core", features = [], default-features = false}
 uuid = { version = "1.18.1", default-features = false }

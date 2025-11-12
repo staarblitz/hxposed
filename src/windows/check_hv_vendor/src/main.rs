@@ -16,7 +16,7 @@ fn main() {
         _ => {}
     }
 
-    let resp = unsafe { resp.unwrap_unchecked() };
+    let resp = unsafe { resp.unwrap() };
 
     println!(
         "Hypervisor status: Current: {}, Version: {}",
@@ -26,7 +26,7 @@ fn main() {
     let uuid = Uuid::from_u64_pair(0, 0);
     println!("Authorizing with UUID {}", uuid);
     let req = AuthorizationRequest {
-        permissions: PluginPermissions::all(),
+        permissions: PluginPermissions::from_bits(u64::MAX).unwrap(),
         uuid,
     };
 
