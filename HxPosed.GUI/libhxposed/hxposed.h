@@ -62,7 +62,7 @@ typedef struct hypervisor_req_resp {
 static_assert(sizeof(hypervisor_result_t) == sizeof(uint32_t), "Invalid size");
 static_assert(sizeof(hypervisor_call_t) == sizeof(uint32_t), "Invalid size");
 
-extern void __fastcall trap(hypervisor_req_resp_t* req_resp);
+extern int __fastcall trap(hypervisor_req_resp_t* req_resp);
 int err_is_error(hypervisor_error_t* err);
 hypervisor_error_t err_from_result(hypervisor_result_t* result);
 

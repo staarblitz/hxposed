@@ -29,13 +29,23 @@ trap proc
 
 	cpuid ; where we were?
 
-	mov [rdi + 4], rsi ; save result to second field of hypervisor_req_resp_t
+	cmp rcx, 2009h
+	jne notequal ; hypervisor did NOT catch our trap
+
+	mov dword ptr [rdi + 4], esi	; save result to second field of hypervisor_req_resp_t
+									; use esi instead of rsi, because hypervisor_result_t is 4 bytes long
 
 	; save regs returned by hypervisor
-	mov [rdi + 8], r8
-	mov [rdi + 16], r9
-	mov [rdi + 24], r10
+	mov qword ptr [rdi + 8], r8
+	mov qword ptr [rdi + 16], r9
+	mov qword ptr [rdi + 24], r10
+
+	xor rax, rax ; call was ok
 	ret ; we are done here.
+
+	notequal:
+	mov rax, -1 ; indicate that hypervisor did not catch the trap
+	ret
 trap endp
 
 end
