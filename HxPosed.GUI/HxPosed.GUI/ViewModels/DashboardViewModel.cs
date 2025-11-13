@@ -44,9 +44,9 @@ namespace HxPosed.GUI.ViewModels
                 _hvStatus = GetHypervisorStatus();
                 return _hvStatus.Status switch
                 {
-                    HypervisorStatus.SystemVirtualized => "You are good to go",
+                    HypervisorStatus.SystemVirtualized => "Locked and loaded",
                     HypervisorStatus.Unknown => "Cannot call into hypervisor",
-                    HypervisorStatus.SystemDeVirtualized => "Not protected"
+                    HypervisorStatus.SystemDeVirtualized => "Not virtualizeed"
                 };
             }
             set
@@ -62,7 +62,7 @@ namespace HxPosed.GUI.ViewModels
                 _hvStatus = GetHypervisorStatus();
                 return _hvStatus.Status switch
                 {
-                    HypervisorStatus.SystemVirtualized => "We are taking good care of you",
+                    HypervisorStatus.SystemVirtualized => "Everything is good to go",
                     HypervisorStatus.Unknown => "Hypervisor is not loaded",
                     HypervisorStatus.SystemDeVirtualized => "You are on your own"
                 };
