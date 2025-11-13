@@ -3,6 +3,11 @@ The dream-come-true, user mode kernel driver framework, the NT kernel standardiz
 
 ![the demo](assets/prev.gif)
 
+## Repo structure
+`src` contains the code written in Rust.
+- `hvcore` the hypervisor core.
+- `hxposed_core` core API providing access to hypervisor.
+
 ## Have you ever thought you don't "own" your computer?
 Have you ever thought that you need "more" of it? That you need to be in more control?
 
