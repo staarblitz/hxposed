@@ -9,6 +9,7 @@ The dream-come-true, user mode kernel driver framework, the NT kernel standardiz
 - `hxposed_core` core API providing access to hypervisor.
 - `uefi` UEFI driver. Unusued.
 - `windows` Windows driver of hxposed.
+
 `HxPosed.GUI` contains the code written in C#.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
 - `libhxposed` native library providing access to hypervisor.
