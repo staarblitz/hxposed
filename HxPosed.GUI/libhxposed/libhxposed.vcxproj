@@ -161,6 +161,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hxposed.h" />
+    <ClInclude Include="req.h" />
     <ClInclude Include="resp.h" />
   </ItemGroup>
   <ItemGroup>
