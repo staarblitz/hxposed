@@ -24,7 +24,6 @@ pub(crate) unsafe extern "C" fn registry_timer(_context: PVOID) {
     let mut interval = LARGE_INTEGER {
         QuadPart: timing::relative(timing::milliseconds(2500)),
     };
-    dbg_break();
 
     let mut root = "\\Registry\\Machine\\Software\\HxPosed\\Plugins".to_unicode_string();
     let mut attributes = OBJECT_ATTRIBUTES::default();

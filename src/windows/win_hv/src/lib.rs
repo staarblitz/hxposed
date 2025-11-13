@@ -119,7 +119,6 @@ extern "C" fn driver_entry(
 
 fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     println!("Handling vmcall function: {:?}", info.func());
-    dbg_break();
     match info.func() {
         ServiceFunction::Authorize => {
             // All other fields are ignored.
