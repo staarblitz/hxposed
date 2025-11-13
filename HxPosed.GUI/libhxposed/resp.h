@@ -4,15 +4,19 @@
 #include <stdint.h>
 
 typedef enum hypervisor_status {
-    Unknown = 0,
-    SystemVirtualized = 1,
-    SystemDeVirtualized = 2,
+	Unknown = 0,
+	SystemVirtualized = 1,
+	SystemDeVirtualized = 2,
 } hypervisor_status_t;
 
 typedef struct hx_status_response {
-    hypervisor_status_t status;
-    uint32_t version;
+	hypervisor_status_t status;
+	uint32_t version;
 } hx_status_response_t;
 
+
+typedef struct hx_auth_response {
+	plugin_permissions_t permissions;
+} hx_auth_response_t;
 
 #endif

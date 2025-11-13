@@ -2,6 +2,15 @@
 
 #include <stdint.h>
 
+typedef struct guid {
+    uint32_t data1;
+    uint16_t data2;
+    uint16_t data3;
+    uint64_t data4;
+} guid_t;
+
+
+
 // because C is garbage
 typedef uint32_t error_source_t;
 #define Nt 0
@@ -66,3 +75,42 @@ hypervisor_error_t err_from_result(hypervisor_result_t* result);
 
 hypervisor_call_t call_get_status();
 hypervisor_call_t call_auth();
+
+typedef uint64_t plugin_permissions_t;
+#define NONE             0
+#define PROCESS_EXECUTIVE1 << 0
+#define PROCESS_MEMORY   1 << 1
+#define PROCESS_PROTECTION1 << 2
+
+#define RESERVED         1 << 3
+#define RESERVED2        1 << 4
+#define RESERVED3        1 << 5
+#define RESERVED4        1 << 6
+#define RESERVED5        1 << 7
+
+#define MEMORY_VIRTUAL   1 << 8
+#define MEMORY_PHYSICAL  1 << 9
+#define MEMORY_ALLOCATION1 << 10
+#define MEMORY_PROTECT   1 << 11
+#define MEMORY_ISOLATE   1 << 12
+
+#define RESERVED6        1 << 13
+#define RESERVED7        1 << 14
+#define RESERVED8        1 << 15
+#define RESERVED9        1 << 16
+#define RESERVED10       1 << 17
+
+#define CPU_MSR_READ     1 << 18
+#define CPU_MSR_WRITE    1 << 19
+#define CPU_SEGMENTATION 1 << 20
+#define CPU_CONTROL      1 << 21
+
+#define RESERVED11       1 << 22
+#define RESERVED12       1 << 23
+#define RESERVED13       1 << 24
+#define RESERVED14       1 << 25
+#define RESERVED15       1 << 26
+
+#define SECURITY_CREATE  1 << 27
+#define SECURITY_MANAGE  1 << 28
+#define SECURITY_DELETE  1 << 29
