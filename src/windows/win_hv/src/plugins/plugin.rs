@@ -44,43 +44,28 @@ impl Plugin {
         }
 
         let mut permissions = "Permissions".to_unicode_string();
-
-        let mut return_length = 0;
-        let _ = unsafe {
-            ZwQueryValueKey(
-                key_handle,
-                permissions.as_mut(),
-                KeyValueFullInformation,
-                Default::default(),
-                0,
-                &mut return_length,
-            )
-        };
-
-        let mut info = KEY_VALUE_FULL_INFORMATION::alloc_sized(return_length as _);
+        let mut return_length = 0; // dummy
+        let mut info = KEY_VALUE_FULL_INFORMATION::alloc_sized(64);
         let status = unsafe {
             ZwQueryValueKey(
                 key_handle,
                 permissions.as_mut(),
                 KeyValueFullInformation,
                 as_pvoid!(info),
-                return_length,
+                64,
                 &mut return_length,
             )
         };
-
-        let permissions = unsafe { *get_data!(info, PluginPermissions) };
 
         if status != STATUS_SUCCESS {
             println!("Error querying key: {}", status);
             return None;
         }
 
-        unsafe{ZwClose(key_handle)};
+        let permissions = unsafe { *get_data!(info, PluginPermissions) };
 
-        Some(Self {
-            uuid,
-            permissions,
-        })
+        let _ = unsafe { ZwClose(key_handle) };
+
+        Some(Self { uuid, permissions })
     }
 }

@@ -1,8 +1,13 @@
 use crate::panic;
 use ::alloc::boxed::Box;
+use ::alloc::ffi::CString;
 use ::alloc::string::String;
 use ::alloc::vec::Vec;
-use wdk_sys::ntddk::{ExAllocatePool2, RtlAppendUnicodeStringToString, RtlCopyUnicodeString, RtlInitUTF8String, RtlUTF8StringToUnicodeString};
+use core::str::FromStr;
+use wdk_sys::ntddk::{
+    ExAllocatePool2, RtlAppendUnicodeStringToString, RtlCopyUnicodeString, RtlInitUTF8String,
+    RtlUTF8StringToUnicodeString,
+};
 use wdk_sys::{
     HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCSZ, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
     PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, UTF8_STRING,
@@ -82,8 +87,20 @@ impl Utf8ToUnicodeString for str {
     fn to_unicode_string(&self) -> Box<UNICODE_STRING> {
         let mut str = UTF8_STRING::default();
         let mut ustr = UNICODE_STRING::default();
+
+        // +1 for null terminator since the self might NOT be null terminated. you would never know ;)
+        let mut vec = Vec::<u8>::with_capacity(self.chars().count());
+
         unsafe {
-            RtlInitUTF8String(&mut str, self.as_ptr() as _);
+            vec.set_len(self.len());
+            core::ptr::copy(self.as_ptr(), vec.as_mut_ptr(), self.chars().count());
+        }
+
+        // !
+        vec.push(0);
+
+        unsafe {
+            RtlInitUTF8String(&mut str, vec.as_ptr() as _);
             let _ = RtlUTF8StringToUnicodeString(&mut ustr, &mut str, TRUE as _);
         }
         Box::new(ustr)

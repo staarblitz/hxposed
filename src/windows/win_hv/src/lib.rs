@@ -14,6 +14,9 @@ mod plugins;
 mod registry;
 mod win;
 
+#[global_allocator]
+static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
+
 use crate::plugins::plugin::Plugin;
 use crate::registry::registry_timer;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
@@ -36,6 +39,7 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use spin::mutex::SpinMutex;
 use uuid::Uuid;
 use wdk::{dbg_break, println};
+use wdk_alloc::WdkAllocator;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{KeBugCheck, PsCreateSystemThread, ZwCreateKey, ZwQueryValueKey};
 use wdk_sys::{
@@ -87,7 +91,7 @@ extern "C" fn driver_entry(
 
     unsafe {
         let mut handle = HANDLE::default();
-        PsCreateSystemThread(
+        let _ = PsCreateSystemThread(
             &mut handle,
             THREAD_ALL_ACCESS,
             POBJECT_ATTRIBUTES::default(),

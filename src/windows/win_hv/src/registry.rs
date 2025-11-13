@@ -1,17 +1,18 @@
 use crate::plugins::plugin::Plugin;
 use crate::win::alloc::PoolAllocSized;
-use crate::win::{timing, InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{as_pvoid, PLUGINS_DB};
+use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString, timing};
+use crate::{PLUGINS_DB, as_pvoid};
+use alloc::vec::Vec;
 use core::ops::DerefMut;
 use core::str::FromStr;
-use uuid::Uuid;
-use wdk::println;
-use wdk_sys::ntddk::{KeDelayExecutionThread, RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
+use uuid::{Error, Uuid};
+use wdk::{dbg_break, println};
 use wdk_sys::_KEY_INFORMATION_CLASS::KeyBasicInformation;
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::{KeDelayExecutionThread, RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
 use wdk_sys::{
-    HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, LARGE_INTEGER, OBJECT_ATTRIBUTES,
-    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PVOID, STATUS_NO_MORE_ENTRIES, STATUS_SUCCESS, TRUE,
+    HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, LARGE_INTEGER, OBJ_CASE_INSENSITIVE,
+    OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PVOID, STATUS_NO_MORE_ENTRIES, STATUS_SUCCESS, TRUE,
 };
 
 /// The reason we are using a timer is that we need to keep an in-memory track of the HxPosed key. Since we cannot use ZwCreateKey
@@ -23,6 +24,8 @@ pub(crate) unsafe extern "C" fn registry_timer(_context: PVOID) {
     let mut interval = LARGE_INTEGER {
         QuadPart: timing::relative(timing::milliseconds(2500)),
     };
+    dbg_break();
+
     let mut root = "\\Registry\\Machine\\Software\\HxPosed\\Plugins".to_unicode_string();
     let mut attributes = OBJECT_ATTRIBUTES::default();
     unsafe {
@@ -83,24 +86,48 @@ pub(crate) unsafe extern "C" fn registry_timer(_context: PVOID) {
                 continue;
             }
 
-            // a guid is max 38 bytes in its string representation
-            let mut name = [0u8; 38];
             let mut actual_bytes = 0;
-            let status = unsafe {
+            let _ = unsafe {
                 RtlUnicodeToUTF8N(
-                    name.as_mut_ptr() as _,
-                    38,
+                    Default::default(),
+                    0,
                     &mut actual_bytes,
                     info.as_mut().Name.as_mut_ptr(),
                     info.as_mut().NameLength,
                 )
             };
 
-            if status != STATUS_SUCCESS {
-                println!("RtlUnicodeToUTF8 failed with status {}", status);
+            let mut name = Vec::<u8>::with_capacity(actual_bytes as usize);
+            let status = unsafe {
+                RtlUnicodeToUTF8N(
+                    name.as_mut_ptr() as _,
+                    actual_bytes,
+                    &mut actual_bytes,
+                    info.as_mut().Name.as_mut_ptr(),
+                    info.as_mut().NameLength,
+                )
+            };
+
+            unsafe{
+                // the Vec doesn't know bytes have been written to it. let's make it know.
+                name.set_len(actual_bytes as usize);
             }
 
-            let plugin = Plugin::open(Uuid::from_str(str::from_utf8(&name).unwrap()).unwrap());
+            if status != STATUS_SUCCESS {
+                println!("RtlUnicodeToUTF8 failed with status {}", status);
+                continue;
+            }
+
+            let uuid = match Uuid::parse_str(str::from_utf8(name.as_slice()).unwrap()) {
+                Ok(uuid) => uuid,
+                Err(err) => {
+                    println!("Error parsing uuid: {:?}", err);
+                    continue;
+                }
+            };
+
+            let plugin = Plugin::open(uuid);
+
             plugins.deref_mut().push(plugin.unwrap());
 
             index += 1;

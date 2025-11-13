@@ -20,6 +20,7 @@ pub fn init(ptr: *mut u8) {
     let _ = METADATA.call_once(|| Mutex::new(Metadata::new(ptr)));
 }
 
+#[cfg(feature = "allocator")]
 #[global_allocator]
 static ALLOCATOR: Allocator = Allocator;
 
