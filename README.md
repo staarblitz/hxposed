@@ -41,10 +41,17 @@ Glad you asked.
 - You can now do your stuff and see if it works.
 - Feature requests, bug reports are always welcome.
 
-## Have you ever thought you don't "own" your computer?
-Have you ever thought that you need "more" of it? That you need to be in more control?
+## What we have so far?
+- [x] GetState service.
+- [x] Authorization service.
+- [x] Plugin permission management.
+- [x] Cool fluent UI that fits Windows 11 design.
+- [x] Support for AMD and Intel.
+- [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
 
-Well, yes. You should be, indeed. Why you should be stuck to user-mode counterparts of some programs and ask your own computer for doing an action?
+## What we need?
+- [ ] Implementing the services.
+- [ ] Adding plugin loading functionality in UI. (already implemented in code.)
 
-### Contact
+## Contact
 [Telegram](https://t.me/staarblitz)
