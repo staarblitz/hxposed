@@ -1,18 +1,17 @@
-use crate::as_pvoid;
+use crate::plugins::plugin::Plugin;
 use crate::win::alloc::PoolAllocSized;
-use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString, timing};
+use crate::win::{timing, InitializeObjectAttributes, Utf8ToUnicodeString};
+use crate::{as_pvoid, PLUGINS_DB};
+use core::ops::DerefMut;
+use core::str::FromStr;
+use uuid::Uuid;
 use wdk::println;
-use wdk_sys::_KEY_INFORMATION_CLASS::{KeyBasicInformation, KeyFullInformation};
+use wdk_sys::ntddk::{KeDelayExecutionThread, RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
+use wdk_sys::_KEY_INFORMATION_CLASS::KeyBasicInformation;
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{
-    KeDelayExecutionThread, RtlAppendUnicodeStringToString, RtlAppendUnicodeToString,
-    RtlDuplicateUnicodeString, RtlFreeUnicodeString, ZwClose, ZwEnumerateKey, ZwOpenKey,
-    ZwQueryKey,
-};
 use wdk_sys::{
-    HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, KEY_FULL_INFORMATION, LARGE_INTEGER,
-    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PVOID, STATUS_NO_MORE_ENTRIES,
-    STATUS_SUCCESS, TRUE, UNICODE_STRING,
+    HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, LARGE_INTEGER, OBJECT_ATTRIBUTES,
+    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PVOID, STATUS_NO_MORE_ENTRIES, STATUS_SUCCESS, TRUE,
 };
 
 /// The reason we are using a timer is that we need to keep an in-memory track of the HxPosed key. Since we cannot use ZwCreateKey
@@ -44,6 +43,8 @@ pub(crate) unsafe extern "C" fn registry_timer(_context: PVOID) {
     }
 
     loop {
+        let mut plugins = PLUGINS_DB.lock();
+        plugins.deref_mut().clear();
         let mut index = 0;
         loop {
             let mut return_length = 0;
@@ -82,52 +83,30 @@ pub(crate) unsafe extern "C" fn registry_timer(_context: PVOID) {
                 continue;
             }
 
-            // we cannot use RtlInitUnicodeString since info.Name is NOT null terminated.
-            let mut subkey_name = UNICODE_STRING::default();
-            subkey_name.Length = info.as_mut().NameLength as _;
-            subkey_name.MaximumLength = subkey_name.Length;
-            subkey_name.Buffer = info.as_mut().Name.as_mut_ptr();
-
-            let mut new_root = UNICODE_STRING::default();
-            let status = unsafe { RtlDuplicateUnicodeString(0, root.as_ref(), &mut new_root) };
-            if status != STATUS_SUCCESS {
-                println!("RtlDuplicateUnicodeString failed with status {}", status);
-                index += 1;
-                continue;
-            }
-
-            if unsafe { RtlAppendUnicodeStringToString(&mut new_root, &subkey_name) }
-                != STATUS_SUCCESS
-            {
-                println!(
-                    "RtlAppendUnicodeStringToString failed with status {}",
-                    status
-                );
-                unsafe { RtlFreeUnicodeString(&mut new_root) };
-
-                index += 1;
-                continue;
-            }
-
-            let mut new_key = HANDLE::default();
-            let mut new_attributes = OBJECT_ATTRIBUTES::default();
-            unsafe {
-                InitializeObjectAttributes(
-                    &mut new_attributes,
-                    &mut new_root,
-                    OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
-                    Default::default(),
-                    Default::default(),
+            // a guid is max 38 bytes in its string representation
+            let mut name = [0u8; 38];
+            let mut actual_bytes = 0;
+            let status = unsafe {
+                RtlUnicodeToUTF8N(
+                    name.as_mut_ptr() as _,
+                    38,
+                    &mut actual_bytes,
+                    info.as_mut().Name.as_mut_ptr(),
+                    info.as_mut().NameLength,
                 )
             };
 
-            let status = unsafe { ZwOpenKey(&mut new_key, KEY_ALL_ACCESS, &mut attributes) };
             if status != STATUS_SUCCESS {
-                println!("ZwOpenKey failed with status {}", status);
+                println!("RtlUnicodeToUTF8 failed with status {}", status);
             }
+
+            let plugin = Plugin::open(Uuid::from_str(str::from_utf8(&name).unwrap()).unwrap());
+            plugins.deref_mut().push(plugin.unwrap());
 
             index += 1;
         }
+
+        drop(plugins);
 
         unsafe {
             let _ = KeDelayExecutionThread(KernelMode as _, TRUE as _, &mut interval);

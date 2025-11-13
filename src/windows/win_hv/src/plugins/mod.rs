@@ -1,1 +1,1 @@
-mod plugin;
+pub(crate) mod plugin;

@@ -10,16 +10,17 @@ use win::alloc::PoolAllocSized;
 
 mod cback;
 mod ops;
-mod win;
-mod registry;
 mod plugins;
+mod registry;
+mod win;
 
-use crate::cback::registry_callback;
+use crate::plugins::plugin::Plugin;
+use crate::registry::registry_timer;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use alloc::boxed::Box;
 use alloc::format;
+use alloc::vec::Vec;
 use core::ops::BitAnd;
-use core::ptr::null_mut;
 use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
@@ -32,14 +33,21 @@ use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
+use spin::mutex::SpinMutex;
 use uuid::Uuid;
 use wdk::{dbg_break, println};
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheck, KeBugCheckEx, PsCreateSystemThread, RtlInitUnicodeString, ZwCreateKey, ZwOpenKey, ZwQueryValueKey};
-use wdk_sys::{DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY, REG_OPTION_NON_VOLATILE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2, THREAD_ALL_ACCESS, POBJECT_ATTRIBUTES, PCLIENT_ID};
-use crate::registry::registry_timer;
+use wdk_sys::ntddk::{KeBugCheck, PsCreateSystemThread, ZwCreateKey, ZwQueryValueKey};
+use wdk_sys::{
+    DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, NTSTATUS,
+    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCLIENT_ID, PCUNICODE_STRING,
+    POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY,
+    REG_OPTION_NON_VOLATILE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, THREAD_ALL_ACCESS,
+    ntddk::ExAllocatePool2,
+};
 
 static mut CM_COOKIE: AtomicU64 = AtomicU64::new(0);
+static PLUGINS_DB: SpinMutex<Vec<Plugin>> = SpinMutex::new(Vec::new());
 
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
@@ -77,9 +85,17 @@ extern "C" fn driver_entry(
 
     println!("Loaded win_hv.sys");
 
-    unsafe{
+    unsafe {
         let mut handle = HANDLE::default();
-        PsCreateSystemThread(&mut handle, THREAD_ALL_ACCESS, POBJECT_ATTRIBUTES::default(), HANDLE::default(), PCLIENT_ID::default(), Some(registry_timer), PVOID::default());
+        PsCreateSystemThread(
+            &mut handle,
+            THREAD_ALL_ACCESS,
+            POBJECT_ATTRIBUTES::default(),
+            HANDLE::default(),
+            PCLIENT_ID::default(),
+            Some(registry_timer),
+            PVOID::default(),
+        );
     }
 
     // let mut cookie = LARGE_INTEGER::default();

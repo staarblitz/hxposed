@@ -1085,6 +1085,7 @@ dependencies = [
  "hv",
  "hxposed_core",
  "sha2",
+ "spin",
  "uuid",
  "wdk",
  "wdk-alloc",
