@@ -5,4 +5,4 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Interoperability", "CA1416:Plattformkompatibilität überprüfen", Justification = "<Ausstehend>", Scope = "member", Target = "~M:HxPosed.Plugins.Plugin.New(System.Guid,System.String,System.String,System.UInt32,System.String,System.String,System.String)~HxPosed.Plugins.Plugin")]
+[assembly: SuppressMessage("Interoperability", "CA1416:Plattformkompatibilität überprüfen", Justification = "This is a windows-only project", Scope ="module")]

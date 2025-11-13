@@ -15,10 +15,10 @@ namespace HxPosed.Plugins
         {
             using var key = Registry.LocalMachine.OpenSubKey("Software", true);
             RegistryKey mainKey = null;
-            if (!key.GetSubKeyNames().Contains("HxPosed"))
+            if (!key!.GetSubKeyNames().Contains("HxPosed"))
                 mainKey = key.CreateSubKey("HxPosed", true);
             else
-                mainKey = key.OpenSubKey("HxPosed", true);
+                mainKey = key.OpenSubKey("HxPosed", true)!;
 
             if (!mainKey.GetSubKeyNames().Contains("Plugins"))
             {
