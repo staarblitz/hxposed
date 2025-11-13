@@ -34,8 +34,8 @@ Build instructions are given below, do them and code the stuff (don't touch the 
 ### How to test?
 Glad you asked.
 
-- The building process is simple. You need to go to `src\windows` directory and run `cargo make`. The output will be in `target\debug`.
-- Then, build the GUI (if you want) by simply opening up the solution in visual studio and clicking that little tiny build button.
+- The building process is simple. You need to go to `src\windows` directory and run `cargo make`. The output will be in `target\debug`. (first time build may take time (approx 1 min), be patient)
+- Then, build the GUI (if you want) by simply opening up the solution in visual studio and clicking that little tiny build button. The outputt will be in `bin\Debug\net10.0-windows`.
 - The driver is not signed. Fire up a vm, connect WinDbg through kdnet [here is how to do that](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/setting-up-a-network-debugging-connection-automatically)
 - Use OSR driver loader. Or if you like some fantasy you can use sc as I do.
 - The driver should be loaded and running.
