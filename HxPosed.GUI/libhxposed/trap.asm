@@ -18,22 +18,21 @@ trap proc
 	; in our hypervisor calling convention, the args are in this order:
 	; r8, r9, r10
 	; result and response will be in rsi register.
-	mov rsi, rcx
+	mov rdi, rcx
 
 	; extract args from the hypervisor_req_resp_t
-	mov r8, [rsi + 8]
-	mov r9, [rsi + 16]
-	mov r10, [rsi + 24]
+	mov r8, [rdi + 8]
+	mov r9, [rdi + 16]
+	mov r10, [rdi + 24]
 
-	mov rsi, [rsi]	; dereference the hypervisor_call_t inside hypervisor_req_resp_t
+	mov rsi, [rdi]	; dereference the hypervisor_call_t inside hypervisor_req_resp_t
 	; tip: could have used esi
-
-	; not necessary	
-	; mov rcx, 2009h ; we want our hypervisor to catch this trap
+	
+	mov rcx, 2009h ; we want our hypervisor to catch this trap
 
 	cpuid	; where we were?
 
-	cmp rcx, 2009h
+	cmp rcx, 2009h	; the normal cpuid behavior resets the rcx. in this case, it should stay the same.
 	jne notequal ; hypervisor did NOT catch our trap
 
 	mov dword ptr [rdi + 4], esi	; save result to second field of hypervisor_req_resp_t

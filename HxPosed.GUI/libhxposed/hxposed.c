@@ -1,6 +1,7 @@
 #pragma once,
 #include "resp.h"
 #include "hxposed.h"
+#include <intrin.h>
 
 
 __declspec(dllexport) hypervisor_error_t get_hx_state(hx_status_response_t* resp) {

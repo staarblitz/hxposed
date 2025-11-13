@@ -2,19 +2,17 @@
 
 #include <stdint.h>
 
+// because C is garbage
+typedef uint32_t error_source_t;
+#define Nt 0
+#define Hv 1
+#define Hx 2
 
-typedef enum error_source {
-    Nt = 0,
-    Hv = 1,
-    Hx = 2,
-} error_source_t;
-
-
-typedef enum error_code {
-    Ok = 1,
-    NotAllowed = 2,
-    NotLoaded = 3
-} error_code_t;
+typedef uint32_t error_code_t;
+#define Unknown 0
+#define Ok 1
+#define NotAllowed 2
+#define NotLoaded 3
 
 typedef enum service_function {
     Authorize = 1,

@@ -74,7 +74,7 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
 }
 
 fn handle_vmcall<T: Guest>(guest: &mut T, info: &InstructionInfo) {
-    let call = HypervisorCall::from_bits(guest.regs().rax as _);
+    let call = HypervisorCall::from_bits(guest.regs().rsi as _);
     unsafe { SHARED_HOST_DATA.get_unchecked().vmcall_handler.unwrap()(guest, call) }
     guest.regs().rip = info.next_rip;
     guest.regs().rcx = 0x2009; // This leaf indicates that CPUID was handled by the hypervisor.

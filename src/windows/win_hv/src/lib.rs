@@ -34,9 +34,15 @@ use uuid::Uuid;
 use wdk::{dbg_break, println};
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{
-    CmRegisterCallback, RtlInitUnicodeString, ZwCreateKey, ZwOpenKey, ZwQueryValueKey,
+    CmRegisterCallback, KeBugCheck, KeBugCheckEx, RtlInitUnicodeString, ZwCreateKey, ZwOpenKey,
+    ZwQueryValueKey,
 };
-use wdk_sys::{DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY, REG_OPTION_NON_VOLATILE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2, OBJ_CASE_INSENSITIVE};
+use wdk_sys::{
+    DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS,
+    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCUNICODE_STRING,
+    POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY, REG_OPTION_NON_VOLATILE,
+    STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2,
+};
 
 static mut CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 
@@ -93,12 +99,11 @@ extern "C" fn driver_entry(
 
 fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     println!("Handling vmcall function: {:?}", info.func());
+    dbg_break();
     match info.func() {
         ServiceFunction::Authorize => unsafe {
             // All other fields are ignored.
-
-            dbg_break();
-
+            
             let req = AuthorizationRequest {
                 uuid: Uuid::from_u64_pair(guest.regs().r8, guest.regs().r9),
                 permissions: PluginPermissions::from_bits(guest.regs().r10).unwrap(),
@@ -166,7 +171,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 return;
             }
 
-            let data =  *get_data!(info, PluginPermissions);
+            let data = *get_data!(info, PluginPermissions);
 
             // And the masks to find out allowed permissions.
             let permissions = data.bitand(req.permissions);
@@ -195,4 +200,10 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         ServiceFunction::Unknown => {}
         _ => {}
     }
+}
+
+#[panic_handler]
+pub fn panic(_info: &core::panic::PanicInfo) -> ! {
+    println!("Panic occurred: {:?}", _info);
+    unsafe { KeBugCheck(0x2009) };
 }
