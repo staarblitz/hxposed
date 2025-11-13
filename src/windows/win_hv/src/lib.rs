@@ -24,7 +24,7 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
 use core::ops::{BitAnd, DerefMut};
-use core::sync::atomic::AtomicU64;
+use core::sync::atomic::{AtomicU64, Ordering};
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
@@ -41,16 +41,11 @@ use uuid::Uuid;
 use wdk::{dbg_break, println};
 use wdk_alloc::WdkAllocator;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{KeBugCheck, PsCreateSystemThread, ZwCreateKey, ZwQueryValueKey};
-use wdk_sys::{
-    DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, NTSTATUS,
-    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCLIENT_ID, PCUNICODE_STRING,
-    POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY,
-    REG_OPTION_NON_VOLATILE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, THREAD_ALL_ACCESS,
-    ntddk::ExAllocatePool2,
-};
+use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheck, PsCreateSystemThread, ZwCreateKey, ZwQueryValueKey};
+use wdk_sys::{DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, NTSTATUS, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCLIENT_ID, PCUNICODE_STRING, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY, REG_OPTION_NON_VOLATILE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, THREAD_ALL_ACCESS, ntddk::ExAllocatePool2, LARGE_INTEGER};
+use crate::cback::registry_callback;
 
-static mut CM_COOKIE: AtomicU64 = AtomicU64::new(0);
+static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 static PLUGINS_DB: SpinMutex<Vec<Plugin>> = SpinMutex::new(Vec::new());
 
 #[unsafe(link_section = "INIT")]
@@ -110,6 +105,11 @@ extern "C" fn driver_entry(
     //         &mut cookie,
     //     )
     // };
+    //
+    // unsafe {
+    //     CM_COOKIE.store(cookie.QuadPart as _, Ordering::Relaxed);
+    // }
+    //
     // if status != STATUS_SUCCESS {
     //     println!("Error registering registry callbacks");
     // }

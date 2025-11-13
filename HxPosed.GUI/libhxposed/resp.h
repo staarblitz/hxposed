@@ -16,7 +16,7 @@ typedef struct hx_status_response {
 
 
 typedef struct hx_auth_response {
-	plugin_permissions_t permissions;
+	uint64_t permissions;
 } hx_auth_response_t;
 
 #endif

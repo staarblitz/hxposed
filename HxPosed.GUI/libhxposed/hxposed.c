@@ -1,4 +1,4 @@
-#pragma once,
+#pragma once
 #include "resp.h"
 #include "req.h"
 #include "hxposed.h"
