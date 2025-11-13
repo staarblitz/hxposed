@@ -53,6 +53,8 @@ Glad you asked.
 ## What we need?
 - [ ] Implementing the services.
 - [ ] Adding plugin loading functionality in UI. (already implemented in code.)
+- [ ] Registry filtering to allow access to \Software\HxPosed only to HxPosed manager.
+- [ ] Linking plugin guids with executable hashes. So no funny stuff happens.
 
 ## Contact
 [Telegram](https://t.me/staarblitz)
