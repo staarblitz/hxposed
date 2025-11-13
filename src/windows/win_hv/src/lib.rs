@@ -20,7 +20,7 @@ use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
-use core::ops::BitAnd;
+use core::ops::{BitAnd, DerefMut};
 use core::sync::atomic::AtomicU64;
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
@@ -117,7 +117,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     println!("Handling vmcall function: {:?}", info.func());
     dbg_break();
     match info.func() {
-        ServiceFunction::Authorize => unsafe {
+        ServiceFunction::Authorize => {
             // All other fields are ignored.
 
             let req = AuthorizationRequest {
@@ -125,72 +125,24 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 permissions: PluginPermissions::from_bits(guest.regs().r10).unwrap(),
             };
 
-            let mut key_name = "Permissions".to_unicode_string();
+            let mut plugins = PLUGINS_DB.lock();
+            let mut plugin: Option<Plugin> = None;
 
-            let mut object_attributes: OBJECT_ATTRIBUTES = Default::default();
-            InitializeObjectAttributes(
-                &mut object_attributes,
-                format!(
-                    "\\Registry\\Machine\\SOFTWARE\\HxPosed\\Plugins\\{}",
-                    req.uuid
-                )
-                .as_str()
-                .to_unicode_string()
-                .as_mut(),
-                OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
-                Default::default(),
-                Default::default(),
-            );
-
-            let mut key_handle = HANDLE::default();
-            let status = ZwCreateKey(
-                &mut key_handle,
-                KEY_ALL_ACCESS,
-                &mut object_attributes,
-                0,
-                Default::default(),
-                REG_OPTION_NON_VOLATILE,
-                REG_OPENED_EXISTING_KEY as _,
-            );
-            if status != STATUS_SUCCESS {
-                let err =
-                    HypervisorResult::error(ErrorSource::Nt, ErrorCode::from_bits(status as _));
-                guest.regs().rax = err.into_bits() as _;
-                return;
+            // its a shame .iter() is not available in no_std
+            for item in plugins.deref_mut() {
+                if item.uuid == req.uuid {
+                    plugin = Some(item.clone());
+                }
             }
 
-            let mut ret_len = 0;
-            let _ = ZwQueryValueKey(
-                key_handle,
-                key_name.as_mut(),
-                KeyValueFullInformation,
-                Default::default(),
-                0,
-                &mut ret_len,
-            );
-
-            let mut info = KEY_VALUE_FULL_INFORMATION::alloc_sized(ret_len as _);
-
-            let status = ZwQueryValueKey(
-                key_handle,
-                key_name.as_mut(),
-                KeyValueFullInformation,
-                as_pvoid!(info),
-                ret_len,
-                &mut ret_len,
-            );
-
-            if status != STATUS_SUCCESS {
-                let err =
-                    HypervisorResult::error(ErrorSource::Nt, ErrorCode::from_bits(status as _));
-                guest.regs().rax = err.into_bits() as _;
+            if plugin.is_none() {
+                let error = HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed);
+                guest.regs().rsi = error.into_bits() as _;
                 return;
             }
-
-            let data = *get_data!(info, PluginPermissions);
 
             // And the masks to find out allowed permissions.
-            let permissions = data.bitand(req.permissions);
+            let permissions = plugin.unwrap().permissions.bitand(req.permissions);
 
             let resp = AuthorizationResponse { permissions }.into_raw();
 
