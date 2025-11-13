@@ -11,6 +11,8 @@ use win::alloc::PoolAllocSized;
 mod cback;
 mod ops;
 mod win;
+mod registry;
+mod plugins;
 
 use crate::cback::registry_callback;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
@@ -33,16 +35,9 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::{dbg_break, println};
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{
-    CmRegisterCallback, KeBugCheck, KeBugCheckEx, RtlInitUnicodeString, ZwCreateKey, ZwOpenKey,
-    ZwQueryValueKey,
-};
-use wdk_sys::{
-    DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS,
-    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCUNICODE_STRING,
-    POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY, REG_OPTION_NON_VOLATILE,
-    STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2,
-};
+use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheck, KeBugCheckEx, PsCreateSystemThread, RtlInitUnicodeString, ZwCreateKey, ZwOpenKey, ZwQueryValueKey};
+use wdk_sys::{DRIVER_OBJECT, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, LARGE_INTEGER, NTSTATUS, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, REG_OPENED_EXISTING_KEY, REG_OPTION_NON_VOLATILE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, UNICODE_STRING, ntddk::ExAllocatePool2, THREAD_ALL_ACCESS, POBJECT_ATTRIBUTES, PCLIENT_ID};
+use crate::registry::registry_timer;
 
 static mut CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 
@@ -81,6 +76,11 @@ extern "C" fn driver_entry(
     hv::virtualize_system(host_data);
 
     println!("Loaded win_hv.sys");
+
+    unsafe{
+        let mut handle = HANDLE::default();
+        PsCreateSystemThread(&mut handle, THREAD_ALL_ACCESS, POBJECT_ATTRIBUTES::default(), HANDLE::default(), PCLIENT_ID::default(), Some(registry_timer), PVOID::default());
+    }
 
     // let mut cookie = LARGE_INTEGER::default();
     // let status = unsafe {

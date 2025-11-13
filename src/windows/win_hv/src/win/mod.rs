@@ -1,11 +1,16 @@
+use crate::panic;
 use ::alloc::boxed::Box;
 use ::alloc::string::String;
 use ::alloc::vec::Vec;
-use wdk_sys::{HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCSZ, POBJECT_ATTRIBUTES, PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, UTF8_STRING};
-use wdk_sys::ntddk::{RtlInitUTF8String, RtlUTF8StringToUnicodeString};
+use wdk_sys::ntddk::{ExAllocatePool2, RtlAppendUnicodeStringToString, RtlCopyUnicodeString, RtlInitUTF8String, RtlUTF8StringToUnicodeString};
+use wdk_sys::{
+    HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCSZ, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
+    PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, UTF8_STRING,
+};
 
 pub(crate) mod alloc;
 pub(crate) mod macros;
+pub(crate) mod timing;
 
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
@@ -17,6 +22,36 @@ unsafe extern "C" {
         ProcessInformationLength: ULONG,
         ReturnLength: PULONG,
     ) -> NTSTATUS;
+}
+
+#[allow(non_snake_case)]
+pub unsafe fn _RtlDuplicateUnicodeString(
+    first: &mut UNICODE_STRING,
+    second: &mut UNICODE_STRING,
+) -> Box<UNICODE_STRING> {
+    let mut result = UNICODE_STRING::default();
+
+    result.Buffer = unsafe {
+        ExAllocatePool2(
+            POOL_FLAG_NON_PAGED,
+            (first.MaximumLength + second.MaximumLength) as _,
+            0xFFF,
+        )
+    } as _;
+
+    if result.Buffer.is_null() {
+        panic!("Failed to allocate unicode string");
+    }
+
+    result.MaximumLength = first.MaximumLength + second.MaximumLength;
+    result.Length = first.Length + second.Length;
+
+    unsafe {
+        RtlCopyUnicodeString(&mut result, first);
+        RtlAppendUnicodeStringToString(&mut result, second);
+    }
+
+    Box::new(result)
 }
 
 #[inline]
