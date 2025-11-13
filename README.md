@@ -7,6 +7,12 @@ The dream-come-true, user mode kernel driver framework, the NT kernel standardiz
 `src` contains the code written in Rust.
 - `hvcore` the hypervisor core.
 - `hxposed_core` core API providing access to hypervisor.
+- `uefi` UEFI driver. Unusued.
+- `windows` Windows driver of hxposed.
+`HxPosed.GUI` contains the code written in C#.
+- `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
+- `libhxposed` native library providing access to hypervisor.
+- `HxPosed.Plugins` plugin managing code.
 
 ## Have you ever thought you don't "own" your computer?
 Have you ever thought that you need "more" of it? That you need to be in more control?
