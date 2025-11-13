@@ -17,7 +17,9 @@ namespace HxPosed.Plugins
         public required string Icon { get; init; }
 
         private PluginStatus _status;
-        public PluginStatus Status { get => _status; set
+        public PluginStatus Status
+        {
+            get => _status; set
             {
                 SetStatus(value, Error, Permissions);
                 _status = value;
@@ -26,7 +28,9 @@ namespace HxPosed.Plugins
         public PluginError Error { get; protected set; }
 
         private PluginPermissions _permissions;
-        public PluginPermissions Permissions { get => _permissions; set
+        public PluginPermissions Permissions
+        {
+            get => _permissions; set
             {
                 SetStatus(Status, Error, value);
                 _permissions = value;
@@ -66,7 +70,7 @@ namespace HxPosed.Plugins
                 Icon = icon,
                 Error = PluginError.None,
 
-                // Use the private fields since the setter calls SetStatus when the registry key isn't prepared yet.
+                // Use the private fields since the setters call SetStatus when the registry key isn't prepared yet.
                 _status = PluginStatus.Ready,
                 _permissions = PluginPermissions.None,
             };
