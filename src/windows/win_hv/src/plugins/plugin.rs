@@ -7,19 +7,17 @@ use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::PVOID;
-use wdk_sys::ntddk::{ZwOpenKey, ZwQueryValueKey};
+use wdk_sys::ntddk::{ZwClose, ZwOpenKey, ZwQueryValueKey};
 use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, STATUS_SUCCESS,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub(crate) struct Plugin {
     pub uuid: Uuid,
     pub permissions: PluginPermissions,
-    pub key_handle: u64,
 }
-
 impl Plugin {
     pub fn open(uuid: Uuid) -> Option<Self> {
         let mut full_path = format!("\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}", uuid)
@@ -78,10 +76,11 @@ impl Plugin {
             return None;
         }
 
+        unsafe{ZwClose(key_handle)};
+
         Some(Self {
             uuid,
             permissions,
-            key_handle: key_handle as _,
         })
     }
 }
