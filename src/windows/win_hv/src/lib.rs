@@ -103,7 +103,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     match info.func() {
         ServiceFunction::Authorize => unsafe {
             // All other fields are ignored.
-            
+
             let req = AuthorizationRequest {
                 uuid: Uuid::from_u64_pair(guest.regs().r8, guest.regs().r9),
                 permissions: PluginPermissions::from_bits(guest.regs().r10).unwrap(),

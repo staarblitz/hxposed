@@ -20,7 +20,7 @@ pub(crate) fn vmcall(request: HypervisorRequest) -> HypervisorResponse {
         inout("r9") request.arg2 => response.arg2,
         inout("r10") request.arg3 => response.arg3,
         inout("rsi") request.call.into_bits() => result,
-        out("rcx") leaf);
+        inout("rcx") leaf);
     }
 
     // that means hypervisor did not handle our cpuid trap.

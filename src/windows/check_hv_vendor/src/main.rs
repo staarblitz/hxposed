@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
@@ -23,10 +24,10 @@ fn main() {
         resp.state, resp.version
     );
 
-    let uuid = Uuid::from_u64_pair(0, 0);
+    let uuid = Uuid::from_str("ca170835-4a59-4c6d-a04b-f5866f592c38").unwrap();
     println!("Authorizing with UUID {}", uuid);
     let req = AuthorizationRequest {
-        permissions: PluginPermissions::from_bits(u64::MAX).unwrap(),
+        permissions: PluginPermissions::all(),
         uuid,
     };
 
