@@ -7,7 +7,7 @@ assignees: staarblitz
 
 ---
 
-**I agree:*
+**I agree:**
 - [ ] This is a realistic feature request.
 - [ ] I will try to help developers implementing this feature.
 - [ ] I am still randomly ticking boxes.
