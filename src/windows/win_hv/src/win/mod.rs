@@ -84,6 +84,14 @@ pub trait Utf8ToUnicodeString {
 }
 
 impl Utf8ToUnicodeString for str {
+
+    ///
+    /// # To Unicode String
+    ///
+    /// Allocates a new UNICODE_STRING on heap. Does weird stuff that takes null termination into consideration.
+    ///
+    /// ## Return
+    /// [Box] containing [UNICODE_STRING].
     fn to_unicode_string(&self) -> Box<UNICODE_STRING> {
         let mut str = UTF8_STRING::default();
         let mut ustr = UNICODE_STRING::default();

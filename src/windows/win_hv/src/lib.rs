@@ -105,6 +105,30 @@ extern "C" fn driver_entry(
     STATUS_SUCCESS
 }
 
+///
+/// # Called when a CPUID with RCX = 2009 is executed.
+///
+/// # Arguments
+/// guest - The trait of guest. Intel or AMD.
+///
+/// info - Information about the call. See [HypervisorCall].
+///
+/// # Return
+/// There is no return value of this function, however, the return value of the vmcall will be in RSI.
+/// Which you *may* want to utilize. See documentation on GitHub page for more information about trap ABI.
+///
+/// # Warning
+///
+/// ## We are in context of the thread that made the vmcall.
+/// Functions like "IoGetCurrentProcess" returns the process that made the vmcall, not the system process.
+/// (that is a good thing)
+///
+/// ## IRQL is above sane.
+/// IRQL is 255, all interrupts are disabled. Using Zw* and other functions that ask for PASSIVE_LEVEL will only result in tears.
+///
+/// ## This is a VMEXIT handler
+/// Don't you dare to "take your time". This interrupts the whole CPU and making the kernel scheduler forget its purpose.
+///
 fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     println!("Handling vmcall function: {:?}", info.func());
     match info.func() {

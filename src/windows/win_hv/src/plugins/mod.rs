@@ -1,7 +1,7 @@
 use crate::plugins::plugin::Plugin;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{as_pvoid, PLUGINS};
+use crate::{as_pvoid, panic, PLUGINS};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::ops::{Deref, DerefMut};
@@ -21,6 +21,17 @@ pub(crate) struct PluginTable {
     plugins: &'static mut [&'static mut Plugin],
 }
 
+///
+/// # Load plugins
+///
+/// Reads the plugins from \REGISTRY\MACHINE\SOFTWARE\HxPosed\Plugins.
+///
+/// Uses tricky stuff to save them to PLUGINS global variable, too.
+///
+/// ## Panics
+///
+/// This function panics if first call to ZwOpenKey fails, which it NEVER should.
+///
 pub(crate) fn load_plugins() {
     let mut list = Vec::<&mut Plugin>::new();
     list.clear();
@@ -38,7 +49,10 @@ pub(crate) fn load_plugins() {
     }
 
     let mut key = HANDLE::default();
-    unsafe { ZwOpenKey(&mut key, KEY_ALL_ACCESS, &mut attributes) };
+    let status = unsafe { ZwOpenKey(&mut key, KEY_ALL_ACCESS, &mut attributes) };
+    if status != STATUS_SUCCESS{
+        panic!("ZwEnumerateKey failed with status {}", status);
+    }
 
     let mut index = 0;
     loop {

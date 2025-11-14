@@ -21,15 +21,35 @@ pub(crate) struct Plugin {
     pub process: u64
 }
 impl Plugin {
+    ///
+    /// # Get
+    ///
+    /// Gets the plugin from PLUGINS global variable.
+    ///
+    /// ## Arguments
+    /// uuid - GUID the plugin was saved to system with.
+    ///
+    /// ## Return
+    /// Returns an [Option] containing static mutable reference to [Plugin].
     pub fn get(uuid: Uuid) -> Option<&'static mut Plugin>{
         let ptr = PLUGINS.load(Ordering::Acquire);
         if ptr.is_null() { return None; }
         let slice = unsafe { &mut *ptr };
-        
+
         //:skull:
         Some(*slice.plugins.iter_mut().find(|p| p.uuid == uuid).unwrap())
     }
 
+    ///
+    /// # Open
+    ///
+    /// Opens (creates instance that represents) a plugin from registry.
+    ///
+    /// ## Arguments
+    /// uuid - GUID the plugin was saved to system with.
+    ///
+    /// ## Return
+    /// Returns an [Option] containing [Plugin]. Some if plugin was found, None if not.
     pub fn open(uuid: Uuid) -> Option<Self> {
         let mut full_path = format!("\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}", uuid)
             .as_str()

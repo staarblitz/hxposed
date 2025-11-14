@@ -11,6 +11,20 @@ use wdk_sys::{
     ULONG, UNICODE_STRING,
 };
 
+///
+/// # Registry Callback (work in progress)
+///
+/// This function serves as a registry filter to stop smart people from accessing to HxPosed registry key.
+///
+/// ## Arguments
+/// Described in PEX_CALLBACK_FUNCTION.
+///
+/// First argument is unused.
+///
+/// ## Return
+/// If the hypervisor is not interested or for some reason, cannot filter the call returns STATUS_SUCCESS. Which indicates Configuration Manager should deal with this.
+///
+/// If hypervisor gets what it asks for, it will return STATUS_BYPASS to indicate that it completed the operation in its own terms.
 #[unsafe(no_mangle)]
 pub(crate) extern "C" fn registry_callback(
     _callback_context: PVOID,
