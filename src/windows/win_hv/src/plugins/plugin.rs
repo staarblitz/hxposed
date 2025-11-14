@@ -21,13 +21,13 @@ pub(crate) struct Plugin {
     pub process: u64
 }
 impl Plugin {
-    pub fn get(uuid: Uuid) -> Option<&'static Plugin>{
+    pub fn get(uuid: Uuid) -> Option<&'static mut Plugin>{
         let ptr = PLUGINS.load(Ordering::Acquire);
         if ptr.is_null() { return None; }
-        let slice = unsafe { &*ptr };
-
-        // :skull:
-        Some(*slice.plugins.iter().find(|p| p.uuid == uuid).unwrap())
+        let slice = unsafe { &mut *ptr };
+        
+        //:skull:
+        Some(*slice.plugins.iter_mut().find(|p| p.uuid == uuid).unwrap())
     }
 
     pub fn open(uuid: Uuid) -> Option<Self> {

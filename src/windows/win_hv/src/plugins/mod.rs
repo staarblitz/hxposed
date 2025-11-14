@@ -18,11 +18,11 @@ use wdk_sys::{
 pub(crate) mod plugin;
 
 pub(crate) struct PluginTable {
-    plugins: &'static [&'static Plugin],
+    plugins: &'static mut [&'static mut Plugin],
 }
 
 pub(crate) fn load_plugins() {
-    let mut list = Vec::<&Plugin>::new();
+    let mut list = Vec::<&mut Plugin>::new();
     list.clear();
 
     let mut root = "\\Registry\\Machine\\Software\\HxPosed\\Plugins".to_unicode_string();
@@ -124,7 +124,7 @@ pub(crate) fn load_plugins() {
         index += 1;
     }
 
-    let plugin_slice: &'static [&Plugin] = Box::leak(list.into_boxed_slice());
+    let plugin_slice: &'static mut [&mut Plugin] = Box::leak(list.into_boxed_slice());
     let table = Box::leak(Box::new(PluginTable { plugins: plugin_slice }));
     PLUGINS.store(table as *const _ as *mut _, Ordering::Release);
 }

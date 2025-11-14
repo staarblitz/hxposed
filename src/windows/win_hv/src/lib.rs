@@ -17,11 +17,10 @@ mod win;
 #[global_allocator]
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
-use crate::plugins::{load_plugins, PluginTable};
 use crate::plugins::plugin::Plugin;
+use crate::plugins::{load_plugins, PluginTable};
 use crate::win::Utf8ToUnicodeString;
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 use core::ops::{BitAnd, DerefMut};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64};
@@ -36,7 +35,6 @@ use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::VmcallResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use spin::mutex::SpinMutex;
 use uuid::Uuid;
 use wdk::println;
 use wdk_alloc::WdkAllocator;
@@ -128,8 +126,11 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 return;
             }
 
+            let plugin = plugin.unwrap();
+            plugin.process = unsafe { IoGetCurrentProcess() } as u64;
+
             // And the masks to find out allowed permissions.
-            let permissions = plugin.unwrap().permissions.bitand(req.permissions);
+            let permissions = plugin.permissions.bitand(req.permissions);
 
             let resp = AuthorizationResponse { permissions }.into_raw();
 
