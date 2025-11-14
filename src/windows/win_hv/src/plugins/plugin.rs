@@ -1,7 +1,8 @@
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{as_pvoid, get_data};
+use crate::{as_pvoid, get_data, PLUGINS};
 use alloc::format;
+use core::sync::atomic::Ordering;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
@@ -13,12 +14,22 @@ use wdk_sys::{
     OBJECT_ATTRIBUTES, STATUS_SUCCESS,
 };
 
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default)]
 pub(crate) struct Plugin {
     pub uuid: Uuid,
     pub permissions: PluginPermissions,
+    pub process: u64
 }
 impl Plugin {
+    pub fn get(uuid: Uuid) -> Option<&'static Plugin>{
+        let ptr = PLUGINS.load(Ordering::Acquire);
+        if ptr.is_null() { return None; }
+        let slice = unsafe { &*ptr };
+
+        // :skull:
+        Some(*slice.plugins.iter().find(|p| p.uuid == uuid).unwrap())
+    }
+
     pub fn open(uuid: Uuid) -> Option<Self> {
         let mut full_path = format!("\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}", uuid)
             .as_str()
@@ -66,6 +77,10 @@ impl Plugin {
 
         let _ = unsafe { ZwClose(key_handle) };
 
-        Some(Self { uuid, permissions })
+        Some(Self {
+            uuid,
+            permissions,
+            process: 0,
+        })
     }
 }

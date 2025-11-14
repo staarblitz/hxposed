@@ -1,15 +1,14 @@
 use crate::as_pvoid;
-use crate::win::alloc::PoolAllocSized;
 use crate::win::ZwQueryInformationProcess;
+use crate::win::alloc::PoolAllocSized;
 use wdk::dbg_break;
-use wdk_sys::ntddk::{IoGetCurrentProcess, ObOpenObjectByPointer};
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::_PROCESSINFOCLASS::ProcessImageFileName;
+use wdk_sys::ntddk::{IoGetCurrentProcess, ObOpenObjectByPointer};
 use wdk_sys::{
-    PsProcessType, HANDLE
-    , NTSTATUS, OBJ_KERNEL_HANDLE, PACCESS_STATE, PROCESS_ALL_ACCESS, PVOID
-    , REG_NOTIFY_CLASS, STATUS_SUCCESS, ULONG
-    , UNICODE_STRING, _REG_CREATE_KEY_INFORMATION_V1, _REG_NOTIFY_CLASS,
+    _REG_CREATE_KEY_INFORMATION_V1, _REG_NOTIFY_CLASS, HANDLE, NTSTATUS, OBJ_KERNEL_HANDLE,
+    PACCESS_STATE, PROCESS_ALL_ACCESS, PVOID, PsProcessType, REG_NOTIFY_CLASS, STATUS_SUCCESS,
+    ULONG, UNICODE_STRING,
 };
 
 #[unsafe(no_mangle)]
