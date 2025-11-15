@@ -1,17 +1,12 @@
-use crate::panic;
 use ::alloc::boxed::Box;
-use ::alloc::ffi::CString;
-use ::alloc::string::String;
 use ::alloc::vec::Vec;
+use core::ffi::c_void;
 use core::str::FromStr;
 use wdk_sys::ntddk::{
     ExAllocatePool2, RtlAppendUnicodeStringToString, RtlCopyUnicodeString, RtlInitUTF8String,
     RtlUTF8StringToUnicodeString,
 };
-use wdk_sys::{
-    HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCSZ, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
-    PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, UTF8_STRING,
-};
+use wdk_sys::{BOOLEAN, HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, UTF8_STRING};
 
 pub(crate) mod alloc;
 pub(crate) mod macros;
@@ -79,12 +74,77 @@ pub unsafe fn InitializeObjectAttributes(
     }
 }
 
+#[allow(non_snake_case)]
+pub unsafe fn RtlBufferContainsBuffer(
+    Buffer1: *const c_void,
+    Buffer1Length: usize,
+    Buffer2: *const c_void,
+    Buffer2Length: usize,
+    CaseSensitive: BOOLEAN,
+) -> BOOLEAN {
+    let buf1 = core::slice::from_raw_parts(Buffer1 as *const u8, Buffer1Length);
+    let buf2 = core::slice::from_raw_parts(Buffer2 as *const u8, Buffer2Length);
+
+    let buf1 = if CaseSensitive == 1 {
+        buf1
+    } else {
+        &buf1
+            .iter()
+            .map(|&b| b.to_ascii_lowercase())
+            .collect::<Vec<_>>()
+    };
+
+    let buf2 = if CaseSensitive == 1 {
+        buf2
+    } else {
+        &buf2
+            .iter()
+            .map(|&b| b.to_ascii_lowercase())
+            .collect::<Vec<_>>()
+    };
+
+    buf1.windows(Buffer2Length).any(|window| window == buf2) as _
+}
+
+#[allow(non_snake_case)]
+pub unsafe fn RtlUnicodeStringContainsUnicodeString(
+    String1: PCUNICODE_STRING,
+    String2: PCUNICODE_STRING,
+    CaseSensitive: BOOLEAN,
+) -> BOOLEAN {
+    let String1 = &*(String1);
+    let String2 = &*(String2);
+
+    let buf1 = core::slice::from_raw_parts(String1.Buffer as *const u8, String1.Length as _);
+    let buf2 = core::slice::from_raw_parts(String2.Buffer as *const u8, String2.Length as _);
+
+    let buf1 = if CaseSensitive == 1 {
+        buf1
+    } else {
+        &buf1
+            .iter()
+            .map(|&b| b.to_ascii_lowercase())
+            .collect::<Vec<_>>()
+    };
+
+    let buf2 = if CaseSensitive == 1 {
+        buf2
+    } else {
+        &buf2
+            .iter()
+            .map(|&b| b.to_ascii_lowercase())
+            .collect::<Vec<_>>()
+    };
+
+    buf1.windows(String2.Length as _)
+        .any(|window| window == buf2) as _
+}
+
 pub trait Utf8ToUnicodeString {
     fn to_unicode_string(&self) -> Box<UNICODE_STRING>;
 }
 
 impl Utf8ToUnicodeString for str {
-
     ///
     /// # To Unicode String
     ///

@@ -24,4 +24,11 @@ impl VmcallRequest for AuthorizationRequest {
             arg3: self.permissions.bits(),
         }
     }
+
+    fn from_raw(call: HypervisorCall, arg1: u64, arg2: u64, arg3: u64) -> Self {
+        Self {
+            uuid: Uuid::from_u64_pair(arg1, arg2),
+            permissions: PluginPermissions::from_bits(arg3).unwrap()
+        }
+    }
 }

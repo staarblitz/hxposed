@@ -1,14 +1,14 @@
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{as_pvoid, get_data, PLUGINS};
+use crate::{PLUGINS, as_pvoid, get_data};
 use alloc::format;
-use core::sync::atomic::Ordering;
+use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::PVOID;
 use wdk_sys::ntddk::{ZwClose, ZwOpenKey, ZwQueryValueKey};
+use wdk_sys::{_KPROCESS, PVOID, PEPROCESS};
 use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, STATUS_SUCCESS,
@@ -18,7 +18,8 @@ use wdk_sys::{
 pub(crate) struct Plugin {
     pub uuid: Uuid,
     pub permissions: PluginPermissions,
-    pub process: u64
+    pub authorized_permissions: PluginPermissions,
+    pub process: AtomicPtr<_KPROCESS>,
 }
 impl Plugin {
     ///
@@ -31,13 +32,29 @@ impl Plugin {
     ///
     /// ## Return
     /// Returns an [Option] containing static mutable reference to [Plugin].
-    pub fn get(uuid: Uuid) -> Option<&'static mut Plugin>{
+    pub fn get(uuid: Uuid) -> Option<&'static mut Plugin> {
         let ptr = PLUGINS.load(Ordering::Acquire);
-        if ptr.is_null() { return None; }
+        if ptr.is_null() {
+            return None;
+        }
         let slice = unsafe { &mut *ptr };
 
         //:skull:
         Some(*slice.plugins.iter_mut().find(|p| p.uuid == uuid).unwrap())
+    }
+
+    ///
+    /// # Integrate
+    ///
+    /// Integrates a plugin with process, and permissions that are allowed.
+    ///
+    /// ## Arguments
+    /// process - Pointer to NT executive process object.
+    ///
+    /// permissions - Permission mask that plugin will utilize.
+    pub fn integrate(&mut self, process: PEPROCESS, permissions: PluginPermissions) {
+        self.process.store(process, Ordering::Relaxed);
+        self.permissions = permissions;
     }
 
     ///
@@ -100,7 +117,8 @@ impl Plugin {
         Some(Self {
             uuid,
             permissions,
-            process: 0,
+            authorized_permissions: permissions,
+            process: AtomicPtr::default(),
         })
     }
 }

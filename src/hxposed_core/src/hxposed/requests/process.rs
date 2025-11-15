@@ -20,4 +20,10 @@ impl VmcallRequest for OpenProcessRequest {
             arg3: 0
         }
     }
+
+    fn from_raw(call: HypervisorCall, arg1: u64, arg2: u64, arg3: u64) -> Self {
+        Self{
+            process_id: arg1 as _
+        }
+    }
 }

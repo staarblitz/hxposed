@@ -1,14 +1,15 @@
-use crate::as_pvoid;
-use crate::win::ZwQueryInformationProcess;
-use crate::win::alloc::PoolAllocSized;
+use core::sync::atomic::Ordering;
+use crate::nt::process::KernelProcess;
+use crate::win::{
+    RtlUnicodeStringContainsUnicodeString, Utf8ToUnicodeString,
+};
 use wdk::dbg_break;
+use wdk_sys::ntddk::{RtlCompareUnicodeString, ZwOpenKey};
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::_PROCESSINFOCLASS::ProcessImageFileName;
-use wdk_sys::ntddk::{IoGetCurrentProcess, ObOpenObjectByPointer};
 use wdk_sys::{
-    _REG_CREATE_KEY_INFORMATION_V1, _REG_NOTIFY_CLASS, HANDLE, NTSTATUS, OBJ_KERNEL_HANDLE,
-    PACCESS_STATE, PROCESS_ALL_ACCESS, PVOID, PsProcessType, REG_NOTIFY_CLASS, STATUS_SUCCESS,
-    ULONG, UNICODE_STRING,
+    FALSE, KEY_ALL_ACCESS, NTSTATUS, PVOID, REG_NOTIFY_CLASS
+    , STATUS_SUCCESS, _REG_CREATE_KEY_INFORMATION_V1
+    , _REG_NOTIFY_CLASS,
 };
 
 ///
@@ -22,9 +23,7 @@ use wdk_sys::{
 /// First argument is unused.
 ///
 /// ## Return
-/// If the hypervisor is not interested or for some reason, cannot filter the call returns STATUS_SUCCESS. Which indicates Configuration Manager should deal with this.
-///
-/// If hypervisor gets what it asks for, it will return STATUS_BYPASS to indicate that it completed the operation in its own terms.
+/// Visit [MSDN article about this](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/handling-notifications)
 #[unsafe(no_mangle)]
 pub(crate) extern "C" fn registry_callback(
     _callback_context: PVOID,
@@ -42,55 +41,36 @@ pub(crate) extern "C" fn registry_callback(
             // since we only support Windows 11, it's safe to assume this is v1 of the structure.
             let op_info = unsafe { &mut *(argument2 as *mut _REG_CREATE_KEY_INFORMATION_V1) };
 
-            if op_info.CheckAccessMode == KernelMode as _ {
+            // as u32 to avoid intellij bullshit
+            if op_info.CheckAccessMode as u32 == KernelMode as u32 {
                 return STATUS_SUCCESS; // we are not interested in kernel mode accesses.
             }
 
             dbg_break();
 
-            let mut process = HANDLE::default();
-            let status = unsafe {
-                ObOpenObjectByPointer(
-                    IoGetCurrentProcess() as _,
-                    OBJ_KERNEL_HANDLE,
-                    PACCESS_STATE::default(),
-                    PROCESS_ALL_ACCESS,
-                    *PsProcessType,
-                    KernelMode as _,
-                    &mut process,
+            let result = unsafe {
+                RtlUnicodeStringContainsUnicodeString(
+                    op_info.CompleteName,
+                    "HxPosed".to_unicode_string().as_ref(),
+                    FALSE as _
                 )
-            };
+            } == 1;
 
-            if status != STATUS_SUCCESS {
-                return STATUS_SUCCESS; // let the registry manager handle this operation.
+            if !result {
+                return STATUS_SUCCESS;
             }
 
-            let mut return_length = ULONG::default();
-            let _ = unsafe {
-                ZwQueryInformationProcess(
-                    process,
-                    ProcessImageFileName,
-                    PVOID::default(),
-                    0,
-                    &mut return_length,
+            let process = KernelProcess::current();
+            let result = unsafe {
+                RtlUnicodeStringContainsUnicodeString(
+                    process.nt_path.load(Ordering::Relaxed),
+                    "HxPosed.GUI.exe".to_unicode_string().as_ref(),
+                    FALSE as _
                 )
-            };
+            } == 1;
 
-            let mut proc_name = UNICODE_STRING::alloc_sized(return_length as usize);
-
-            let status = unsafe {
-                ZwQueryInformationProcess(
-                    process,
-                    ProcessImageFileName,
-                    as_pvoid!(proc_name),
-                    return_length,
-                    &mut return_length,
-                )
-            };
-
-            if status != STATUS_SUCCESS {
-                return STATUS_SUCCESS; // let the registry manager handle this one.
-            }
+            // if it was the HxPosed manager that opened this key, allow all access. No access if it wasn't.
+            op_info.GrantedAccess = if result { KEY_ALL_ACCESS } else { 0 }
         }
         _ => {}
     }
