@@ -3,10 +3,6 @@
 extern crate alloc;
 extern crate bit_field;
 extern crate hv;
-extern crate wdk;
-extern crate wdk_alloc;
-extern crate wdk_sys;
-use win::alloc::PoolAllocSized;
 
 mod cback;
 mod nt;
@@ -38,7 +34,8 @@ use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
 use wdk::println;
-use wdk_alloc::WdkAllocator;
+
+use wdk_alloc::{WdkAllocator};
 use wdk_sys::ntddk::{CmRegisterCallback, IoGetCurrentProcess, KeBugCheck};
 use wdk_sys::{
     DRIVER_OBJECT, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID,

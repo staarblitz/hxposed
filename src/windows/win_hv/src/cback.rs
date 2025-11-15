@@ -1,7 +1,11 @@
+use wdk::{dbg_break, println};
+use wdk_sys::*;
+use wdk_sys::_MODE::KernelMode;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{
     _RtlDuplicateUnicodeString, RtlUnicodeStringContainsUnicodeString, Utf8ToUnicodeString,
 };
+use wdk_sys::ntddk::*;
 
 ///
 /// # Registry Callback (work in progress)
@@ -77,16 +81,16 @@ pub(crate) extern "C" fn registry_callback(
             }
 
             // get the juicy _EPROCESS;
-            let process =
-                unsafe { IoGetCurrentProcess() } as *mut crate::nt::bind::w25h2::_EPROCESS;
-            let process = &mut unsafe { *(process) };
-            let result = unsafe {
-                RtlUnicodeStringContainsUnicodeString(
-                    process.SeAuditProcessCreationInfo.ImageFileName as PCUNICODE_STRING,
-                    "HxPosed.GUI.exe".to_unicode_string().as_ref(),
-                    FALSE as _,
-                )
-            } == 1;
+            // let process =
+            //     unsafe { IoGetCurrentProcess() } as *mut crate::nt::bind::w25h2::_EPROCESS;
+            // let process = &mut unsafe { *(process) };
+            // let result = unsafe {
+            //     RtlUnicodeStringContainsUnicodeString(
+            //         process.SeAuditProcessCreationInfo.ImageFileName as PCUNICODE_STRING,
+            //         "HxPosed.GUI.exe".to_unicode_string().as_ref(),
+            //         FALSE as _,
+            //     )
+            // } == 1;
 
             // if it was the HxPosed manager that opened this key, allow all access. No access if it wasn't.
             op_info.GrantedAccess = if result { KEY_ALL_ACCESS } else { 0 }

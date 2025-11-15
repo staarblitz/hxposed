@@ -251,9 +251,9 @@ dependencies = [
 
 [[package]]
 name = "clap-cargo"
-version = "0.14.1"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23b2ea69cefa96b848b73ad516ad1d59a195cdf9263087d977f648a818c8b43e"
+checksum = "d546f0e84ff2bfa4da1ce9b54be42285767ba39c688572ca32412a09a73851e5"
 dependencies = [
  "anstyle",
  "clap",
@@ -390,12 +390,12 @@ checksum = "1ced73b1dacfc750a6db6c0a0c3a3853c8b41997e2e2c563dc90804ae6867959"
 
 [[package]]
 name = "fs4"
-version = "0.12.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c29c30684418547d476f0b48e84f4821639119c483b1eccd566c8cd0cd05f521"
+checksum = "8640e34b88f7652208ce9e88b1a37a2ae95227d84abec377ccd3c5cfeb141ed4"
 dependencies = [
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -501,9 +501,9 @@ dependencies = [
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.4.15"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab"
+checksum = "df1d3c3b53da64cf5760482273a98e575c651a67eec7f77df96b5b642de8f039"
 
 [[package]]
 name = "lock_api"
@@ -685,15 +685,15 @@ checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
 
 [[package]]
 name = "rustix"
-version = "0.38.44"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdb5bc1ae2baa591800df16c9ca78619bf65c0488b41b96ccec5d11220d8c154"
+checksum = "cd15f8a2c5551a84d56efdc1cd049089e409ac19a3072d5037a17fd70719ff3e"
 dependencies = [
  "bitflags 2.10.0",
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -993,10 +993,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "wdk-alloc"
-version = "0.3.1"
+name = "wdk"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c349e2078aba5359ea06d97ab5e85bfe178ac70a97407f54a1090165c732196"
+checksum = "1fd496a19ec75c3d98f8be805f62ebde4651fc01babf681b832d8bae9c584d25"
+dependencies = [
+ "cfg-if",
+ "tracing",
+ "tracing-subscriber",
+ "wdk-build",
+ "wdk-sys",
+]
+
+[[package]]
+name = "wdk-alloc"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0000f9d158618c1dce7de647338e8219f9d6b618abd140c373c0552c6dbda1ca"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1006,9 +1019,9 @@ dependencies = [
 
 [[package]]
 name = "wdk-build"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e3f0b26b6fa28e8f68a01a9d93c13433311a24e477c614659bf9e72fd9f7e26"
+checksum = "2c150122a579af759770b354064cd2994d29e97525d904f65ff1412ad5122766"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1018,6 +1031,7 @@ dependencies = [
  "clap",
  "clap-cargo",
  "paste",
+ "regex",
  "rustversion",
  "semver",
  "serde",
@@ -1029,9 +1043,9 @@ dependencies = [
 
 [[package]]
 name = "wdk-macros"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9e371a885e23b11de5b579368571f2403f1767b629008ad7de462f84db01d28"
+checksum = "b288d5ef6b276345d197fe0b82ef274dcb5a1f658a2294c67ff85b775f63ee26"
 dependencies = [
  "cfg-if",
  "fs4",
@@ -1046,9 +1060,9 @@ dependencies = [
 
 [[package]]
 name = "wdk-sys"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0afb20bec3a2627f0fd0ead3bc76f5ad7dcb9fa87e51f7851d08f74f29a3625f"
+checksum = "5e13e19ed97609bc1d1236806019309ca2d47aaad6d3217ab374e73c9ff3b8a9"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1074,8 +1088,10 @@ dependencies = [
  "sha2",
  "spin",
  "uuid",
+ "wdk",
  "wdk-alloc",
  "wdk-build",
+ "wdk-sys",
 ]
 
 [[package]]

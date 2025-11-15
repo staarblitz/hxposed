@@ -16,14 +16,14 @@ hxposed_core = {path = "../../hxposed_core", default-features = false}
 hv = { path = "../../hvcore", default-features = false }
 wdk = "0.4.1"
 wdk-sys = "0.5.1"
-wdk-alloc = "0.3.1"
+wdk-alloc = "0.4.1"
 bit_field = "0.10.3"
 uuid = {version = "1.18.1", default-features = false}
 spin = "0.10.0"
 sha2 = "0.10.9"
 
 [build-dependencies]
-wdk-build = "0.4.0"
+wdk-build = "0.5.1"
 
 [package.metadata.wdk.driver-model]
 driver-type = "KMDF"
