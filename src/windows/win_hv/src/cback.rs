@@ -1,12 +1,6 @@
 use crate::win::alloc::PoolAllocSized;
-use crate::win::{RtlUnicodeStringContainsUnicodeString, Utf8ToUnicodeString, _RtlDuplicateUnicodeString};
-use wdk::{dbg_break, println};
-use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{IoGetCurrentProcess, ObQueryNameString, RtlAppendUnicodeStringToString, RtlDuplicateUnicodeString};
-use wdk_sys::{
-    _REG_CREATE_KEY_INFORMATION_V1, _REG_NOTIFY_CLASS, FALSE, KEY_ALL_ACCESS, NTSTATUS,
-    OBJECT_NAME_INFORMATION, PCUNICODE_STRING, POBJECT_NAME_INFORMATION, PVOID, REG_NOTIFY_CLASS,
-    STATUS_SUCCESS,
+use crate::win::{
+    _RtlDuplicateUnicodeString, RtlUnicodeStringContainsUnicodeString, Utf8ToUnicodeString,
 };
 
 ///
@@ -66,11 +60,9 @@ pub(crate) extern "C" fn registry_callback(
                 return STATUS_SUCCESS;
             }
 
-            let mut dup = unsafe{_RtlDuplicateUnicodeString(&mut alloc.as_mut().Name, 256)};
+            let mut dup = unsafe { _RtlDuplicateUnicodeString(&mut alloc.as_mut().Name, 256) };
 
-            unsafe{
-                RtlAppendUnicodeStringToString(dup.as_mut(), op_info.RemainingName)
-            }
+            unsafe { RtlAppendUnicodeStringToString(dup.as_mut(), op_info.RemainingName) };
 
             let result = unsafe {
                 RtlUnicodeStringContainsUnicodeString(

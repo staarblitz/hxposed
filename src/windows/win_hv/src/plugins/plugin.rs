@@ -8,7 +8,7 @@ use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{ZwClose, ZwOpenKey, ZwQueryValueKey};
-use wdk_sys::{_KPROCESS, PVOID, PEPROCESS};
+use wdk_sys::{_KPROCESS, PEPROCESS, PVOID};
 use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, STATUS_SUCCESS,

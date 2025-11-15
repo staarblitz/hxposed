@@ -6,7 +6,11 @@ use wdk_sys::ntddk::{
     ExAllocatePool2, RtlAppendUnicodeStringToString, RtlCopyUnicodeString, RtlInitUTF8String,
     RtlUTF8StringToUnicodeString,
 };
-use wdk_sys::{BOOLEAN, HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, UTF8_STRING};
+use wdk_sys::{
+    BOOLEAN, HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POBJECT_ATTRIBUTES,
+    POOL_FLAG_NON_PAGED, PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG,
+    UNICODE_STRING, UTF8_STRING,
+};
 
 pub(crate) mod alloc;
 pub(crate) mod macros;
@@ -27,7 +31,7 @@ unsafe extern "C" {
 #[allow(non_snake_case)]
 pub unsafe fn _RtlDuplicateUnicodeString(
     first: &mut UNICODE_STRING,
-    length: u16
+    length: u16,
 ) -> Box<UNICODE_STRING> {
     let mut result = UNICODE_STRING::default();
 

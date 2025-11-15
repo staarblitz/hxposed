@@ -1,18 +1,18 @@
 use crate::plugins::plugin::Plugin;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{as_pvoid, panic, PLUGINS};
+use crate::{PLUGINS, as_pvoid, panic};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::Ordering;
 use uuid::Uuid;
 use wdk::println;
-use wdk_sys::ntddk::{RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
 use wdk_sys::_KEY_INFORMATION_CLASS::KeyBasicInformation;
+use wdk_sys::ntddk::{RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
 use wdk_sys::{
-    HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE,
-    OBJ_KERNEL_HANDLE, PVOID, STATUS_NO_MORE_ENTRIES, STATUS_SUCCESS,
+    HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
+    OBJECT_ATTRIBUTES, PVOID, STATUS_NO_MORE_ENTRIES, STATUS_SUCCESS,
 };
 
 pub(crate) mod plugin;
@@ -50,7 +50,7 @@ pub(crate) fn load_plugins() {
 
     let mut key = HANDLE::default();
     let status = unsafe { ZwOpenKey(&mut key, KEY_ALL_ACCESS, &mut attributes) };
-    if status != STATUS_SUCCESS{
+    if status != STATUS_SUCCESS {
         panic!("ZwEnumerateKey failed with status {}", status);
     }
 
@@ -139,6 +139,8 @@ pub(crate) fn load_plugins() {
     }
 
     let plugin_slice: &'static mut [&mut Plugin] = Box::leak(list.into_boxed_slice());
-    let table = Box::leak(Box::new(PluginTable { plugins: plugin_slice }));
+    let table = Box::leak(Box::new(PluginTable {
+        plugins: plugin_slice,
+    }));
     PLUGINS.store(table as *const _ as *mut _, Ordering::Release);
 }
