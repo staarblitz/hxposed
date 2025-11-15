@@ -57,7 +57,7 @@ extern "C" fn driver_entry(
     get_nt_info();
 
     if nt::NT_BUILD.load(Ordering::Relaxed) != 26200 {
-        println!("Unsupported version")
+        println!("Unsupported version");
         return STATUS_TOO_LATE;
     }
 

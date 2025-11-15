@@ -27,14 +27,14 @@ unsafe extern "C" {
 #[allow(non_snake_case)]
 pub unsafe fn _RtlDuplicateUnicodeString(
     first: &mut UNICODE_STRING,
-    second: &mut UNICODE_STRING,
+    length: u16
 ) -> Box<UNICODE_STRING> {
     let mut result = UNICODE_STRING::default();
 
     result.Buffer = unsafe {
         ExAllocatePool2(
             POOL_FLAG_NON_PAGED,
-            (first.MaximumLength + second.MaximumLength) as _,
+            (first.MaximumLength + length) as _,
             0xFFF,
         )
     } as _;
@@ -43,12 +43,11 @@ pub unsafe fn _RtlDuplicateUnicodeString(
         panic!("Failed to allocate unicode string");
     }
 
-    result.MaximumLength = first.MaximumLength + second.MaximumLength;
-    result.Length = first.Length + second.Length;
+    result.MaximumLength = first.MaximumLength + length;
+    result.Length = first.Length + length;
 
     unsafe {
         RtlCopyUnicodeString(&mut result, first);
-        RtlAppendUnicodeStringToString(&mut result, second);
     }
 
     Box::new(result)

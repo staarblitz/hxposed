@@ -1,15 +1,12 @@
-use core::sync::atomic::Ordering;
-use crate::nt::process::KernelProcess;
-use crate::win::{
-    RtlUnicodeStringContainsUnicodeString, Utf8ToUnicodeString,
-};
-use wdk::dbg_break;
-use wdk_sys::ntddk::{RtlCompareUnicodeString, ZwOpenKey};
+use crate::win::alloc::PoolAllocSized;
+use crate::win::{RtlUnicodeStringContainsUnicodeString, Utf8ToUnicodeString, _RtlDuplicateUnicodeString};
+use wdk::{dbg_break, println};
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::{IoGetCurrentProcess, ObQueryNameString, RtlAppendUnicodeStringToString, RtlDuplicateUnicodeString};
 use wdk_sys::{
-    FALSE, KEY_ALL_ACCESS, NTSTATUS, PVOID, REG_NOTIFY_CLASS
-    , STATUS_SUCCESS, _REG_CREATE_KEY_INFORMATION_V1
-    , _REG_NOTIFY_CLASS,
+    _REG_CREATE_KEY_INFORMATION_V1, _REG_NOTIFY_CLASS, FALSE, KEY_ALL_ACCESS, NTSTATUS,
+    OBJECT_NAME_INFORMATION, PCUNICODE_STRING, POBJECT_NAME_INFORMATION, PVOID, REG_NOTIFY_CLASS,
+    STATUS_SUCCESS,
 };
 
 ///
@@ -48,11 +45,38 @@ pub(crate) extern "C" fn registry_callback(
 
             dbg_break();
 
+            let mut ret_len = 0;
+            unsafe {
+                ObQueryNameString(
+                    op_info.RootObject,
+                    POBJECT_NAME_INFORMATION::default(),
+                    0,
+                    &mut ret_len,
+                )
+            };
+
+            let mut alloc = OBJECT_NAME_INFORMATION::alloc_sized(ret_len as _);
+
+            let status = unsafe {
+                ObQueryNameString(op_info.RootObject, alloc.as_mut(), ret_len, &mut ret_len)
+            };
+
+            if status != STATUS_SUCCESS {
+                println!("Failed to query object name");
+                return STATUS_SUCCESS;
+            }
+
+            let mut dup = unsafe{_RtlDuplicateUnicodeString(&mut alloc.as_mut().Name, 256)};
+
+            unsafe{
+                RtlAppendUnicodeStringToString(dup.as_mut(), op_info.RemainingName)
+            }
+
             let result = unsafe {
                 RtlUnicodeStringContainsUnicodeString(
-                    op_info.CompleteName,
+                    dup.as_ref(),
                     "HxPosed".to_unicode_string().as_ref(),
-                    FALSE as _
+                    FALSE as _,
                 )
             } == 1;
 
@@ -60,12 +84,15 @@ pub(crate) extern "C" fn registry_callback(
                 return STATUS_SUCCESS;
             }
 
-            let process = KernelProcess::current();
+            // get the juicy _EPROCESS;
+            let process =
+                unsafe { IoGetCurrentProcess() } as *mut crate::nt::bind::w25h2::_EPROCESS;
+            let process = &mut unsafe { *(process) };
             let result = unsafe {
                 RtlUnicodeStringContainsUnicodeString(
-                    process.nt_path.load(Ordering::Relaxed),
+                    process.SeAuditProcessCreationInfo.ImageFileName as PCUNICODE_STRING,
                     "HxPosed.GUI.exe".to_unicode_string().as_ref(),
-                    FALSE as _
+                    FALSE as _,
                 )
             } == 1;
 
