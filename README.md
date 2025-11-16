@@ -49,12 +49,11 @@ Glad you asked.
 - [x] Cool fluent UI that fits Windows 11 design.
 - [x] Support for AMD and Intel.
 - [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
+- [x] Registry filtering to allow access to \Software\HxPosed only to HxPosed manager.
 
 ## What we need?
 - [ ] Implementing the services.
 - [ ] Adding plugin loading functionality in UI. (already implemented in code.)
-- [ ] Registry filtering to allow access to \Software\HxPosed only to HxPosed manager.
-- [ ] Linking plugin guids with executable hashes. So no funny stuff happens.
 
 ## Contact
 [Telegram](https://t.me/staarblitz)

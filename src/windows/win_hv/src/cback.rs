@@ -1,11 +1,11 @@
-use wdk::{dbg_break, println};
-use wdk_sys::*;
-use wdk_sys::_MODE::KernelMode;
+use crate::nt::process::KernelProcess;
 use crate::win::alloc::PoolAllocSized;
-use crate::win::{
-    _RtlDuplicateUnicodeString, RtlUnicodeStringContainsUnicodeString, Utf8ToUnicodeString,
-};
+use crate::win::{_RtlDuplicateUnicodeString, Utf8ToUnicodeString, RtlBufferContainsBuffer};
+use core::sync::atomic::Ordering;
+use wdk::{dbg_break, println};
+use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::*;
+use wdk_sys::*;
 
 ///
 /// # Registry Callback (work in progress)
@@ -41,8 +41,6 @@ pub(crate) extern "C" fn registry_callback(
                 return STATUS_SUCCESS; // we are not interested in kernel mode accesses.
             }
 
-            dbg_break();
-
             let mut ret_len = 0;
             unsafe {
                 ObQueryNameString(
@@ -66,34 +64,48 @@ pub(crate) extern "C" fn registry_callback(
 
             let mut dup = unsafe { _RtlDuplicateUnicodeString(&mut alloc.as_mut().Name, 256) };
 
+            unsafe {
+                RtlAppendUnicodeStringToString(dup.as_mut(), "\\".to_unicode_string().as_mut())
+            };
             unsafe { RtlAppendUnicodeStringToString(dup.as_mut(), op_info.RemainingName) };
 
+            let path = "SOFTWARE\\HxPosed".to_unicode_string();
+
             let result = unsafe {
-                RtlUnicodeStringContainsUnicodeString(
-                    dup.as_ref(),
-                    "HxPosed".to_unicode_string().as_ref(),
-                    FALSE as _,
+                RtlBufferContainsBuffer(
+                    dup.as_ref().Buffer as _,
+                    dup.as_ref().Length as _,
+                    path.as_ref().Buffer as _,
+                    path.as_ref().Length as _,
                 )
-            } == 1;
+            };
 
             if !result {
                 return STATUS_SUCCESS;
             }
 
-            // get the juicy _EPROCESS;
-            // let process =
-            //     unsafe { IoGetCurrentProcess() } as *mut crate::nt::bind::w25h2::_EPROCESS;
-            // let process = &mut unsafe { *(process) };
-            // let result = unsafe {
-            //     RtlUnicodeStringContainsUnicodeString(
-            //         process.SeAuditProcessCreationInfo.ImageFileName as PCUNICODE_STRING,
-            //         "HxPosed.GUI.exe".to_unicode_string().as_ref(),
-            //         FALSE as _,
-            //     )
-            // } == 1;
+            let process = KernelProcess::current();
 
-            // if it was the HxPosed manager that opened this key, allow all access. No access if it wasn't.
-            op_info.GrantedAccess = if result { KEY_ALL_ACCESS } else { 0 }
+            // we need to convert this to a DOS path. Otherwise, it will be vulnerable to attacks from other drives. like F:\Program Files\\HxPosed\\HxPosed.GUI.exe
+            let path = "HxPosed.GUI.exe"
+                .to_unicode_string();
+
+            let process_path = & unsafe{*process.nt_path.load(Ordering::Relaxed)};
+
+            let result = unsafe {
+                RtlBufferContainsBuffer(
+                    process_path.Buffer as _,
+                    process_path.Length as _,
+                    path.as_ref().Buffer as _,
+                    path.as_ref().Length as _,
+                )
+            };
+
+            return if result {
+                STATUS_SUCCESS
+            } else {
+                STATUS_ACCESS_DENIED
+            }
         }
         _ => {}
     }
