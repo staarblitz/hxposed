@@ -29,49 +29,103 @@
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="1">
-                <ItemsControl Margin="20" ItemsSource="{Binding Plugins}" VerticalAlignment="Top">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <ui:CardExpander Margin="0,5,0,5" Icon="{Binding Icon}" IsExpanded="False">
-                                <ui:CardExpander.Header>
-                                    <ctrls:CardControl Header="{Binding Plugin.Name}" Subtitle="{Binding Plugin.Description}"/>
-                                </ui:CardExpander.Header>
-                                <StackPanel>
-                                    <ui:CardExpander Icon="{ui:SymbolIcon Eye24}">
-                                        <ui:CardExpander.Header>
-                                            <ctrls:CardControl Header="Permissions" Subtitle="Allow or deny permissions to system components."/>
-                                        </ui:CardExpander.Header>
-                                        <ItemsControl ItemsSource="{Binding PermissionEntries, Mode=OneWay}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <ui:CardControl>
-                                                        <ui:CardControl.Header>
-                                                            <ctrls:CardControl Header="{Binding Header}"
-       Subtitle="{Binding Subtitle}" />
-                                                        </ui:CardControl.Header>
-                                                        <ui:ToggleSwitch IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
-                                                    </ui:CardControl>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ui:CardExpander>
-                                    <ui:CardControl Icon="{ui:SymbolIcon ArchiveSettings24}">
-                                        <ui:CardControl.Header>
-                                            <ctrls:CardControl Header="Operations" Subtitle="Decide what to do."/>
-                                        </ui:CardControl.Header>
-                                        <StackPanel Orientation="Horizontal">
-                                            <ui:Button Margin="5" Content="Enable" Click="Button_Click"/>
-                                            <ui:Button Margin="5" Content="Disable" Click="Button_Click"/>
-                                            <ui:Button Margin="5" Content="Remove" Click="Button_Click"/>
-                                            <ui:Button Margin="5" Content="Visit URL" Click="Button_Click_1"/>
-                                        </StackPanel>
-                                    </ui:CardControl>
-                                </StackPanel>
-                                
-                            </ui:CardExpander>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <StackPanel Margin="20">
+                    <ui:CardExpander Margin="0,5,0,12" Icon="{ui:SymbolIcon AppsAddIn24}" IsExpanded="False">
+                        <ui:CardExpander.Header>
+                            <ctrls:CardControl Header="Load Plugin" Subtitle="Load a new plugin to system. Requires restart."/>
+                        </ui:CardExpander.Header>
+
+                        <StackPanel>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:TextBox x:Name="nameTxt" PlaceholderText="Name"/>
+                                </ui:CardControl.Header>
+                            </ui:CardControl>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:TextBox x:Name="guidTxt" PlaceholderText="GUID"/>
+                                </ui:CardControl.Header>
+                                <ui:Button Click="Button_Click_2">Generate</ui:Button>
+                            </ui:CardControl>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:TextBox x:Name="descTxt" PlaceholderText="Description"/>
+                                </ui:CardControl.Header>
+                            </ui:CardControl>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:TextBox x:Name="urlTxt" PlaceholderText="URL"/>
+                                </ui:CardControl.Header>
+                            </ui:CardControl>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:TextBox x:Name="authTxt" PlaceholderText="Author"/>
+                                </ui:CardControl.Header>
+                            </ui:CardControl>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:TextBox x:Name="iconTxt" PlaceholderText="Icon"/>
+                                </ui:CardControl.Header>
+                                <ui:Button>View</ui:Button>
+                            </ui:CardControl>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:NumberBox x:Name="verTxt" PlaceholderText="Version"/>
+                                </ui:CardControl.Header>
+                            </ui:CardControl>
+
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:Button Appearance="Primary" Click="Button_Click_3">Load</ui:Button>
+                            </ui:CardControl>
+                        </StackPanel>
+                       
+                        
+                    </ui:CardExpander>
+                    <ItemsControl ItemsSource="{Binding Plugins}" VerticalAlignment="Top">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ui:CardExpander Margin="0,5,0,5" Icon="{Binding Icon}" IsExpanded="False">
+                                    <ui:CardExpander.Header>
+                                        <ctrls:CardControl Header="{Binding Plugin.Name}" Subtitle="{Binding Plugin.Description}"/>
+                                    </ui:CardExpander.Header>
+                                    <StackPanel>
+                                        <ui:CardExpander Icon="{ui:SymbolIcon Eye24}">
+                                            <ui:CardExpander.Header>
+                                                <ctrls:CardControl Header="Permissions" Subtitle="Allow or deny permissions to system components."/>
+                                            </ui:CardExpander.Header>
+                                            <ItemsControl ItemsSource="{Binding PermissionEntries, Mode=OneWay}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <ui:CardControl>
+                                                            <ui:CardControl.Header>
+                                                                <ctrls:CardControl Header="{Binding Header}"
+Subtitle="{Binding Subtitle}" />
+                                                            </ui:CardControl.Header>
+                                                            <ui:ToggleSwitch IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                                        </ui:CardControl>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ui:CardExpander>
+                                        <ui:CardControl Icon="{ui:SymbolIcon ArchiveSettings24}">
+                                            <ui:CardControl.Header>
+                                                <ctrls:CardControl Header="Operations" Subtitle="Decide what to do."/>
+                                            </ui:CardControl.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:Button Margin="5" Content="Enable" Click="Button_Click"/>
+                                                <ui:Button Margin="5" Content="Disable" Click="Button_Click"/>
+                                                <ui:Button Margin="5" Content="Remove" Click="Button_Click"/>
+                                                <ui:Button Margin="5" Content="Visit URL" Click="Button_Click_1"/>
+                                            </StackPanel>
+                                        </ui:CardControl>
+                                    </StackPanel>
+
+                                </ui:CardExpander>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                
             </Grid>
             <Grid>
                 <Grid.ColumnDefinitions>
