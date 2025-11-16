@@ -13,13 +13,14 @@ Based on [barevisor](https://github.com/tandasat/barevisor)
 
 `HxPosed.GUI` contains the code written in C#.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
-- `libhxposed` native library providing access to hypervisor.
+- `libhxposed` native library providing access to hypervisor. Written in C and asm.
 - `HxPosed.Plugins` plugin managing code.
+- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
 
 ## Get me to the point
 ### How to use?
 - Grab the latest release (I'll put it Soon™️)
-- Unpack it.
+- Unpack it. (7-zip is nice)
 - Disable DSE through some bootkit or whatever. Or use the bootposed bootkit I plan to make just for that purpose.
 - Load the driver.
 - Idk? Load plugins and enjoy them.
@@ -37,7 +38,7 @@ Glad you asked.
 - The building process is simple. You need to go to `src\windows` directory and run `cargo make`. The output will be in `target\debug`. (first time build may take time (approx 1 min), be patient)
 - Then, build the GUI (if you want) by simply opening up the solution in visual studio and clicking that little tiny build button. The outputt will be in `bin\Debug\net10.0-windows`.
 - The driver is not signed. Fire up a vm, connect WinDbg through kdnet [here is how to do that](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/setting-up-a-network-debugging-connection-automatically)
-- Use OSR driver loader. Or if you like some fantasy you can use sc as I do.
+- Use OSR driver loader. Or if you like some fantasy you can use `sc` like I do.
 - The driver should be loaded and running.
 - You can now do your stuff and see if it works.
 - Feature requests, bug reports are always welcome.
@@ -50,10 +51,10 @@ Glad you asked.
 - [x] Support for AMD and Intel.
 - [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
 - [x] Registry filtering to allow access to \Software\HxPosed only to HxPosed manager.
+- [x] Adding plugin loading functionality in UI. (already implemented in code.)
 
 ## What we need?
 - [ ] Implementing the services.
-- [ ] Adding plugin loading functionality in UI. (already implemented in code.)
 
 ## Contact
 [Telegram](https://t.me/staarblitz)
