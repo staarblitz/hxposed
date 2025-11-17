@@ -14,7 +14,7 @@ namespace HxPosed.Plugins.Permissions
         ProcessExecutive = 1 << 0,
         [Display(Name = "Process Memory", Description = "Allow access to memory of process objects.")]
         ProcessMemory = 1 << 1,
-        [Display(Name = "Process Control", Description = "Allow access to process control block (e.g. priority, affinity)")]
+        [Display(Name = "Process Control", Description = "Allow access to process control block (e.g. affinity)")]
         ProcessControl = 1 << 2,
 
         Reserved = 1 << 3,
