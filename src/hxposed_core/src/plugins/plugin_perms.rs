@@ -7,7 +7,7 @@ bitflags! {
         const NONE              = 0;
         const PROCESS_EXECUTIVE = 1 << 0;
         const PROCESS_MEMORY    = 1 << 1;
-        const PROCESS_PROTECTION = 1 << 2;
+        const PROCESS_CONTROL   = 1 << 2;
 
         const RESERVED          = 1 << 3;
         const RESERVED2         = 1 << 4;

@@ -10,15 +10,14 @@ namespace HxPosed.Plugins.Permissions
     {
         None = 0,
 
-        [Display(Name = "Process Executive", Description = "Allow executive access (e.g. kill, create, suspend) to process objects.")]
+        [Display(Name = "Process Executive", Description = "Allow executive access (e.g. change protection, flags, mitigation) to process objects.")]
         ProcessExecutive = 1 << 0,
         [Display(Name = "Process Memory", Description = "Allow access to memory of process objects.")]
         ProcessMemory = 1 << 1,
-        [Display(Name = "Process Protection", Description = "Allow access to process protection modifiers.")]
-        ProcessProtection = 1 << 2,
+        [Display(Name = "Process Control", Description = "Allow access to process control block (e.g. priority, affinity)")]
+        ProcessControl = 1 << 2,
 
-        Reserved = 1 << 3, // ProcessEnclave?
-
+        Reserved = 1 << 3,
         Reserved2 = 1 << 4,
         Reserved3 = 1 << 5,
         Reserved4 = 1 << 6,

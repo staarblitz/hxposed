@@ -4,7 +4,7 @@ use crate::hxposed::responses::VmcallResponse;
 use crate::intern::instructions::{vmcall, vmcall_typed};
 
 pub mod auth;
-mod process;
+pub mod process;
 pub mod status;
 
 #[derive(Copy, Clone, Default, Debug)]

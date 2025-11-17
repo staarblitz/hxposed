@@ -9,6 +9,7 @@ mod nt;
 mod ops;
 mod plugins;
 mod win;
+mod services;
 
 #[global_allocator]
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
@@ -173,6 +174,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 .into_raw(),
             );
         }
+        ServiceFunction::Process => services::handle_process_services(guest, info);
         ServiceFunction::Unknown => {}
         _ => {}
     }
