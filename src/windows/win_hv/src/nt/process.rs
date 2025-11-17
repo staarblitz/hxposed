@@ -1,13 +1,23 @@
 use crate::nt::{EProcessField, get_eprocess_field};
 use alloc::boxed::Box;
-use core::sync::atomic::AtomicPtr;
-use wdk_sys::ntddk::{IoGetCurrentProcess, PsGetProcessId, PsLookupProcessByProcessId};
+use core::sync::atomic::{AtomicPtr, Ordering};
+use wdk_sys::ntddk::{
+    IoGetCurrentProcess, ObfDereferenceObject, PsGetProcessId, PsLookupProcessByProcessId,
+};
 use wdk_sys::{_KPROCESS, CLIENT_ID, PEPROCESS, PUNICODE_STRING, STATUS_SUCCESS, UNICODE_STRING};
 
 pub struct KernelProcess {
     pub nt_process: AtomicPtr<_KPROCESS>,
     pub nt_path: AtomicPtr<UNICODE_STRING>,
     pub id: u64,
+}
+
+impl Drop for KernelProcess {
+    fn drop(&mut self) {
+        unsafe {
+            ObfDereferenceObject(self.nt_process.load(Ordering::Relaxed) as _);
+        }
+    }
 }
 
 impl KernelProcess {
@@ -39,7 +49,7 @@ impl KernelProcess {
         };
         Self {
             nt_process: AtomicPtr::new(ptr),
-            nt_path: AtomicPtr::new(unsafe{*nt_path}),
+            nt_path: AtomicPtr::new(unsafe { *nt_path }),
             id: unsafe { PsGetProcessId(ptr) } as _,
         }
     }

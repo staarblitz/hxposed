@@ -3,38 +3,25 @@ use crate::hxposed::requests::process::{CloseProcessRequest, OpenProcessRequest,
 use crate::hxposed::requests::Vmcall;
 use core::sync::atomic::{AtomicU64, Ordering};
 
-///
-/// # KernelProcess
-///
-/// Base struct representing a process
-pub trait KernelProcess {
-    fn open(id: u32) -> Result<Self, HypervisorError>;
+pub struct HxProcess {
+    pub id: u32,
+    addr: AtomicU64,
 }
 
-
-///
-/// # NtProcess
-///
-/// Represents a process that works with a standard handle instead of hypervisor.
-pub struct NtProcess {
-    handle: AtomicU64,
-}
-
-impl Drop for NtProcess {
+impl Drop for HxProcess {
     fn drop(&mut self) {
-        CloseProcessRequest {
-            open_type: ProcessOpenType::Handle,
-            addr: self.handle.load(Ordering::Relaxed)
-        }.send().unwrap();
+        let _ = CloseProcessRequest {
+            addr: self.addr.load(Ordering::Relaxed),
+            open_type: ProcessOpenType::Hypervisor
+        }.send();
     }
 }
 
-impl KernelProcess for NtProcess {
-
+impl HxProcess {
     ///
     /// # Open
     ///
-    /// Opens a kernel handle with all rights to specific process.
+    /// Opens a process.
     ///
     /// ## Arguments
     /// id - Process id
@@ -45,17 +32,19 @@ impl KernelProcess for NtProcess {
     /// ## Example
     ///
     /// ```rust
-    /// let process = NtProcess::open(4).unwrap();
+    /// let process = HxProcess::open(4).unwrap();
     /// println!("{}", process.nt_path);
     /// ```
-    fn open(id: u32) -> Result<Self, HypervisorError> {
+    pub fn open(id: u32) -> Result<Self, HypervisorError> {
         let call = OpenProcessRequest {
             process_id: id,
-            open_type: ProcessOpenType::Handle
-        }.send()?;
+            open_type: ProcessOpenType::Hypervisor,
+        }
+        .send()?;
 
-        Ok(Self{
-            handle: AtomicU64::new(call.addr)
+        Ok(Self {
+            id,
+            addr: AtomicU64::new(call.addr),
         })
     }
 }

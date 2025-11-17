@@ -29,6 +29,10 @@ impl HypervisorCall {
     pub(crate) fn open_process() -> Self {
         Self::new().with_func(ServiceFunction::OpenProcess)
     }
+
+    pub(crate) fn close_process() -> Self {
+        Self::new().with_func(ServiceFunction::CloseProcess)
+    }
 }
 
 #[bitfield(u32)]

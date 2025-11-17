@@ -42,7 +42,7 @@ impl VmcallRequest for CloseProcessRequest {
 
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
-            call: HypervisorCall::open_process(),
+            call: HypervisorCall::close_process(),
             arg1: self.addr as _,
             arg2: self.open_type.to_bits() as _,
             arg3: 0
@@ -61,6 +61,7 @@ impl VmcallRequest for CloseProcessRequest {
 #[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
 pub enum ProcessOpenType {
     #[default]
+    #[deprecated(note = "Has no effect.")]
     Handle = 0,
     Hypervisor = 1
 }

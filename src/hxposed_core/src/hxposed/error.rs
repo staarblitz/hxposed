@@ -3,6 +3,7 @@
 pub enum ErrorCode {
     Unknown = 0,
     Ok = 1,
+    /// See [NotAllowedReason]. Put on arg1
     NotAllowed = 2,
     NotLoaded = 3
 }
@@ -19,6 +20,26 @@ impl ErrorCode {
             2 => Self::NotAllowed,
             3 => Self::NotLoaded,
             _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[repr(u32)]
+pub enum NotAllowedReason {
+    Unknown = 0,
+    PluginNotLoaded = u32::MAX,
+    MissingPermissions = 1
+}
+
+impl NotAllowedReason {
+    pub const fn into_bits(self) -> u32 {self as _}
+
+    pub const fn from_bits(value: u32) -> Self {
+        match value {
+            u32::MAX => Self::PluginNotLoaded,
+            1 => Self::MissingPermissions,
+            _ => Self::Unknown
         }
     }
 }

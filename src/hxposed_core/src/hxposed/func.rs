@@ -4,7 +4,8 @@ pub enum ServiceFunction {
     Unknown = 0,
     Authorize = 1,
     GetState = 2,
-    OpenProcess = 3
+    OpenProcess = 3,
+    CloseProcess = 4,
 }
 
 impl ServiceFunction {
@@ -18,6 +19,7 @@ impl ServiceFunction {
             1 => ServiceFunction::Authorize,
             2 => ServiceFunction::GetState,
             3 => ServiceFunction::OpenProcess,
+            4 => ServiceFunction::CloseProcess,
             _ => ServiceFunction::Unknown
         }
     }

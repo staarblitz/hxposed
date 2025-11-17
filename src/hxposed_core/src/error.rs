@@ -1,5 +1,5 @@
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::error::{ErrorCode, ErrorSource};
+use crate::hxposed::error::{ErrorCode, ErrorSource, NotAllowedReason};
 use static_assertions::assert_eq_size;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

@@ -1,18 +1,19 @@
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{PLUGINS, as_pvoid, get_data};
+use crate::{as_pvoid, get_data, PLUGINS};
 use alloc::format;
+use alloc::vec::Vec;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
+use wdk_sys::ntddk::{IoGetCurrentProcess, ZwClose, ZwOpenKey, ZwQueryValueKey};
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{ZwClose, ZwOpenKey, ZwQueryValueKey};
-use wdk_sys::{_KPROCESS, PEPROCESS, PVOID};
 use wdk_sys::{
-    HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
-    OBJECT_ATTRIBUTES, STATUS_SUCCESS,
+    HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE,
+    OBJ_KERNEL_HANDLE, STATUS_SUCCESS,
 };
+use wdk_sys::{PEPROCESS, PVOID, _KPROCESS};
 
 #[derive(Debug, Default)]
 pub(crate) struct Plugin {
@@ -20,6 +21,7 @@ pub(crate) struct Plugin {
     pub permissions: PluginPermissions,
     pub authorized_permissions: PluginPermissions,
     pub process: AtomicPtr<_KPROCESS>,
+    pub open_processes: Vec<AtomicPtr<_KPROCESS>>,
 }
 impl Plugin {
     ///
@@ -32,7 +34,7 @@ impl Plugin {
     ///
     /// ## Return
     /// Returns an [Option] containing static mutable reference to [Plugin].
-    pub fn get(uuid: Uuid) -> Option<&'static mut Plugin> {
+    pub fn lookup(uuid: Uuid) -> Option<&'static mut Self> {
         let ptr = PLUGINS.load(Ordering::Acquire);
         if ptr.is_null() {
             return None;
@@ -41,6 +43,31 @@ impl Plugin {
 
         //:skull:
         Some(*slice.plugins.iter_mut().find(|p| p.uuid == uuid).unwrap())
+    }
+
+    ///
+    /// # Current
+    ///
+    /// Gets the current plugin from current process context
+    ///
+    /// ## Return
+    ///
+    /// Returns an [Option] containing static mutable reference to [Plugin].
+    pub fn current() -> Option<&'static mut Self> {
+        let ptr = PLUGINS.load(Ordering::Acquire);
+        if ptr.is_null() {
+            return None;
+        }
+
+        let slice = unsafe { &mut *ptr };
+
+        Some(
+            *slice
+                .plugins
+                .iter_mut()
+                .find(|p| p.process.load(Ordering::Relaxed) == unsafe { IoGetCurrentProcess() })
+                .unwrap(),
+        )
     }
 
     ///
@@ -119,6 +146,7 @@ impl Plugin {
             permissions,
             authorized_permissions: permissions,
             process: AtomicPtr::default(),
+            open_processes: Vec::new(),
         })
     }
 }

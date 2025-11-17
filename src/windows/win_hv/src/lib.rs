@@ -8,8 +8,8 @@ mod cback;
 mod nt;
 mod ops;
 mod plugins;
-mod win;
 mod services;
+mod win;
 
 #[global_allocator]
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
@@ -26,17 +26,20 @@ use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
-use hxposed_core::hxposed::error::{ErrorCode, ErrorSource};
+use hxposed_core::hxposed::error::{ErrorCode, ErrorSource, NotAllowedReason};
 use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::func::ServiceFunction::Authorize;
 use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
+use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use wdk::println;
 
-use wdk_alloc::{WdkAllocator};
+use crate::services::authorize_plugin;
+use wdk_alloc::WdkAllocator;
 use wdk_sys::ntddk::{CmRegisterCallback, IoGetCurrentProcess, KeBugCheck};
 use wdk_sys::{
     DRIVER_OBJECT, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID,
@@ -137,31 +140,27 @@ extern "C" fn driver_entry(
 ///
 fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     println!("Handling vmcall function: {:?}", info.func());
-    match info.func() {
-        ServiceFunction::Authorize => {
-            // All other fields are ignored.
-            let req = AuthorizationRequest::from_raw(
-                info,
-                guest.regs().r8,
-                guest.regs().r9,
-                guest.regs().r10,
-            );
+    let args = get_args(guest);
 
-            let plugin = Plugin::get(req.uuid);
-
-            if plugin.is_none() {
-                let error = HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed);
-                guest.regs().rsi = error.into_bits() as _;
+    let plugin = match Plugin::current() {
+        None => {
+            if info.func() == Authorize {
+                authorize_plugin(guest, info, args);
                 return;
             }
-
-            let plugin = plugin.unwrap();
-            let permissions = plugin.permissions.bitand(req.permissions);
-
-            plugin.integrate(unsafe { IoGetCurrentProcess() }, permissions);
-
-            write_response(guest, AuthorizationResponse { permissions }.into_raw());
+            write_response(
+                guest,
+                HypervisorResponse::not_allowed(
+                    NotAllowedReason::PluginNotLoaded,
+                    PluginPermissions::empty(),
+                ),
+            );
+            return;
         }
+        Some(x) => x,
+    };
+
+    match info.func() {
         ServiceFunction::GetState => {
             // All other fields of HxPosedCall are ignored.
 
@@ -174,10 +173,16 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 .into_raw(),
             );
         }
-        ServiceFunction::Process => services::handle_process_services(guest, info);
+        ServiceFunction::OpenProcess => {
+            services::handle_process_services(guest, info, args, plugin)
+        }
         ServiceFunction::Unknown => {}
         _ => {}
     }
+}
+
+pub(crate) fn get_args(guest: &mut dyn Guest) -> (u64, u64, u64) {
+    (guest.regs().r9, guest.regs().r10, guest.regs().r11)
 }
 
 pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse) {
