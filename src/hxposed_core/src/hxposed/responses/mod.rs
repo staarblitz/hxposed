@@ -27,7 +27,7 @@ impl HypervisorResponse {
 
     pub fn nt_error(reason: u32) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::Unknown),
+            result: HypervisorResult::error(ErrorSource::Nt, ErrorCode::Unknown),
             arg1: reason as _,
             arg2: 0,
             arg3: 0
