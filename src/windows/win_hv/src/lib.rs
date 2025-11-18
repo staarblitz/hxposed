@@ -17,21 +17,22 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{PluginTable, load_plugins};
+use crate::plugins::{load_plugins, PluginTable};
 use crate::win::Utf8ToUnicodeString;
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use core::ops::{BitAnd, DerefMut};
+use core::panic::Location;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
-use hxposed_core::hxposed::error::{ErrorCode, ErrorSource, NotAllowedReason};
+use hv::SharedHostData;
+use hxposed_core::hxposed::call::HypervisorCall;
+use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::func::ServiceFunction::Authorize;
-use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
-use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
+use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
@@ -40,10 +41,10 @@ use wdk::println;
 
 use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
-use wdk_sys::ntddk::{CmRegisterCallback, IoGetCurrentProcess, KeBugCheck};
+use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx};
 use wdk_sys::{
-    DRIVER_OBJECT, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID,
-    STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE, ntddk::ExAllocatePool2,
+    ntddk::ExAllocatePool2, DRIVER_OBJECT, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, POOL_FLAG_NON_PAGED,
+    PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -195,5 +196,25 @@ pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     println!("Panic occurred: {:?}", _info);
-    unsafe { KeBugCheck(0x2009) };
+
+    let param1 = _info
+        .message()
+        .as_str()
+        .unwrap_or("Could not unwrap message");
+    let param2 = _info.location().unwrap_or(Location::caller());
+
+    // First parameter is the message.
+    // Second parameter is the column and line encoded. First 32 bytes (LSB) is column, next 32 bytes are the line.
+    // Third parameter is the file location.
+    // Fourth parameter is reserved.
+
+    unsafe {
+        KeBugCheckEx(
+            0x2009,
+            param1.as_ptr() as _,
+            (param2.column() | param2.line() << 32) as _,
+            param2.file().as_ptr() as _,
+            0,
+        )
+    };
 }
