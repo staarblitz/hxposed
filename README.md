@@ -51,10 +51,10 @@ Glad you asked.
 - [x] Support for AMD and Intel.
 - [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
 - [x] Registry filtering to allow access to \Software\HxPosed only to HxPosed manager.
-- [x] Adding plugin loading functionality in UI. (already implemented in code.)
+- [x] Adding plugin loading functionality in UI.
 
 ## What we need?
-- [ ] Implementing the services.
+- [ ] Implementing the services. (See [issue tracker](https://github.com/staarblitz/hxposed/issues/1))
 
 ## Contact
 [Telegram](https://t.me/staarblitz)
