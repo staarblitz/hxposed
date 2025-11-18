@@ -12,9 +12,7 @@ impl VmcallRequest for StatusRequest {
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
             call: HypervisorCall::get_status(),
-            arg1: 0,
-            arg2: 0,
-            arg3: 0,
+            ..Default::default()
         }
     }
 

@@ -6,6 +6,7 @@ use crate::plugins::plugin_perms::PluginPermissions;
 pub mod auth;
 pub mod process;
 pub mod status;
+pub mod empty;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct HypervisorResponse {

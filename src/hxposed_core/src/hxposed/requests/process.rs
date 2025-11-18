@@ -1,5 +1,6 @@
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::OpenProcessResponse;
 use crate::intern::instructions::{vmcall, vmcall_typed};
 
@@ -39,7 +40,7 @@ impl VmcallRequest for OpenProcessRequest {
 
 impl VmcallRequest for CloseProcessRequest {
     #[deprecated(note= "This request does not provide a response. Used as a dummy")]
-    type Response = OpenProcessResponse; // Dummy!
+    type Response = EmptyResponse;
 
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {

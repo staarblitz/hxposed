@@ -22,8 +22,7 @@ impl VmcallResponse for OpenProcessResponse {
         HypervisorResponse {
             result: HypervisorResult::ok(ServiceFunction::OpenProcess),
             arg1: self.addr,
-            arg2: 0,
-            arg3: 0,
+            ..Default::default()
         }
     }
 }

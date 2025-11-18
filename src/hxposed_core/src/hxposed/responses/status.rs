@@ -27,7 +27,7 @@ impl VmcallResponse for StatusResponse {
             result: HypervisorResult::ok(ServiceFunction::GetState),
             arg1: self.state as _,
             arg2: self.version as _,
-            arg3: 0,
+            ..Default::default()
         }
     }
 }
