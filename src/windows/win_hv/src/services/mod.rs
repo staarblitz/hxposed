@@ -6,9 +6,9 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::process::{CloseProcessRequest, OpenProcessRequest};
-use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
@@ -62,11 +62,17 @@ pub fn handle_process_services(
     args: (u64, u64, u64),
     plugin: &'static mut Plugin,
 ) {
-    match call.func() {
-        ServiceFunction::OpenProcess => open_process(guest, OpenProcessRequest::from_raw(call, args), plugin),
-        ServiceFunction::CloseProcess => close_process(guest, CloseProcessRequest::from_raw(call, args), plugin),
+    let result = match call.func() {
+        ServiceFunction::OpenProcess => {
+            open_process(guest, OpenProcessRequest::from_raw(call, args), plugin)
+        }
+        ServiceFunction::CloseProcess => {
+            close_process(guest, CloseProcessRequest::from_raw(call, args), plugin)
+        }
         _ => unreachable!(),
-    }
+    };
+
+    write_response(guest, result);
 }
 
 ///
