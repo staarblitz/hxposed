@@ -17,7 +17,7 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{load_plugins, PluginTable};
+use crate::plugins::{PluginTable, load_plugins};
 use crate::win::Utf8ToUnicodeString;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
@@ -25,14 +25,14 @@ use core::ops::{BitAnd, DerefMut};
 use core::panic::Location;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::hypervisor::host::Guest;
 use hv::SharedHostData;
+use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::func::ServiceFunction::Authorize;
-use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::VmcallRequest;
+use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
@@ -43,8 +43,8 @@ use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
 use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx};
 use wdk_sys::{
-    ntddk::ExAllocatePool2, DRIVER_OBJECT, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, POOL_FLAG_NON_PAGED,
-    PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
+    DRIVER_OBJECT, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID,
+    STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE, ntddk::ExAllocatePool2,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -141,6 +141,18 @@ extern "C" fn driver_entry(
 ///
 fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     println!("Handling vmcall function: {:?}", info.func());
+
+    if info.func() == ServiceFunction::GetState {
+        write_response(
+            guest,
+            StatusResponse {
+                state: HypervisorStatus::SystemVirtualized,
+                version: 1,
+            }
+            .into_raw(),
+        );
+    }
+
     let args = get_args(guest);
 
     let plugin = match Plugin::current() {
@@ -162,18 +174,6 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     };
 
     match info.func() {
-        ServiceFunction::GetState => {
-            // All other fields of HxPosedCall are ignored.
-
-            write_response(
-                guest,
-                StatusResponse {
-                    state: HypervisorStatus::SystemVirtualized,
-                    version: 1,
-                }
-                .into_raw(),
-            );
-        }
         ServiceFunction::OpenProcess | ServiceFunction::CloseProcess => {
             services::handle_process_services(guest, info, args, plugin)
         }
@@ -183,7 +183,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
 }
 
 pub(crate) fn get_args(guest: &mut dyn Guest) -> (u64, u64, u64) {
-    (guest.regs().r9, guest.regs().r10, guest.regs().r11)
+    (guest.regs().r8, guest.regs().r9, guest.regs().r10)
 }
 
 pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse) {
@@ -212,7 +212,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
         KeBugCheckEx(
             0x2009,
             param1.as_ptr() as _,
-            (param2.column() as u64 | (param2.line() as u64) << 32) as _,
+            (param2.column() as u64 | ((param2.line() as u64) << 32)) as _,
             param2.file().as_ptr() as _,
             0,
         )
