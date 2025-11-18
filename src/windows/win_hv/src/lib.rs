@@ -145,7 +145,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     let plugin = match Plugin::current() {
         None => {
             if info.func() == Authorize {
-                authorize_plugin(guest, info, args);
+                authorize_plugin(guest, AuthorizationRequest::from_raw(info, args));
                 return;
             }
             write_response(
@@ -173,7 +173,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 .into_raw(),
             );
         }
-        ServiceFunction::OpenProcess => {
+        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess => {
             services::handle_process_services(guest, info, args, plugin)
         }
         ServiceFunction::Unknown => {}

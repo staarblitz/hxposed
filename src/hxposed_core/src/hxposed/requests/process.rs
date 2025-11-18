@@ -29,10 +29,10 @@ impl VmcallRequest for OpenProcessRequest {
         }
     }
 
-    fn from_raw(call: HypervisorCall, arg1: u64, arg2: u64, arg3: u64) -> Self {
+    fn from_raw(call: HypervisorCall, args: (u64,u64,u64)) -> Self {
         Self{
-            process_id: arg1 as _,
-            open_type: ProcessOpenType::from_bits(arg2 as _)
+            process_id: args.0 as _,
+            open_type: ProcessOpenType::from_bits(args.1 as _)
         }
     }
 }
@@ -49,10 +49,10 @@ impl VmcallRequest for CloseProcessRequest {
         }
     }
 
-    fn from_raw(call: HypervisorCall, arg1: u64, arg2: u64, arg3: u64) -> Self {
+    fn from_raw(call: HypervisorCall, args: (u64,u64,u64)) -> Self {
         Self{
-            addr: arg1,
-            open_type: ProcessOpenType::from_bits(arg2 as _)
+            addr: args.0,
+            open_type: ProcessOpenType::from_bits(args.1 as _)
         }
     }
 }

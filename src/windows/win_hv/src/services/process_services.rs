@@ -14,17 +14,14 @@ use wdk_sys::{PEPROCESS, STATUS_SUCCESS};
 
 pub(crate) fn close_process(
     guest: &mut dyn Guest,
-    call: HypervisorCall,
-    args: (u64, u64, u64),
+    request: CloseProcessRequest,
     plugin: &'static mut Plugin,
 ) {
-    let close_req = CloseProcessRequest::from_raw(call, args.0, args.1, args.2);
-
     if let Some((index, _)) = plugin
         .open_processes
         .iter()
         .enumerate()
-        .find(|(_, x)| x.load(Ordering::Relaxed).addr() as u64 == close_req.addr)
+        .find(|(_, x)| x.load(Ordering::Relaxed).addr() as u64 == request.addr)
     {
         plugin.open_processes.remove(index);
     } else {
@@ -39,8 +36,7 @@ pub(crate) fn close_process(
 
 pub(crate) fn open_process(
     guest: &mut dyn Guest,
-    call: HypervisorCall,
-    args: (u64, u64, u64),
+    request: OpenProcessRequest,
     plugin: &'static mut Plugin,
 ) {
     if !require_perm(
@@ -50,12 +46,9 @@ pub(crate) fn open_process(
     ) {
         return;
     }
-
-    let open_req = OpenProcessRequest::from_raw(call, args.0, args.1, args.2);
-
     let mut process = PEPROCESS::default();
 
-    let status = unsafe { PsLookupProcessByProcessId(open_req.process_id as _, &mut process) };
+    let status = unsafe { PsLookupProcessByProcessId(request.process_id as _, &mut process) };
 
     if status != STATUS_SUCCESS {
         write_response(guest, HypervisorResponse::nt_error(status as _));
