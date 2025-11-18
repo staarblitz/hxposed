@@ -38,7 +38,8 @@ impl VmcallRequest for OpenProcessRequest {
 }
 
 impl VmcallRequest for CloseProcessRequest {
-    type Response = ();
+    #[deprecated(note= "This request does not provide a response. Used as a dummy")]
+    type Response = OpenProcessResponse; // Dummy!
 
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {

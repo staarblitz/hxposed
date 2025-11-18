@@ -212,7 +212,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
         KeBugCheckEx(
             0x2009,
             param1.as_ptr() as _,
-            (param2.column() | param2.line() << 32) as _,
+            (param2.column() as u64 | (param2.line() as u64) << 32) as _,
             param2.file().as_ptr() as _,
             0,
         )
