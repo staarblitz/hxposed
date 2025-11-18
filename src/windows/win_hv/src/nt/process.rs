@@ -12,14 +12,6 @@ pub struct KernelProcess {
     pub id: u64,
 }
 
-impl Drop for KernelProcess {
-    fn drop(&mut self) {
-        unsafe {
-            ObfDereferenceObject(self.nt_process.load(Ordering::Relaxed) as _);
-        }
-    }
-}
-
 impl KernelProcess {
     pub fn from_id(id: u32) -> Option<KernelProcess> {
         let mut process = PEPROCESS::default();
