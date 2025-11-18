@@ -19,8 +19,7 @@ impl VmcallResponse for EmptyResponse {
         Ok(EmptyResponse {})
     }
 
-    #[deprecated(note= "Returns a default. Use the with_service function.")]
     fn into_raw(self) -> HypervisorResponse {
-       HypervisorResponse::default()
+        panic!("Use with_service instead.")
     }
 }
