@@ -5,7 +5,8 @@ pub enum ErrorCode {
     Ok = 1,
     /// See [NotAllowedReason]. Put on arg1
     NotAllowed = 2,
-    NotLoaded = 3
+    NotLoaded = 3,
+    NotFound = 4,
 }
 
 impl ErrorCode {
@@ -19,6 +20,7 @@ impl ErrorCode {
             1 => Self::Ok,
             2 => Self::NotAllowed,
             3 => Self::NotLoaded,
+            4 => Self::NotFound,
             _ => Self::Unknown,
         }
     }
