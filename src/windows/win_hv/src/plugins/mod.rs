@@ -57,7 +57,7 @@ pub(crate) fn load_plugins() {
     let mut index = 0;
     loop {
         let mut return_length = 0;
-        let status = unsafe {
+        match unsafe {
             ZwEnumerateKey(
                 key,
                 index,
@@ -66,16 +66,17 @@ pub(crate) fn load_plugins() {
                 0,
                 &mut return_length,
             )
+        } {
+            STATUS_NO_MORE_ENTRIES => {
+                index = 0;
+                break;
+            }
+            _ => {}
         };
-
-        if status == STATUS_NO_MORE_ENTRIES {
-            index = 0;
-            break;
-        }
 
         let mut info = KEY_BASIC_INFORMATION::alloc_sized(return_length as _);
 
-        let status = unsafe {
+        match unsafe {
             ZwEnumerateKey(
                 key,
                 index,
@@ -84,12 +85,13 @@ pub(crate) fn load_plugins() {
                 return_length,
                 &mut return_length,
             )
-        };
-
-        if status != STATUS_SUCCESS {
-            println!("ZwEnumerateKey failed with status {}", status);
-            index += 1;
-            continue;
+        } {
+            STATUS_SUCCESS => {}
+            status => {
+                println!("ZwEnumerateKey failed with status {}", status);
+                index += 1;
+                continue;
+            }
         }
 
         let mut actual_bytes = 0;
@@ -104,7 +106,7 @@ pub(crate) fn load_plugins() {
         };
 
         let mut name = Vec::<u8>::with_capacity(actual_bytes as usize);
-        let status = unsafe {
+        match unsafe {
             RtlUnicodeToUTF8N(
                 name.as_mut_ptr() as _,
                 actual_bytes,
@@ -112,16 +114,15 @@ pub(crate) fn load_plugins() {
                 info.as_mut().Name.as_mut_ptr(),
                 info.as_mut().NameLength,
             )
-        };
-
-        unsafe {
-            // the Vec doesn't know bytes have been written to it. let's make it know.
-            name.set_len(actual_bytes as usize);
-        }
-
-        if status != STATUS_SUCCESS {
-            println!("RtlUnicodeToUTF8 failed with status {}", status);
-            continue;
+        } {
+            STATUS_SUCCESS => unsafe {
+                // the Vec doesn't know bytes have been written to it. let's make it know.
+                name.set_len(actual_bytes as usize);
+            },
+            _ => {
+                println!("RtlUnicodeToUTF8 failed with status {}", status);
+                continue;
+            }
         }
 
         let uuid = match Uuid::parse_str(str::from_utf8(name.as_slice()).unwrap()) {
