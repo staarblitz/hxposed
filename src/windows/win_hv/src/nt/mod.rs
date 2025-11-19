@@ -18,6 +18,11 @@ pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 ///
 /// driver_section - DRIVER_OBJECT.DriverSection
 pub(crate) fn get_nt_info(driver_section: PVOID) {
+    let mut info = RTL_OSVERSIONINFOW::default();
+    let _ = unsafe { RtlGetVersion(&mut info) };
+
+    NT_BUILD.store(info.dwBuildNumber as _, Ordering::Relaxed);
+
     unsafe {
         let entry = &mut *(driver_section as *mut _LDR_DATA_TABLE_ENTRY);
         // first entry is always ntoskrnl
@@ -29,11 +34,6 @@ pub(crate) fn get_nt_info(driver_section: PVOID) {
             Ordering::Relaxed,
         );
     }
-
-    let mut info = RTL_OSVERSIONINFOW::default();
-    let _ = unsafe { RtlGetVersion(&mut info) };
-
-    NT_BUILD.store(info.dwBuildNumber as _, Ordering::Relaxed);
 }
 
 ///
@@ -53,7 +53,7 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
                 NtProcedure::PsTerminateProcessProc => 0x91f3d4
             }
         }
-        _ => unreachable!(),
+        _ => panic!("Unsupported NT version!")
     }) as *mut T
     }
 }
