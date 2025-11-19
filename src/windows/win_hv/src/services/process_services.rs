@@ -1,11 +1,8 @@
 use crate::plugins::plugin::Plugin;
-use crate::write_response;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::call::{HypervisorCall, HypervisorResult};
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::requests::process::{
     CloseProcessRequest, KillProcessRequest, OpenProcessRequest,
 };
@@ -13,10 +10,9 @@ use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::OpenProcessResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use wdk_sys::ntddk::{
-    PsGetProcessId, PsLookupProcessByProcessId, ZwOpenProcess, ZwTerminateProcess,
-};
-use wdk_sys::{CLIENT_ID, HANDLE, PEPROCESS, PROCESS_ALL_ACCESS, STATUS_SUCCESS};
+use wdk_sys::ntddk::PsLookupProcessByProcessId;
+use wdk_sys::{PEPROCESS, STATUS_SUCCESS};
+use crate::win::PsTerminateProcess;
 
 pub(crate) fn kill_process(
     _guest: &mut dyn Guest,
@@ -35,31 +31,10 @@ pub(crate) fn kill_process(
         None => return HypervisorResponse::not_found(),
     };
 
-    let mut client_id = CLIENT_ID {
-        UniqueProcess: unsafe { PsGetProcessId(process) },
-        UniqueThread: Default::default(),
-    };
-
-    let mut handle = HANDLE::default();
-
-    // we do not initialize object attributes and pass OBJ_KERNEL_HANDLE as flag.
-    // because this function simply makes the handle unusable, hence the process is terminated
-    match unsafe {
-        ZwOpenProcess(
-            &mut handle,
-            PROCESS_ALL_ACCESS,
-            Default::default(),
-            &mut client_id,
-        )
-    } {
+    match unsafe { PsTerminateProcess(process as _, request.exit_code as _) } {
         STATUS_SUCCESS => {}
-        status => return HypervisorResponse::nt_error(status as _),
+        error => return HypervisorResponse::nt_error(error as _),
     };
-
-    match unsafe { ZwTerminateProcess(handle, request.exit_code as _) } {
-        STATUS_SUCCESS => {}
-        status => return HypervisorResponse::nt_error(status as _),
-    }
 
     EmptyResponse::with_service(ServiceFunction::KillProcess)
 }
