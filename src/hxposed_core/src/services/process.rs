@@ -1,7 +1,8 @@
 use crate::error::HypervisorError;
-use crate::hxposed::requests::process::{CloseProcessRequest, OpenProcessRequest, ProcessOpenType};
+use crate::hxposed::requests::process::{CloseProcessRequest, KillProcessRequest, OpenProcessRequest, ProcessOpenType};
 use crate::hxposed::requests::Vmcall;
 use core::sync::atomic::{AtomicU64, Ordering};
+use crate::plugins::plugin_perms::PluginPermissions;
 
 pub struct HxProcess {
     pub id: u32,
@@ -29,6 +30,9 @@ impl HxProcess {
     /// ## Returns
     /// [Result] containing [NtProcess] or error.
     ///
+    /// ## Permissions
+    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    ///
     /// ## Example
     ///
     /// ```rust
@@ -46,5 +50,29 @@ impl HxProcess {
             id,
             addr: AtomicU64::new(call.addr),
         })
+    }
+
+    ///
+    /// # Kill
+    ///
+    /// Uses *PspTerminateProcess* internally to terminate the process object.
+    ///
+    /// Consumes the object.
+    ///
+    /// ## Arguments
+    /// exit_code - The NTSTATUS exit code of the process.
+    ///
+    /// ## Permissions
+    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    ///
+    /// ## Returns
+    /// [Result] with most likely an NT error.
+    pub fn kill(self, exit_code: u32) -> Result<(), HypervisorError> {
+        KillProcessRequest {
+            id: self.id,
+            exit_code
+        }.send()?;
+
+        Ok(())
     }
 }
