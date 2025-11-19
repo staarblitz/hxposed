@@ -204,7 +204,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     let param2 = _info.location().unwrap_or(Location::caller());
 
     // First parameter is the message.
-    // Second parameter is the column and line encoded. First 32 bytes (LSB) is column, next 32 bytes are the line.
+    // Second parameter is the column and line encoded. First 32 bits (LSB) is column, next 32 bits are the line.
     // Third parameter is the file location.
     // Fourth parameter is reserved.
 
@@ -212,7 +212,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
         KeBugCheckEx(
             0x2009,
             param1.as_ptr() as _,
-            (param2.column() as u64 | ((param2.line() as u64) << 32)) as _,
+            (param2.column() as u64 | ((param2.line() as u64) << 31)) as _,
             param2.file().as_ptr() as _,
             0,
         )

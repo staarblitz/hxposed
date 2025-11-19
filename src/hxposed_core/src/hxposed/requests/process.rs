@@ -18,6 +18,12 @@ pub struct CloseProcessRequest {
     pub open_type: ProcessOpenType
 }
 
+#[derive(Clone,Default,Debug)]
+#[repr(C)]
+pub struct KillProcessRequest {
+    pub id: u32
+}
+
 impl VmcallRequest for OpenProcessRequest {
     type Response = OpenProcessResponse;
 
@@ -30,7 +36,7 @@ impl VmcallRequest for OpenProcessRequest {
         }
     }
 
-    fn from_raw(call: HypervisorCall, args: (u64,u64,u64)) -> Self {
+    fn from_raw(_call: HypervisorCall, args: (u64,u64,u64)) -> Self {
         Self{
             process_id: args.0 as _,
             open_type: ProcessOpenType::from_bits(args.1 as _)
@@ -51,10 +57,28 @@ impl VmcallRequest for CloseProcessRequest {
         }
     }
 
-    fn from_raw(call: HypervisorCall, args: (u64,u64,u64)) -> Self {
+    fn from_raw(_call: HypervisorCall, args: (u64,u64,u64)) -> Self {
         Self{
             addr: args.0,
             open_type: ProcessOpenType::from_bits(args.1 as _)
+        }
+    }
+}
+
+impl VmcallRequest for KillProcessRequest {
+    type Response = EmptyResponse;
+
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
+            call: HypervisorCall::kill_process(),
+            arg1: self.id as _,
+            ..Default::default()
+        }
+    }
+
+    fn from_raw(_call: HypervisorCall, args: (u64,u64,u64)) -> Self {
+        Self {
+            id: args.0 as _
         }
     }
 }

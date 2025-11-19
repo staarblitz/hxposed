@@ -14,6 +14,14 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use wdk_sys::ntddk::PsLookupProcessByProcessId;
 use wdk_sys::{PEPROCESS, STATUS_SUCCESS};
 
+pub(crate) fn kill_process(
+    _guest: &mut dyn Guest,
+    request: KillProcessRequest,
+    plugin: &'static mut Plugin
+) -> HypervisorResponse {
+
+}
+
 pub(crate) fn close_process(
     _guest: &mut dyn Guest,
     request: CloseProcessRequest,

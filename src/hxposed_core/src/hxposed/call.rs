@@ -30,6 +30,10 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::OpenProcess)
     }
 
+    pub(crate) fn kill_process() -> Self {
+        Self::new().with_func(ServiceFunction::KillProcess)
+    }
+
     pub(crate) fn close_process() -> Self {
         Self::new().with_func(ServiceFunction::CloseProcess)
     }
