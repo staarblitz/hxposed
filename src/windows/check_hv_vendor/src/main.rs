@@ -1,3 +1,4 @@
+use std::io::stdin;
 use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
@@ -45,12 +46,29 @@ fn main() {
         resp.state, resp.version
     );
 
+    println!("Process id to open?: ");
+    let mut input = String::new();
+    stdin().read_line(&mut input).unwrap();
+
+    let id: u32 = input.trim_end().parse().unwrap();
+
     println!("Trying to open a process...");
-    let mut process = match HxProcess::open(4) {
+    let mut process = match HxProcess::open(id) {
         Ok(x) => x,
         Err(e) => {
             println!("Error opening process: {:?}", e);
             return;
         }
     };
+
+    println!("Opened process!");
+
+    match process.kill(0) {
+        Ok(_) => {
+            println!("Killed process!");
+        }
+        Err(e) => {
+            println!("Error killing process: {:?}", e);
+        }
+    }
 }
