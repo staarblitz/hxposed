@@ -28,7 +28,7 @@ impl Plugin {
         &self,
         id: Option<u32>,
         addr: Option<PEPROCESS>,
-    ) -> Option<&'static mut _KPROCESS> {
+    ) -> Option<*mut _KPROCESS> {
         let ptr = self.open_processes.iter().find(|p| {
             let eprocess = p.load(Ordering::Relaxed) as PEPROCESS;
             if let Some(id) = id {
@@ -47,7 +47,7 @@ impl Plugin {
 
         match ptr {
             None => None,
-            Some(x) => Some(unsafe { &mut *(x.load(Ordering::Relaxed)) }),
+            Some(x) => Some(x.load(Ordering::Relaxed)),
         }
     }
 
