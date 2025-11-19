@@ -1,42 +1,48 @@
 use ::alloc::boxed::Box;
 use ::alloc::vec::Vec;
+use core::arch::asm;
 use core::ffi::c_void;
 use core::ptr::null_mut;
 use core::str::FromStr;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use wdk_sys::ntddk::{
-    ExAllocatePool2, RtlCompareMemory, RtlCopyUnicodeString,
-    RtlInitUTF8String, RtlUTF8StringToUnicodeString,
+    ExAllocatePool2, RtlCompareMemory, RtlCopyUnicodeString, RtlInitUTF8String,
+    RtlUTF8StringToUnicodeString,
 };
 use wdk_sys::{
-    HANDLE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PEPROCESS,
-    POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID,
-    TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING,
+    HANDLE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PEPROCESS, POBJECT_ATTRIBUTES,
+    POOL_FLAG_NON_PAGED, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING,
 };
 
 pub(crate) mod alloc;
 pub(crate) mod macros;
 pub(crate) mod timing;
 
-pub(crate) type PsTerminateProcessType = fn(*mut PEPROCESS, NTSTATUS) -> NTSTATUS;
+pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(*mut PEPROCESS, NTSTATUS) -> NTSTATUS;
 pub(crate) static NT_PS_TERMINATE_PROCESS: AtomicPtr<PsTerminateProcessType> =
     AtomicPtr::new(null_mut());
 
 #[allow(non_snake_case)]
 pub(crate) unsafe fn PsTerminateProcess(Process: *mut PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
-    (*NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed))(Process, ExitCode)
+    let mut status = 0;
+    // the beautiful rust doesn't allow misaligned pointers.
+    // it isn't my fault PsTerminateProcess is 0x8 unaligned. come on dude
+    unsafe {
+        asm!(
+        "mov rcx, {0}",
+        "mov rdx, {1}",
+        "mov rax, {2}",
+        "call rax",
+        "mov {3}, rax",
+        in(reg) Process,in(reg) ExitCode, in(reg) NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed),
+        inout(reg) status => status);
+    }
+    status as _
 }
 
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
-    #[allow(non_snake_case)]
-    pub fn ZwQueryInformationProcess(
-        ProcessHandle: HANDLE,
-        ProcessInformationClass: PROCESSINFOCLASS,
-        ProcessInformation: PVOID,
-        ProcessInformationLength: ULONG,
-        ReturnLength: PULONG,
-    ) -> NTSTATUS;
+    pub static PsLoadedModuleList: *mut _LDR_DATA_TABLE_ENTRY;
 }
 
 #[allow(non_snake_case)]

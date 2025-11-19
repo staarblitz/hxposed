@@ -1,9 +1,11 @@
+use alloc::collections::VecDeque;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use crate::{PLUGINS, as_pvoid, get_data};
 use alloc::format;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicPtr, Ordering};
+use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
@@ -14,7 +16,6 @@ use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, STATUS_SUCCESS,
 };
-
 #[derive(Debug, Default)]
 pub(crate) struct Plugin {
     pub uuid: Uuid,
@@ -24,6 +25,21 @@ pub(crate) struct Plugin {
     pub open_processes: Vec<AtomicPtr<_KPROCESS>>,
 }
 impl Plugin {
+    ///
+    /// # Get Open Process
+    ///
+    /// Gets a process open in the [self.open_processes]
+    ///
+    /// ## Arguments
+    /// id - If [Some], the id is compared for result.
+    ///
+    /// addr - If [Some], the addr is compared for result.
+    ///
+    /// ## Warning
+    /// Both results are *not* compared together.
+    ///
+    /// ## Returns
+    /// Pointer to [_KPROCESS], if found
     pub fn get_open_process(
         &self,
         id: Option<u32>,
@@ -184,7 +200,7 @@ impl Plugin {
             permissions,
             authorized_permissions: permissions,
             process: AtomicPtr::default(),
-            open_processes: Vec::new(),
+            open_processes: Vec::new()
         })
     }
 }

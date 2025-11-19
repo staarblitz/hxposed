@@ -1,10 +1,10 @@
 pub(crate) mod process;
 
-use crate::win::{_LDR_DATA_TABLE_ENTRY, NT_PS_TERMINATE_PROCESS, PsTerminateProcessType};
+use crate::win::{PsLoadedModuleList, PsTerminateProcessType, NT_PS_TERMINATE_PROCESS, _LDR_DATA_TABLE_ENTRY};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use wdk_sys::ntddk::RtlGetVersion;
-use wdk_sys::{PEPROCESS, PVOID, RTL_OSVERSIONINFOW};
+use wdk_sys::{PEPROCESS, RTL_OSVERSIONINFOW};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
@@ -17,14 +17,14 @@ pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 /// ## Arguments
 ///
 /// driver_section - DRIVER_OBJECT.DriverSection
-pub(crate) fn get_nt_info(driver_section: PVOID) {
+pub(crate) fn get_nt_info() {
     let mut info = RTL_OSVERSIONINFOW::default();
     let _ = unsafe { RtlGetVersion(&mut info) };
 
     NT_BUILD.store(info.dwBuildNumber as _, Ordering::Relaxed);
 
     unsafe {
-        let entry = &mut *(driver_section as *mut _LDR_DATA_TABLE_ENTRY);
+        let entry = &mut *(PsLoadedModuleList);
         // first entry is always ntoskrnl
         let nt = &mut *(entry.InLoadOrderLinks.Flink as *mut _LDR_DATA_TABLE_ENTRY);
         NT_BASE.store(nt.DllBase as *mut u64, Ordering::Relaxed);
@@ -45,15 +45,15 @@ pub(crate) fn get_nt_info(driver_section: PVOID) {
 /// proc- Procedure to get pointer to. See [NtProcedure]
 pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
-    let base = NT_BASE.load(Ordering::Relaxed);
+    let base = NT_BASE.load(Ordering::Relaxed) as *mut u8;
     unsafe {
-        base.byte_offset(match build {
+        base.add(match build {
         26200 /* 25H2 */ => {
             match proc {
                 NtProcedure::PsTerminateProcessProc => 0x91f3d4
             }
         }
-        _ => panic!("Unsupported NT version!")
+        _ => panic!("Unknown NT build {}", build)
     }) as *mut T
     }
 }

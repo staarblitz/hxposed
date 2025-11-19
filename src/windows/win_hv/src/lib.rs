@@ -56,7 +56,7 @@ extern "C" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
-    get_nt_info(driver.DriverSection);
+    get_nt_info();
 
     if nt::NT_BUILD.load(Ordering::Relaxed) != 26200 {
         println!("Unsupported version");
@@ -175,7 +175,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     };
 
     match info.func() {
-        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess | ServiceFunction::KillProcess => {
+        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess => {
             services::handle_process_services(guest, info, args, plugin)
         }
         _ => {
