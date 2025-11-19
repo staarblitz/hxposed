@@ -21,7 +21,8 @@ pub struct CloseProcessRequest {
 #[derive(Clone,Default,Debug)]
 #[repr(C)]
 pub struct KillProcessRequest {
-    pub id: u32
+    pub id: u32,
+    pub exit_code: u32
 }
 
 impl VmcallRequest for OpenProcessRequest {
@@ -72,13 +73,15 @@ impl VmcallRequest for KillProcessRequest {
         HypervisorRequest {
             call: HypervisorCall::kill_process(),
             arg1: self.id as _,
+            arg2: self.exit_code as _,
             ..Default::default()
         }
     }
 
     fn from_raw(_call: HypervisorCall, args: (u64,u64,u64)) -> Self {
         Self {
-            id: args.0 as _
+            id: args.0 as _,
+            exit_code: args.1 as _,
         }
     }
 }

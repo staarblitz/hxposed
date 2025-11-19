@@ -8,7 +8,7 @@ use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
-use hxposed_core::hxposed::requests::process::{CloseProcessRequest, OpenProcessRequest};
+use hxposed_core::hxposed::requests::process::{CloseProcessRequest, KillProcessRequest, OpenProcessRequest};
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
@@ -68,6 +68,9 @@ pub fn handle_process_services(
         }
         ServiceFunction::CloseProcess => {
             close_process(guest, CloseProcessRequest::from_raw(call, args), plugin)
+        }
+        ServiceFunction::KillProcess => {
+            kill_process(guest, KillProcessRequest::from_raw(call, args), plugin)
         }
         _ => unreachable!(),
     };

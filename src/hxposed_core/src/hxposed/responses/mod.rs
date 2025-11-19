@@ -4,9 +4,9 @@ use crate::hxposed::error::{ErrorCode, ErrorSource, NotAllowedReason};
 use crate::plugins::plugin_perms::PluginPermissions;
 
 pub mod auth;
+pub mod empty;
 pub mod process;
 pub mod status;
-pub mod empty;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct HypervisorResponse {
@@ -30,8 +30,14 @@ impl HypervisorResponse {
         Self {
             result: HypervisorResult::error(ErrorSource::Nt, ErrorCode::Unknown),
             arg1: reason as _,
-            arg2: 0,
-            arg3: 0
+            ..Default::default()
+        }
+    }
+
+    pub fn not_found() -> Self {
+        Self {
+            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotFound),
+            ..Default::default()
         }
     }
 }

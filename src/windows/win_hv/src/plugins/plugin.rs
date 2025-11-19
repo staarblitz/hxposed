@@ -8,7 +8,7 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{IoGetCurrentProcess, ZwClose, ZwOpenKey, ZwQueryValueKey};
+use wdk_sys::ntddk::{IoGetCurrentProcess, PsGetProcessId, ZwClose, ZwOpenKey, ZwQueryValueKey};
 use wdk_sys::{_KPROCESS, PEPROCESS, PVOID};
 use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
@@ -24,6 +24,33 @@ pub(crate) struct Plugin {
     pub open_processes: Vec<AtomicPtr<_KPROCESS>>,
 }
 impl Plugin {
+    pub fn get_open_process(
+        &self,
+        id: Option<u32>,
+        addr: Option<PEPROCESS>,
+    ) -> Option<&'static mut _KPROCESS> {
+        let ptr = self.open_processes.iter().find(|p| {
+            let eprocess = p.load(Ordering::Relaxed) as PEPROCESS;
+            if let Some(id) = id {
+                if unsafe { PsGetProcessId(eprocess) as u32 == id } {
+                    return true;
+                }
+            }
+            if let Some(addr) = addr {
+                if eprocess.addr() == addr as u64 as usize {
+                    return true;
+                }
+            }
+
+            false
+        });
+
+        match ptr {
+            None => None,
+            Some(x) => Some(unsafe { &mut *(x.load(Ordering::Relaxed)) }),
+        }
+    }
+
     ///
     /// # Get
     ///
@@ -41,11 +68,7 @@ impl Plugin {
         }
         let slice = unsafe { &mut *ptr };
 
-        match slice
-            .plugins
-            .iter_mut()
-            .find(|p| p.uuid == uuid)
-        {
+        match slice.plugins.iter_mut().find(|p| p.uuid == uuid) {
             Some(p) => Some(*p),
             None => None,
         }
@@ -79,7 +102,7 @@ impl Plugin {
 
     ///
     /// # Permission Check
-    /// 
+    ///
     /// Quick permission check for [self.authorized_permissions]
     pub fn perm_check(&self, permissions: PluginPermissions) -> bool {
         self.authorized_permissions.contains(permissions)
