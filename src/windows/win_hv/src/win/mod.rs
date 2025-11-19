@@ -1,18 +1,31 @@
 use ::alloc::boxed::Box;
 use ::alloc::vec::Vec;
 use core::ffi::c_void;
+use core::ptr::null_mut;
 use core::str::FromStr;
-use wdk::println;
-use wdk_sys::ntddk::{ExAllocatePool2, RtlAppendUnicodeStringToString, RtlCompareMemory, RtlCopyUnicodeString, RtlInitUTF8String, RtlUTF8StringToUnicodeString};
+use core::sync::atomic::{AtomicPtr, Ordering};
+use wdk_sys::ntddk::{
+    ExAllocatePool2, RtlCompareMemory, RtlCopyUnicodeString,
+    RtlInitUTF8String, RtlUTF8StringToUnicodeString,
+};
 use wdk_sys::{
-    BOOLEAN, HANDLE, NTSTATUS, OBJECT_ATTRIBUTES, PCUNICODE_STRING, POBJECT_ATTRIBUTES,
-    POOL_FLAG_NON_PAGED, PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID, TRUE, ULONG,
-    UNICODE_STRING, UTF8_STRING, wchar_t,
+    HANDLE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PEPROCESS,
+    POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PROCESSINFOCLASS, PULONG, PUNICODE_STRING, PVOID,
+    TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING,
 };
 
 pub(crate) mod alloc;
 pub(crate) mod macros;
 pub(crate) mod timing;
+
+pub(crate) type PsTerminateProcessType = fn(*mut PEPROCESS, NTSTATUS) -> NTSTATUS;
+pub(crate) static NT_PS_TERMINATE_PROCESS: AtomicPtr<PsTerminateProcessType> =
+    AtomicPtr::new(null_mut());
+
+#[allow(non_snake_case)]
+pub(crate) unsafe fn PsTerminateProcess(Process: *mut PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
+    (*NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed))(Process, ExitCode)
+}
 
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
@@ -101,6 +114,25 @@ pub unsafe fn RtlBufferContainsBuffer(
     }
 
     false
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
+pub struct _LDR_DATA_TABLE_ENTRY {
+    pub InLoadOrderLinks: LIST_ENTRY,
+    pub InMemoryOrderLinks: LIST_ENTRY,
+    pub InInitializationOrderLinks: LIST_ENTRY,
+    pub DllBase: PVOID,
+    pub EntryPoint: PVOID,
+    pub SizeOfImage: ULONG,
+    pub FullDllName: UNICODE_STRING,
+    pub BaseDllName: UNICODE_STRING,
+    pub Flags: ULONG,
+    pub LoadCount: USHORT,
+    pub TlsIndex: USHORT,
+    pub HashLinks: LIST_ENTRY,
+    pub TimeDateStamp: ULONG,
 }
 
 pub trait Utf8ToUnicodeString {
