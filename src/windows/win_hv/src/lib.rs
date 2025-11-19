@@ -53,10 +53,10 @@ static PLUGINS: AtomicPtr<PluginTable> = AtomicPtr::new(null_mut());
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
 extern "C" fn driver_entry(
-    _driver: &mut DRIVER_OBJECT,
+    driver: &mut DRIVER_OBJECT,
     _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
-    get_nt_info();
+    get_nt_info(driver.DriverSection);
 
     if nt::NT_BUILD.load(Ordering::Relaxed) != 26200 {
         println!("Unsupported version");
@@ -151,6 +151,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             }
             .into_raw(),
         );
+        return;
     }
 
     let args = get_args(guest);
@@ -174,11 +175,13 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     };
 
     match info.func() {
-        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess => {
+        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess | ServiceFunction::KillProcess => {
             services::handle_process_services(guest, info, args, plugin)
         }
-        ServiceFunction::Unknown => {}
-        _ => {}
+        _ => {
+            println!("Unsupported vmcall function: {:?}", info.func());
+            write_response(guest, HypervisorResponse::not_found())
+        }
     }
 }
 
