@@ -1,5 +1,4 @@
 use crate::plugins::plugin::Plugin;
-use crate::services::require_perm;
 use crate::write_response;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
@@ -16,7 +15,7 @@ use wdk_sys::ntddk::PsLookupProcessByProcessId;
 use wdk_sys::{PEPROCESS, STATUS_SUCCESS};
 
 pub(crate) fn close_process(
-    guest: &mut dyn Guest,
+    _guest: &mut dyn Guest,
     request: CloseProcessRequest,
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
@@ -36,15 +35,11 @@ pub(crate) fn close_process(
 }
 
 pub(crate) fn open_process(
-    guest: &mut dyn Guest,
+    _guest: &mut dyn Guest,
     request: OpenProcessRequest,
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
-    if !require_perm(
-        guest,
-        plugin.permissions,
-        PluginPermissions::PROCESS_EXECUTIVE,
-    ) {
+    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
         return HypervisorResponse::not_allowed(
             NotAllowedReason::MissingPermissions,
             PluginPermissions::PROCESS_EXECUTIVE,

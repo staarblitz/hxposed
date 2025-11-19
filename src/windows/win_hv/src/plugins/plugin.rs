@@ -78,6 +78,14 @@ impl Plugin {
     }
 
     ///
+    /// # Permission Check
+    /// 
+    /// Quick permission check for [self.authorized_permissions]
+    pub fn perm_check(&self, permissions: PluginPermissions) -> bool {
+        self.authorized_permissions.contains(permissions)
+    }
+
+    ///
     /// # Integrate
     ///
     /// Integrates a plugin with process, and permissions that are allowed.

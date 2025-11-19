@@ -74,24 +74,3 @@ pub fn handle_process_services(
 
     write_response(guest, result);
 }
-
-///
-/// # Require Permission
-///
-/// Quick permission check
-///
-pub(crate) fn require_perm(
-    guest: &mut dyn Guest,
-    have: PluginPermissions,
-    need: PluginPermissions,
-) -> bool {
-    if !have.contains(need) {
-        write_response(
-            guest,
-            HypervisorResponse::not_allowed(NotAllowedReason::MissingPermissions, need),
-        );
-        false
-    } else {
-        true
-    }
-}
