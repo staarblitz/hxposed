@@ -7,6 +7,8 @@ pub enum ServiceFunction {
     OpenProcess = 3,
     CloseProcess = 4,
     KillProcess = 5,
+    AddAsyncHandler = 6,
+    RemoveAsyncHandler = 7,
 }
 
 impl ServiceFunction {
@@ -22,6 +24,8 @@ impl ServiceFunction {
             3 => ServiceFunction::OpenProcess,
             4 => ServiceFunction::CloseProcess,
             5 => ServiceFunction::KillProcess,
+            6 => ServiceFunction::AddAsyncHandler,
+            7 => ServiceFunction::RemoveAsyncHandler,
             _ => ServiceFunction::Unknown
         }
     }

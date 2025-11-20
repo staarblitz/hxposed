@@ -2,7 +2,7 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::error::{ErrorCode, ErrorSource, NotAllowedReason};
 use static_assertions::assert_eq_size;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 #[repr(C)]
 pub struct HypervisorError {
     pub error_source: ErrorSource,
@@ -12,9 +12,16 @@ assert_eq_size!(HypervisorError, u64);
 
 impl HypervisorError {
     pub fn ok() -> HypervisorError {
-        Self{
+        Self {
             error_source: ErrorSource::Hx,
             error_code: ErrorCode::Ok,
+        }
+    }
+
+    pub fn not_found() -> HypervisorError {
+        Self {
+            error_source: ErrorSource::Hx,
+            error_code: ErrorCode::NotFound,
         }
     }
 
@@ -25,7 +32,7 @@ impl HypervisorError {
 
 impl From<HypervisorResult> for HypervisorError {
     fn from(value: HypervisorResult) -> Self {
-        Self{
+        Self {
             error_source: value.error_source(),
             error_code: value.error_code(),
         }

@@ -1,6 +1,7 @@
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 #[repr(u32)]
 pub enum ErrorCode {
+    #[default]
     Unknown = 0,
     Ok = 1,
     /// See [NotAllowedReason]. Put on arg1
@@ -26,9 +27,10 @@ impl ErrorCode {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 #[repr(u32)]
 pub enum NotAllowedReason {
+    #[default]
     Unknown = 0,
     PluginNotLoaded = u32::MAX,
     MissingPermissions = 1
@@ -46,9 +48,10 @@ impl NotAllowedReason {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 #[repr(u32)]
 pub enum ErrorSource {
+    #[default]
     Nt = 0,
     Hv = 1,
     Hx = 2,
