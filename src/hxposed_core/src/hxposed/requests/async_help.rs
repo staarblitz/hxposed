@@ -1,4 +1,4 @@
-use crate::hxposed::call::{AsyncCookie, HypervisorCall};
+use crate::hxposed::call::{HypervisorCall};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 
@@ -6,14 +6,14 @@ use crate::hxposed::responses::empty::EmptyResponse;
 #[repr(C)]
 pub struct AddAsyncHandlerRequest {
     pub addr: u64,
-    pub cookie: AsyncCookie,
+    pub cookie: u16,
 }
 
 #[derive(Default, Debug, Clone)]
 #[repr(C)]
 pub struct RemoveAsyncHandlerRequest {
     pub addr: u64,
-    pub cookie: AsyncCookie
+    pub cookie: u16
 }
 
 impl VmcallRequest for RemoveAsyncHandlerRequest  {
