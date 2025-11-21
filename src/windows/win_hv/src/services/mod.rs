@@ -6,16 +6,18 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
-use hxposed_core::hxposed::requests::process::{
-    CloseProcessRequest, KillProcessRequest, OpenProcessRequest,
-};
+use hxposed_core::hxposed::func::ServiceFunction::RemoveAsyncHandler;
+use hxposed_core::hxposed::requests::async_help::*;
 use hxposed_core::hxposed::requests::VmcallRequest;
+use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
+use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use wdk_sys::ntddk::IoGetCurrentProcess;
+use crate::services::async_services::*;
 
+pub mod async_services;
 pub mod process_services;
 
 ///
@@ -36,8 +38,7 @@ pub fn authorize_plugin(
         write_response(
             guest,
             HypervisorResponse::not_allowed(
-                NotAllowedReason::PluginNotLoaded,
-                PluginPermissions::empty(),
+                NotAllowedReason::PluginNotLoaded
             ),
         );
         return None;
@@ -51,6 +52,25 @@ pub fn authorize_plugin(
     write_response(guest, AuthorizationResponse { permissions }.into_raw());
 
     Some(plugin)
+}
+
+///
+/// # Handle Async Services
+///
+/// Dispatches the async service requests to [async_services]
+pub fn handle_async_services(
+    guest: &mut dyn Guest,
+    call: HypervisorCall,
+    args: (u64, u64, u64),
+    plugin: &'static mut Plugin,
+) {
+    let result = match call.func() {
+        ServiceFunction::AddAsyncHandler => add_async_handler(guest, AddAsyncHandlerRequest::from_raw(call, args), plugin),
+        ServiceFunction::RemoveAsyncHandler => remove_async_handler(guest, RemoveAsyncHandlerRequest::from_raw(call, args), plugin),
+        _ => unreachable!()
+    };
+
+    write_response(guest, result)
 }
 
 ///
@@ -71,6 +91,7 @@ pub fn handle_process_services(
         ServiceFunction::CloseProcess => {
             close_process(guest, CloseProcessRequest::from_raw(call, args), plugin)
         }
+
         _ => unreachable!(),
     };
 
