@@ -28,7 +28,7 @@ impl HypervisorResponse {
     pub fn not_allowed_perms(permissions: PluginPermissions) -> Self {
         Self {
             result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed),
-            arg1: reason.into_bits() as _,
+            arg1: NotAllowedReason::MissingPermissions as _,
             arg2: permissions.bits(),
             arg3: 0,
         }
