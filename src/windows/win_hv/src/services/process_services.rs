@@ -1,4 +1,6 @@
+use crate::plugins::async_command::KillProcessAsyncCommand;
 use crate::plugins::plugin::Plugin;
+use alloc::boxed::Box;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::error::NotAllowedReason;
@@ -12,7 +14,6 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use wdk_sys::ntddk::PsLookupProcessByProcessId;
 use wdk_sys::{PEPROCESS, STATUS_SUCCESS};
-use crate::win::PsTerminateProcess;
 
 pub(crate) fn kill_process(
     _guest: &mut dyn Guest,
@@ -20,9 +21,7 @@ pub(crate) fn kill_process(
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(
-            PluginPermissions::PROCESS_EXECUTIVE,
-        );
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
     }
 
     let process = match plugin.get_open_process(Some(request.id), None) {
@@ -30,10 +29,10 @@ pub(crate) fn kill_process(
         None => return HypervisorResponse::not_found(),
     };
 
-    match unsafe { PsTerminateProcess(process as _, request.exit_code as _) } {
-        STATUS_SUCCESS => {}
-        error => return HypervisorResponse::nt_error(error as _),
-    };
+    plugin.queue_command(Box::new(KillProcessAsyncCommand {
+        call: request,
+        process,
+    }));
 
     EmptyResponse::with_service(ServiceFunction::KillProcess)
 }
@@ -64,9 +63,7 @@ pub(crate) fn open_process(
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(
-            PluginPermissions::PROCESS_EXECUTIVE,
-        );
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
     }
     let mut process = PEPROCESS::default();
 
