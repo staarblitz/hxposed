@@ -1,5 +1,6 @@
 use crate::error::HypervisorError;
-use crate::hxposed::call::{AsyncCookie, HypervisorCall};
+use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::error::ErrorCode;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::async_help::{AddAsyncHandlerRequest, RemoveAsyncHandlerRequest};
@@ -7,10 +8,9 @@ use crate::hxposed::responses::VmcallResponse;
 use alloc::vec::Vec;
 use core::arch::naked_asm;
 use core::cell::UnsafeCell;
-use core::intrinsics::mir::Retag;
+use core::ops::Deref;
 use core::sync::atomic::AtomicPtr;
 use spin::Mutex;
-use crate::hxposed::error::ErrorCode;
 
 ///
 /// # Global Async Notify Handler
@@ -20,7 +20,7 @@ use crate::hxposed::error::ErrorCode;
 pub static GLOBAL_ASYNC_NOTIFY_HANDLER: Mutex<HxPosedAsyncService> =
     Mutex::new(HxPosedAsyncService::new());
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HxPosedAsyncService {
     handlers: Vec<AsyncNotifyHandler>,
 }
@@ -29,7 +29,7 @@ pub struct HxPosedAsyncService {
 #[derive(Debug, Eq, PartialEq)]
 pub struct AsyncNotifyHandler {
     pub handler: AsyncNotifyFn,
-    pub cookie: AsyncCookie,
+    pub cookie: u16,
     /// Filters callbacks. Only callbacks with service functions that are in this vector are triggered.
     pub filter: Vec<ServiceFunction>,
 }
@@ -40,10 +40,10 @@ impl HxPosedAsyncService {
     #[unsafe(naked)]
     unsafe extern "C" fn async_event() {
         naked_asm!(
-            "mov rsi, rcx"
-            "mov r8, rdx"
-            "mov r9, r8"
-            "mov r10, r9"
+            "mov rsi, rcx",
+            "mov r8, rdx",
+            "mov r9, r8",
+            "mov r10, r9",
             "call safe_async_event"
         )
     }
@@ -67,10 +67,13 @@ impl HxPosedAsyncService {
             return;
         }
 
-        // At this point, holding the lock only does bad.
-        drop(lock);
+        unsafe{
+            GLOBAL_ASYNC_NOTIFY_HANDLER.force_unlock() // im so sorry
+        }
 
-        result.handler(hypervisor_call.func(), (arg1, arg2, arg3));
+        // at this point, holding the lock only does bad.
+
+        (result.handler)(hypervisor_call.func(), (arg1, arg2, arg3));
     }
 }
 
@@ -93,10 +96,12 @@ impl HxPosedAsyncService {
         &mut self,
         handler: AsyncNotifyHandler,
     ) -> Result<(), HypervisorError> {
+        let cookie = handler.cookie;
         self.handlers.push(handler);
 
         let req = AddAsyncHandlerRequest {
             addr: Self::async_event as *const u64 as u64,
+            cookie,
         };
 
         match req.send() {
@@ -119,12 +124,10 @@ impl HxPosedAsyncService {
     ///
     /// ## Returns
     /// Result from the hypervisor. See [HypervisorError]
-    pub fn remove_notify_handler(
-        &mut self,
-        async_cookie: AsyncCookie,
-    ) -> Result<(), HypervisorError> {
+    pub fn remove_notify_handler(&mut self, async_cookie: u16) -> Result<(), HypervisorError> {
         let req = RemoveAsyncHandlerRequest {
             addr: Self::async_event as *const u64 as u64,
+            cookie: async_cookie,
         };
         self.handlers.retain(|x| x.cookie != async_cookie);
 
@@ -134,9 +137,9 @@ impl HxPosedAsyncService {
         }
     }
 
-    fn new() -> Self {
+    pub const fn new() -> Self {
         let ret = Self {
-            ..Default::default()
+            handlers: Vec::new(),
         };
 
         ret
