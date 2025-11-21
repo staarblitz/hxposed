@@ -1,5 +1,5 @@
 use crate::error::HypervisorError;
-use crate::hxposed::call::{AsyncCookie, HypervisorCall};
+use crate::hxposed::call::{HypervisorCall};
 use crate::hxposed::responses::VmcallResponse;
 use crate::intern::instructions::vmcall;
 use crate::services::async_service::AsyncNotifyHandler;
@@ -36,7 +36,7 @@ where
         T::Response::from_raw(vmcall(self.into_raw()))
     }
 
-    async fn send_async(self, handler: &mut AsyncNotifyHandler) {
+    fn send_async(self, handler: &mut AsyncNotifyHandler) {
         let mut raw = self.into_raw();
         raw.call.set_is_async(true);
         raw.call.set_async_cookie(handler.cookie);
