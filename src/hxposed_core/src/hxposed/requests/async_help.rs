@@ -1,17 +1,19 @@
-use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::call::{AsyncCookie, HypervisorCall};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 
 #[derive(Default, Debug, Clone)]
 #[repr(C)]
 pub struct AddAsyncHandlerRequest {
-    pub addr: u64
+    pub addr: u64,
+    pub cookie: AsyncCookie,
 }
 
 #[derive(Default, Debug, Clone)]
 #[repr(C)]
 pub struct RemoveAsyncHandlerRequest {
-    pub addr: u64
+    pub addr: u64,
+    pub cookie: AsyncCookie
 }
 
 impl VmcallRequest for RemoveAsyncHandlerRequest  {
@@ -27,7 +29,8 @@ impl VmcallRequest for RemoveAsyncHandlerRequest  {
 
     fn from_raw(call: HypervisorCall, args: (u64, u64, u64)) -> Self {
         Self {
-            addr: args.0
+            addr: args.0,
+            cookie: call.async_cookie()
         }
     }
 }
@@ -45,7 +48,8 @@ impl VmcallRequest for AddAsyncHandlerRequest  {
 
     fn from_raw(call: HypervisorCall, args: (u64, u64, u64)) -> Self {
         Self {
-            addr: args.0
+            addr: args.0,
+            cookie: call.async_cookie()
         }
     }
 }
