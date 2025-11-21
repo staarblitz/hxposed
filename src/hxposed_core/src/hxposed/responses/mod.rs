@@ -17,7 +17,15 @@ pub struct HypervisorResponse {
 }
 
 impl HypervisorResponse {
-    pub fn not_allowed(reason: NotAllowedReason, permissions: PluginPermissions) -> Self {
+    pub fn not_allowed(reason: NotAllowedReason) -> Self {
+        Self {
+            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed),
+            arg1: reason.into_bits() as _,
+            ..Default::default()
+        }
+    }
+
+    pub fn not_allowed_perms(permissions: PluginPermissions) -> Self {
         Self {
             result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed),
             arg1: reason.into_bits() as _,
