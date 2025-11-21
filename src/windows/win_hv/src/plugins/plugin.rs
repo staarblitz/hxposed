@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::collections::VecDeque;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
@@ -5,7 +6,6 @@ use crate::{PLUGINS, as_pvoid, get_data};
 use alloc::format;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicPtr, Ordering};
-use hxposed_core::hxposed::call::{AsyncCookie, HypervisorCall};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::AsyncNotifyHandler;
 use uuid::Uuid;
@@ -17,16 +17,40 @@ use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, STATUS_SUCCESS,
 };
-#[derive(Debug, Default)]
+use crate::plugins::async_command::AsyncCommand;
+
+#[derive(Default)]
 pub(crate) struct Plugin {
     pub uuid: Uuid,
     pub permissions: PluginPermissions,
     pub authorized_permissions: PluginPermissions,
     pub process: AtomicPtr<_KPROCESS>,
     pub open_processes: Vec<AtomicPtr<_KPROCESS>>,
-    pub handlers: Vec<AsyncNotifyHandler>
+    pub handlers: Vec<AsyncNotifyHandler>,
+    pub awaiting_commands: VecDeque<Box<dyn AsyncCommand>>
 }
 impl Plugin {
+    ///
+    /// # Queue Command
+    ///
+    /// Queues a command for later execution by the worker thread on PASSIVE_LEVEL.
+    ///
+    /// ## Arguments
+    /// command - Well... See [AsyncCommand]
+    pub fn queue_command(&mut self, command: Box<dyn AsyncCommand>) {
+        self.awaiting_commands.push_back(command);
+    }
+
+    ///
+    /// # Dequeue Command
+    ///
+    /// Pops a command from queue for execution by the worker thread.
+    ///
+    /// ## Returns
+    /// An option that [VecDeque::pop_back] returns.
+    pub fn dequeue_command(&mut self) -> Option<Box<dyn AsyncCommand>> {
+        self.awaiting_commands.pop_front()
+    }
 
     ///
     /// # Add Notify Handler
@@ -58,7 +82,7 @@ impl Plugin {
     ///
     /// ## Arguments
     /// cookie - Async cookie of the handler.
-    pub fn remove_notify_handler(&mut self, cookie: AsyncCookie) {
+    pub fn remove_notify_handler(&mut self, cookie: u16) {
         self.handlers.retain(|h| h.cookie != cookie);
     }
 
@@ -238,7 +262,8 @@ impl Plugin {
             authorized_permissions: permissions,
             process: AtomicPtr::default(),
             open_processes: Vec::new(),
-            handlers: Vec::with_capacity(48)
+            handlers: Vec::with_capacity(48),
+            awaiting_commands: VecDeque::with_capacity(32),
         })
     }
 }
