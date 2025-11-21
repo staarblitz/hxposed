@@ -17,7 +17,7 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{PluginTable, load_plugins};
+use crate::plugins::{load_plugins, PluginTable};
 use crate::win::Utf8ToUnicodeString;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
@@ -25,26 +25,27 @@ use core::ops::{BitAnd, DerefMut};
 use core::panic::Location;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
+use hv::SharedHostData;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::func::ServiceFunction::Authorize;
-use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
+use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
-use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use wdk::println;
 
+use crate::nt::worker::async_worker_thread;
 use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
-use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx};
+use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx, PsCreateSystemThread};
 use wdk_sys::{
-    DRIVER_OBJECT, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID,
-    STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE, ntddk::ExAllocatePool2,
+    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS,
+    PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
+    STATUS_TOO_LATE, THREAD_ALL_ACCESS,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -96,20 +97,35 @@ extern "C" fn driver_entry(
     println!("Loaded win_hv.sys");
 
     let mut cookie = LARGE_INTEGER::default();
-    let status = unsafe {
+    match unsafe {
         CmRegisterCallback(
             Some(registry_callback),
             PVOID::default(), /* What lol */
             &mut cookie,
         )
-    };
-
-    unsafe {
-        CM_COOKIE.store(cookie.QuadPart as _, Ordering::Relaxed);
+    } {
+        STATUS_SUCCESS => unsafe { CM_COOKIE.store(cookie.QuadPart as _, Ordering::Relaxed) },
+        err => {
+            panic!("Error registering registry callbacks: {:x}", err);
+        }
     }
 
-    if status != STATUS_SUCCESS {
-        println!("Error registering registry callbacks");
+    let mut handle = HANDLE::default();
+    match unsafe {
+        PsCreateSystemThread(
+            &mut handle,
+            THREAD_ALL_ACCESS,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Some(async_worker_thread),
+            Default::default(),
+        )
+    } {
+        STATUS_SUCCESS => {}
+        err => {
+            panic!("Error creating system thread: {:x}", err);
+        }
     }
 
     STATUS_SUCCESS
@@ -164,9 +180,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             }
             write_response(
                 guest,
-                HypervisorResponse::not_allowed(
-                    NotAllowedReason::PluginNotLoaded,
-                ),
+                HypervisorResponse::not_allowed(NotAllowedReason::PluginNotLoaded),
             );
             return;
         }
@@ -174,7 +188,9 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     };
 
     match info.func() {
-        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess | ServiceFunction::KillProcess => {
+        ServiceFunction::OpenProcess
+        | ServiceFunction::CloseProcess
+        | ServiceFunction::KillProcess => {
             services::handle_process_services(guest, info, args, plugin)
         }
         ServiceFunction::AddAsyncHandler | ServiceFunction::RemoveAsyncHandler => {
