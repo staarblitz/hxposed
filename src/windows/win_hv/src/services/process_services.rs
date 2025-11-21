@@ -20,8 +20,7 @@ pub(crate) fn kill_process(
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed(
-            NotAllowedReason::MissingPermissions,
+        return HypervisorResponse::not_allowed_perms(
             PluginPermissions::PROCESS_EXECUTIVE,
         );
     }
@@ -55,7 +54,7 @@ pub(crate) fn close_process(
     } else {
         // this is weird. a plugin should never attempt to close a process it has never opened in the first place.
         // abuse detected. blacklist the plugin (soon)
-        HypervisorResponse::not_allowed(NotAllowedReason::Unknown, PluginPermissions::empty())
+        HypervisorResponse::not_allowed(NotAllowedReason::Unknown)
     }
 }
 
@@ -65,8 +64,7 @@ pub(crate) fn open_process(
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed(
-            NotAllowedReason::MissingPermissions,
+        return HypervisorResponse::not_allowed_perms(
             PluginPermissions::PROCESS_EXECUTIVE,
         );
     }
