@@ -166,7 +166,6 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                 guest,
                 HypervisorResponse::not_allowed(
                     NotAllowedReason::PluginNotLoaded,
-                    PluginPermissions::empty(),
                 ),
             );
             return;
@@ -175,8 +174,11 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     };
 
     match info.func() {
-        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess => {
+        ServiceFunction::OpenProcess | ServiceFunction::CloseProcess | ServiceFunction::KillProcess => {
             services::handle_process_services(guest, info, args, plugin)
+        }
+        ServiceFunction::AddAsyncHandler | ServiceFunction::RemoveAsyncHandler => {
+            services::handle_async_services(guest, info, args, plugin)
         }
         _ => {
             println!("Unsupported vmcall function: {:?}", info.func());
