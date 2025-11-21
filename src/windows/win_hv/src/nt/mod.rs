@@ -1,4 +1,5 @@
 pub(crate) mod process;
+pub(crate) mod worker;
 
 use crate::win::{PsLoadedModuleList, PsTerminateProcessType, NT_PS_TERMINATE_PROCESS, _LDR_DATA_TABLE_ENTRY};
 use core::ptr::null_mut;
