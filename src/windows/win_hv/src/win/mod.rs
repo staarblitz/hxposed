@@ -10,8 +10,10 @@ use wdk_sys::ntddk::{
     RtlUTF8StringToUnicodeString,
 };
 use wdk_sys::{
-    HANDLE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PEPROCESS, POBJECT_ATTRIBUTES,
-    POOL_FLAG_NON_PAGED, PUNICODE_STRING, PVOID, TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING,
+    ACCESS_MASK, BOOLEAN, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES,
+    PCLIENT_ID, PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
+    PSECURITY_DESCRIPTOR, PUNICODE_STRING, PVOID, SIZE_T, TRUE, ULONG, UNICODE_STRING, USHORT,
+    UTF8_STRING,
 };
 
 pub(crate) mod alloc;
@@ -19,11 +21,37 @@ pub(crate) mod macros;
 pub(crate) mod timing;
 
 pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(*mut PEPROCESS, NTSTATUS) -> NTSTATUS;
+pub(crate) type PsSetContextThreadType =
+    unsafe extern "C" fn(*mut PETHREAD, PCONTEXT, KPROCESSOR_MODE) -> NTSTATUS;
+pub(crate) static NT_PS_SET_CONTEXT_THREAD: AtomicPtr<PsSetContextThreadType> =
+    AtomicPtr::new(null_mut());
 pub(crate) static NT_PS_TERMINATE_PROCESS: AtomicPtr<PsTerminateProcessType> =
     AtomicPtr::new(null_mut());
 
 #[allow(non_snake_case)]
-pub(crate) unsafe fn PsTerminateProcess(Process: *mut PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
+pub(crate) unsafe fn PsSetContextThread(
+    Thread: &PETHREAD,
+    Context: PCONTEXT,
+    ProcessorMode: KPROCESSOR_MODE,
+) -> NTSTATUS {
+    let mut status = 0;
+    // the beautiful rust doesn't allow misaligned pointers.
+    // it isn't my fault PsTerminateProcess is 0x8 unaligned. come on dude
+    unsafe {
+        asm!(
+        "mov rcx, {0}",
+        "mov rdx, {1}",
+        "mov r8, {2}",
+        "mov rax, {3}",
+        "mov {4}, rax",
+        in(reg) Thread,in(reg) Context, in(reg) ProcessorMode as u32, in(reg) NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed),
+        inout(reg) status => status);
+    }
+    status as _
+}
+
+#[allow(non_snake_case)]
+pub(crate) unsafe fn PsTerminateProcess(Process: &PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
     let mut status = 0;
     // the beautiful rust doesn't allow misaligned pointers.
     // it isn't my fault PsTerminateProcess is 0x8 unaligned. come on dude
@@ -43,6 +71,20 @@ pub(crate) unsafe fn PsTerminateProcess(Process: *mut PEPROCESS, ExitCode: NTSTA
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
     pub static PsLoadedModuleList: *mut _LDR_DATA_TABLE_ENTRY;
+
+    #[allow(non_snake_case)]
+    pub fn RtlCreateUserThread(
+        ProcessHandle: HANDLE,
+        ThreadSecurityDescriptor: PSECURITY_DESCRIPTOR,
+        CreateSuspended: BOOLEAN,
+        ZeroBits: ULONG,
+        MaximumStackSize: ULONG,
+        CommittedStackSize: ULONG,
+        StartAddress: PVOID,
+        Parameter: PVOID,
+        ThreadHandle: PHANDLE,
+        ClientId: PCLIENT_ID,
+    ) -> NTSTATUS;
 }
 
 #[allow(non_snake_case)]
