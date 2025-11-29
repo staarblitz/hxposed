@@ -17,7 +17,11 @@ pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 ///
 /// ## Arguments
 ///
-/// driver_section - DRIVER_OBJECT.DriverSection
+/// * `driver_section` - `DRIVER_OBJECT.DriverSection`
+///
+/// ## Return
+///
+/// - No values returned. [NT_BASE] and [NT_BUILD] are changed accordingly.
 pub(crate) fn get_nt_info() {
     let mut info = RTL_OSVERSIONINFOW::default();
     let _ = unsafe { RtlGetVersion(&mut info) };
@@ -53,7 +57,14 @@ pub(crate) fn get_nt_info() {
 /// Gets the function at ntosrkrnl.
 ///
 /// ## Arguments
-/// proc- Procedure to get pointer to. See [NtProcedure]
+/// * `proc` - Procedure to get pointer of. See [NtProcedure]
+///
+/// ## Panic
+/// - This function panics if the NT version is not supported.
+///
+/// ## Return
+/// - An absolute pointer to [`T`], if found.
+///
 pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
     let base = NT_BASE.load(Ordering::Relaxed) as *mut u8;
@@ -77,12 +88,14 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
 /// Gets pointer to field of EPROCESS depending on NT version.
 ///
 /// ## Arguments
-/// field - Field you want to acquire pointer to. See [EProcessField]
+/// * `field` - Field you want to acquire pointer to. See [`EProcessField`]
+/// * `process` - Process object to get pointer from.
 ///
-/// process - Process object to get pointer from.
+/// ## Panic
+/// - This function panics if the NT version is not supported.
 ///
 /// ## Returns
-/// Absolute **pointer** to the field, in T.
+/// - Absolute **pointer** to the field, in [`T`].
 pub(crate) unsafe fn get_eprocess_field<T: 'static>(
     field: EProcessField,
     process: PEPROCESS,

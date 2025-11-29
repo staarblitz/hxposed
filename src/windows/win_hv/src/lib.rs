@@ -41,10 +41,10 @@ use wdk::println;
 use crate::nt::worker::async_worker_thread;
 use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
-use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx, PsCreateSystemThread};
+use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx, PsCreateSystemThread, ZwClose};
 use wdk_sys::{
-    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS,
-    PCUNICODE_STRING, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
+    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING,
+    PDRIVER_OBJECT, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
     STATUS_TOO_LATE, THREAD_ALL_ACCESS,
 };
 
@@ -80,19 +80,17 @@ extern "C" fn driver_entry(
     }
     hv::allocator::init(ptr.cast::<u8>());
 
-    // Register the platform specific API.
     hv::platform_ops::init(Box::new(ops::WindowsOps));
 
-    // Virtualize the system. No `SharedHostData` is given, meaning that host's
-    // IDT, GDT, TSS and page tables are all that of the system process (PID=4).
-    // This makes the host debuggable with WinDbg but also breakable from CPL0.
-
+    // TODO: use custom gdt and so on for more security?
     let mut host_data = SharedHostData::default();
     host_data.vmcall_handler = Some(vmcall_handler);
 
     hv::virtualize_system(host_data);
 
     load_plugins();
+
+    driver.DriverUnload = Some(driver_unload);
 
     println!("Loaded win_hv.sys");
 
@@ -122,7 +120,9 @@ extern "C" fn driver_entry(
             Default::default(),
         )
     } {
-        STATUS_SUCCESS => {}
+        STATUS_SUCCESS => unsafe {
+            ZwClose(handle);
+        },
         err => {
             panic!("Error creating system thread: {:x}", err);
         }
@@ -213,6 +213,16 @@ pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse
     guest.regs().r10 = response.arg3;
     guest.regs().rsi = response.result.into_bits() as _;
 }
+
+///
+/// # Driver Unload
+///
+/// ## Warning
+/// 1. The system WILL stay virtualized!
+/// 2. Unloading the driver is unstable and most likely will end in tears.
+///
+/// TODO: Fix issues above
+pub(crate) unsafe extern "C" fn driver_unload(_driver_object: PDRIVER_OBJECT) {}
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {

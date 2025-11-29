@@ -29,9 +29,8 @@ pub(crate) struct PluginTable {
 ///
 /// Uses tricky stuff to save them to PLUGINS global variable, too.
 ///
-/// ## Panics
-///
-/// This function panics if first call to ZwOpenKey fails, which it NEVER should.
+/// ## Warning
+/// In case of a corrupted installation of HxPosed, where the registry keys are missing, this function will fail but driver will be loaded.
 ///
 pub(crate) fn load_plugins() {
     let mut list = Vec::<&mut Plugin>::new();
@@ -52,7 +51,9 @@ pub(crate) fn load_plugins() {
     let mut key = HANDLE::default();
     let status = unsafe { ZwOpenKey(&mut key, KEY_ALL_ACCESS, &mut attributes) };
     if status != STATUS_SUCCESS {
-        panic!("ZwEnumerateKey failed with status {}", status);
+        println!("Error while opening key: {:x}", status);
+        println!("No plugins loaded!");
+        return;
     }
 
     let mut index = 0;
@@ -140,6 +141,7 @@ pub(crate) fn load_plugins() {
         index += 1;
     }
 
+    // dark shady Rust evasion stuff
     let plugin_slice: &'static mut [&mut Plugin] = Box::leak(list.into_boxed_slice());
     let table = Box::leak(Box::new(PluginTable {
         plugins: plugin_slice,

@@ -1,10 +1,9 @@
-use crate::nt::{EProcessField, get_eprocess_field};
-use alloc::boxed::Box;
-use core::sync::atomic::{AtomicPtr, Ordering};
+use crate::nt::{get_eprocess_field, EProcessField};
+use core::sync::atomic::AtomicPtr;
 use wdk_sys::ntddk::{
-    IoGetCurrentProcess, ObfDereferenceObject, PsGetProcessId, PsLookupProcessByProcessId,
+    IoGetCurrentProcess, PsGetProcessId, PsLookupProcessByProcessId,
 };
-use wdk_sys::{_KPROCESS, CLIENT_ID, PEPROCESS, PUNICODE_STRING, STATUS_SUCCESS, UNICODE_STRING};
+use wdk_sys::{PEPROCESS, STATUS_SUCCESS, UNICODE_STRING, _KPROCESS};
 
 pub struct KernelProcess {
     pub nt_process: AtomicPtr<_KPROCESS>,

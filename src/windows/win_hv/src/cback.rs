@@ -42,7 +42,7 @@ pub(crate) extern "C" fn registry_callback(
             }
 
             let mut ret_len = 0;
-            unsafe {
+            let _ = unsafe {
                 ObQueryNameString(
                     op_info.RootObject,
                     POBJECT_NAME_INFORMATION::default(),
@@ -64,10 +64,10 @@ pub(crate) extern "C" fn registry_callback(
 
             let mut dup = unsafe { _RtlDuplicateUnicodeString(&mut alloc.as_mut().Name, 256) };
 
-            unsafe {
+            let _ = unsafe {
                 RtlAppendUnicodeStringToString(dup.as_mut(), "\\".to_unicode_string().as_mut())
             };
-            unsafe { RtlAppendUnicodeStringToString(dup.as_mut(), op_info.RemainingName) };
+            let _ = unsafe { RtlAppendUnicodeStringToString(dup.as_mut(), op_info.RemainingName) };
 
             let path = "SOFTWARE\\HxPosed".to_unicode_string();
 

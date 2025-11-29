@@ -4,15 +4,16 @@ use hxposed_core::hxposed::requests::process::KillProcessRequest;
 use wdk_sys::PEPROCESS;
 
 
-pub trait AsyncCommand {
+pub trait AsyncCommand: Any {
     fn get_service_function(&self) -> ServiceFunction;
     fn get_call(&self) -> &dyn Any;
-    fn get_inner(&self) -> &dyn Any;
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(Debug)]
 pub struct KillProcessAsyncCommand {
     pub call: KillProcessRequest,
+    pub exit_code: u32,
     pub process: PEPROCESS,
 }
 
@@ -25,7 +26,7 @@ impl AsyncCommand for KillProcessAsyncCommand {
         &self.call
     }
 
-    fn get_inner(&self) -> &dyn Any {
-        &self.process
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

@@ -36,7 +36,7 @@ impl Plugin {
     /// Queues a command for later execution by the worker thread on PASSIVE_LEVEL.
     ///
     /// ## Arguments
-    /// command - Well... See [AsyncCommand]
+    /// * `command` - Well... See [`AsyncCommand`]
     pub fn queue_command(&mut self, command: Box<dyn AsyncCommand>) {
         self.awaiting_commands.push_back(command);
     }
@@ -47,7 +47,7 @@ impl Plugin {
     /// Pops a command from queue for execution by the worker thread.
     ///
     /// ## Returns
-    /// An option that [VecDeque::pop_back] returns.
+    /// - Whatever [`VecDeque::pop_back`] returns.
     pub fn dequeue_command(&mut self) -> Option<Box<dyn AsyncCommand>> {
         self.awaiting_commands.pop_front()
     }
@@ -58,13 +58,10 @@ impl Plugin {
     /// Adds a notify handler for this instance of plugin.
     ///
     /// ## Arguments
-    /// handler - [AsyncNotifyHandler] instance.
-    ///
-    /// ## Remarks
-    /// The field [AsyncNotifyHandler]'s `filter` has no purpose on kernel side.
+    /// * `handler` - [`AsyncNotifyHandler`] instance.
     ///
     /// ## Returns
-    /// A very basic [Result]. It returns an err if the handlers is full.
+    /// - A very basic [`Result`]. It returns an err if the handlers is full.
     pub fn add_notify_handler(&mut self, handler: AsyncNotifyHandler) -> Result<(), ()> {
         if self.handlers.len() > 47 {
             return Err(()); // We cannot dare to allocate in VMEXIT.
@@ -81,7 +78,7 @@ impl Plugin {
     /// Removes a notify handler for this instance of plugin
     ///
     /// ## Arguments
-    /// cookie - Async cookie of the handler.
+    /// * `cookie` - Async cookie of the handler.
     pub fn remove_notify_handler(&mut self, addr: u64) {
         self.handlers.retain(|h| h.handler as *const u64 as u64 != addr);
     }
@@ -92,15 +89,15 @@ impl Plugin {
     /// Gets a process open in the [self.open_processes]
     ///
     /// ## Arguments
-    /// id - If [Some], the id is compared for result.
-    ///
-    /// addr - If [Some], the addr is compared for result.
+    /// * `id` - If [`Some`], the id is compared for result.
+    /// * `addr` - If [Some], the addr is compared for result.
     ///
     /// ## Warning
-    /// Both results are *not* compared together.
+    /// - Arguments are *not* compared together.
     ///
     /// ## Returns
-    /// Pointer to [_KPROCESS], if found
+    /// * [`Some`] - Pointer to [`_KPROCESS`].
+    /// * [`None`] - Process was not found.
     pub fn get_open_process(
         &self,
         id: Option<u32>,
@@ -134,10 +131,11 @@ impl Plugin {
     /// Gets the plugin from PLUGINS global variable.
     ///
     /// ## Arguments
-    /// uuid - GUID the plugin was saved to system with.
+    /// * `uuid` - [`Uuid`] the plugin was saved to system with.
     ///
     /// ## Return
-    /// Returns an [Option] containing static mutable reference to [Plugin].
+    /// * [`None`] - Plugin not found.
+    /// * [`Some`] - Plugin.
     pub fn lookup(uuid: Uuid) -> Option<&'static mut Self> {
         let ptr = PLUGINS.load(Ordering::Acquire);
         if ptr.is_null() {
@@ -157,8 +155,8 @@ impl Plugin {
     /// Gets the current plugin from current process context
     ///
     /// ## Return
-    ///
-    /// Returns an [Option] containing static mutable reference to [Plugin].
+    /// * [`None`] - No plugin associated with current process context.
+    /// * [`Some`] - Plugin.
     pub fn current() -> Option<&'static mut Self> {
         let ptr = PLUGINS.load(Ordering::Acquire);
         if ptr.is_null() {
@@ -191,9 +189,8 @@ impl Plugin {
     /// Integrates a plugin with process, and permissions that are allowed.
     ///
     /// ## Arguments
-    /// process - Pointer to NT executive process object.
-    ///
-    /// permissions - Permission mask that plugin will utilize.
+    /// * `process` - Pointer to NT executive process object.
+    /// * `permissions` - Permission mask that plugin will utilize.
     pub fn integrate(&mut self, process: PEPROCESS, permissions: PluginPermissions) {
         self.process.store(process, Ordering::Relaxed);
         self.permissions = permissions;
@@ -205,10 +202,11 @@ impl Plugin {
     /// Opens (creates instance that represents) a plugin from registry.
     ///
     /// ## Arguments
-    /// uuid - GUID the plugin was saved to system with.
+    /// * `uuid` - [`Uuid`] the plugin was saved to system with.
     ///
     /// ## Return
-    /// Returns an [Option] containing [Plugin]. Some if plugin was found, None if not.
+    /// * [`None`] - Plugin not found.
+    /// * [`Some`] - Plugin.
     pub fn open(uuid: Uuid) -> Option<Self> {
         let mut full_path = format!("\\Registry\\Machine\\Software\\HxPosed\\Plugins\\{}", uuid)
             .as_str()

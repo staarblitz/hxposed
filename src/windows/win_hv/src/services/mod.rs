@@ -23,9 +23,13 @@ pub mod process_services;
 ///
 /// Authorizes an *existing* plugin.
 ///
+/// ## Warning
+/// - This function integrates the plugin with *current* process explicitly.
+///
 /// ## Returns
 ///
-/// Returns [None] if plugin was not found in database. Returns [Plugin] if authorization was ok.
+/// * [`None`] - Plugin was not found in database.
+/// * [`Some`] - Plugin was found, authorized with permissions and integrated with the current process.
 pub fn authorize_plugin(
     guest: &mut dyn Guest,
     request: AuthorizationRequest,
