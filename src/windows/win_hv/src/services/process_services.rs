@@ -14,8 +14,9 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use wdk_sys::ntddk::PsLookupProcessByProcessId;
 use wdk_sys::{PEPROCESS, STATUS_SUCCESS};
+use crate::win::PsTerminateProcess;
 
-pub(crate) fn kill_process(
+pub(crate) fn kill_process_async(
     _guest: &mut dyn Guest,
     request: KillProcessRequest,
     plugin: &'static mut Plugin,
@@ -35,6 +36,27 @@ pub(crate) fn kill_process(
     }));
 
     EmptyResponse::with_service(ServiceFunction::KillProcess)
+}
+
+pub(crate) fn kill_process_sync(
+    request: &KillProcessRequest,
+    plugin: &Plugin,
+) -> HypervisorResponse {
+    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
+    }
+
+    let process = match plugin.get_open_process(Some(request.id), None) {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found(),
+    };
+
+    match unsafe { PsTerminateProcess(process, request.exit_code as _) } {
+        STATUS_SUCCESS => {
+            EmptyResponse::with_service(ServiceFunction::KillProcess)
+        }
+        err => HypervisorResponse::nt_error(err as _),
+    }
 }
 
 pub(crate) fn close_process(

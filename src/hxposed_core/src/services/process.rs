@@ -1,8 +1,15 @@
 use crate::error::HypervisorError;
-use crate::hxposed::requests::process::{CloseProcessRequest, KillProcessRequest, OpenProcessRequest, ProcessOpenType};
 use crate::hxposed::requests::Vmcall;
-use core::sync::atomic::{AtomicU64, Ordering};
+use crate::hxposed::requests::process::{
+    CloseProcessRequest, KillProcessRequest, OpenProcessRequest, ProcessOpenType,
+};
+use crate::hxposed::responses::empty::EmptyResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
+use crate::services::async_service::{
+    AsyncNotifyHandler, AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER,
+};
+use alloc::boxed::Box;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 pub struct HxProcess {
     pub id: u32,
@@ -13,8 +20,9 @@ impl Drop for HxProcess {
     fn drop(&mut self) {
         let _ = CloseProcessRequest {
             addr: self.addr.load(Ordering::Relaxed),
-            open_type: ProcessOpenType::Hypervisor
-        }.send();
+            open_type: ProcessOpenType::Hypervisor,
+        }
+        .send();
     }
 }
 
@@ -67,12 +75,11 @@ impl HxProcess {
     ///
     /// ## Returns
     /// [Result] with most likely an NT error.
-    pub fn kill(self, exit_code: u32) -> Result<(), HypervisorError> {
+    pub fn kill_async(self, exit_code: u32) -> u16 {
         KillProcessRequest {
             id: self.id,
-            exit_code
-        }.send()?;
-
-        Ok(())
+            exit_code,
+        }
+        .send_async()
     }
 }

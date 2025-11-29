@@ -1,12 +1,16 @@
 use crate::error::HypervisorError;
-use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::call::{HypervisorCall, HypervisorResult};
 use crate::hxposed::error::ErrorCode;
 use crate::hxposed::func::ServiceFunction;
-use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::async_help::{AddAsyncHandlerRequest, RemoveAsyncHandlerRequest};
-use crate::hxposed::responses::VmcallResponse;
+use crate::hxposed::requests::process::KillProcessRequest;
+use crate::hxposed::requests::{Vmcall, VmcallRequest};
+use crate::hxposed::responses::empty::EmptyResponse;
+use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use alloc::boxed::Box;
 use alloc::vec::Vec;
-use core::arch::naked_asm;
+use core::any::Any;
+use core::arch::{asm, naked_asm};
 use core::cell::UnsafeCell;
 use core::ops::Deref;
 use core::sync::atomic::AtomicPtr;
@@ -22,16 +26,107 @@ pub static GLOBAL_ASYNC_NOTIFY_HANDLER: Mutex<HxPosedAsyncService> =
 
 #[derive(Debug, Default)]
 pub struct HxPosedAsyncService {
-    handlers: Vec<AsyncNotifyHandler>,
+    promises: Vec<Box<AsyncPromise>>,
+}
+
+#[derive(Debug, Eq, PartialEq, Default)]
+pub struct AsyncPromise {
+    pub cookie: u16,
+    pub completed: bool,
+    pub result: HypervisorResult,
+    pub arg1: u64,
+    pub arg2: u64,
+    pub arg3: u64,
+}
+
+impl AsyncPromise {
+
+    ///
+    /// # Spin Wait<T>
+    ///
+    /// Waits for the async promise to be completed.
+    /// T must be a type of [VmcallResponse], which the request was sent for.
+    ///
+    /// ## Arguments
+    /// cookie - AsyncPromise to wait for.
+    ///
+    /// ## Warning
+    /// The lock is hold forever if hypervisor doesn't respond (which should NEVER happen).
+    ///
+    /// ## Return
+    /// [Result] with the [VmcallResponse] on [T]
+    pub fn spin_wait<T>(cookie: u16) -> Result<T, HypervisorError>
+    where
+        T: VmcallResponse,
+    {
+
+        let lock = GLOBAL_ASYNC_NOTIFY_HANDLER.lock();
+        let promise = match lock.promises.iter().find(|p| p.cookie == cookie) {
+            Some(p) => p,
+            None => return Err(HypervisorError::not_found())
+        };
+
+        loop {
+            if promise.completed {
+                return T::from_raw(HypervisorResponse {
+                    result: promise.result,
+                    arg1: promise.arg1,
+                    arg2: promise.arg2,
+                    arg3: promise.arg3,
+                });
+            }
+        }
+    }
+
+    ///
+    /// # Spin Wait Tries<T>
+    ///
+    /// Waits for the async promise to be completed with number of iterations (**not seconds**) of maximum.
+    /// T must be a type of [VmcallResponse], which the request was sent for.
+    ///
+    /// ## Arguments
+    /// cookie - AsyncPromise to wait for.
+    /// s - Maximum number of iterations
+    ///
+    /// ## Warning
+    /// The lock is hold forever if hypervisor doesn't respond (which should NEVER happen).
+    ///
+    /// ## Return
+    /// [Result] with the [VmcallResponse] on [T].
+    /// Returns [ErrorCode::NotFound] if s is reached.
+    pub fn spin_wait_tries<T>(cookie: u16, s: u32) -> Result<T, HypervisorError>
+    where
+        T: VmcallResponse,
+    {
+        let lock = GLOBAL_ASYNC_NOTIFY_HANDLER.lock();
+        let promise = match lock.promises.iter().find(|p| p.cookie == cookie) {
+            Some(p) => p,
+            None => return Err(HypervisorError::not_found())
+        };
+
+        let mut iter = s;
+
+        loop {
+            if promise.completed {
+                return T::from_raw(HypervisorResponse {
+                    result: promise.result,
+                    arg1: promise.arg1,
+                    arg2: promise.arg2,
+                    arg3: promise.arg3,
+                });
+            } else if iter > s {
+                return Err(HypervisorError::not_found());
+            }
+
+            iter += 1;
+        }
+    }
 }
 
 /// MUST BE USED AFTER AUTHORIZATION!
 #[derive(Debug, Eq, PartialEq)]
 pub struct AsyncNotifyHandler {
     pub handler: AsyncNotifyFn,
-    pub cookie: u16,
-    /// Filters callbacks. Only callbacks with service functions that are in this vector are triggered.
-    pub filter: Vec<ServiceFunction>,
 }
 
 pub type AsyncNotifyFn = fn(function: ServiceFunction, args: (u64, u64, u64));
@@ -50,98 +145,60 @@ impl HxPosedAsyncService {
 
     #[unsafe(no_mangle)]
     extern "C" fn safe_async_event(
-        hypervisor_call: HypervisorCall,
+        hypervisor_result: HypervisorResult,
         arg1: u64,
         arg2: u64,
         arg3: u64,
     ) {
-        let cookie = hypervisor_call.async_cookie();
+        let cookie = hypervisor_result.cookie();
 
-        let lock = GLOBAL_ASYNC_NOTIFY_HANDLER.lock();
-        let result = match lock.handlers.iter().find(|x| x.cookie == cookie) {
+        let mut lock = GLOBAL_ASYNC_NOTIFY_HANDLER.lock();
+        let result = match lock.promises.iter_mut().find(|x| x.cookie == cookie) {
             Some(x) => x,
             None => return,
         };
 
-        if !result.filter.iter().any(|x| *x == hypervisor_call.func()) {
-            return;
-        }
+        let bo = match hypervisor_result.func() {
+            ServiceFunction::KillProcess => EmptyResponse {},
+            _ => return,
+        };
 
-        unsafe{
-            GLOBAL_ASYNC_NOTIFY_HANDLER.force_unlock() // im so sorry
-        }
+        result.result = hypervisor_result;
+        result.arg1 = arg1;
+        result.arg2 = arg2;
+        result.arg3 = arg3;
 
-        // at this point, holding the lock only does bad.
-
-        (result.handler)(hypervisor_call.func(), (arg1, arg2, arg3));
+        result.completed = true; // setting it last to avoid race condition
     }
 }
 
 impl HxPosedAsyncService {
-    ///
-    /// # Add Notify Handler
-    ///
-    /// Adds a new notify handler.
-    ///
-    /// ## Arguments
-    /// handler - Handler that will be registered.
-    ///
-    /// ## Warning
-    /// This function internally makes a service request.
-    /// The plugin must be authorized before use, or an [ErrorCode::NotAllowed] will be returned.
-    ///
-    /// ## Returns
-    /// Result from the hypervisor. See [HypervisorError]
-    pub fn add_notify_handler(
-        &mut self,
-        handler: AsyncNotifyHandler,
-    ) -> Result<(), HypervisorError> {
-        let cookie = handler.cookie;
-        self.handlers.push(handler);
-
-        let req = AddAsyncHandlerRequest {
-            addr: Self::async_event as *const u64 as u64,
-            cookie,
-        };
-
-        match req.send() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
+    pub fn new_promise(&mut self) -> &Box<AsyncPromise> {
+        let mut promise = AsyncPromise::default();
+        let mut rnd = 0;
+        unsafe {
+            // not using a crate just to get random numbers working lol
+            asm!("rdrand {0}", inout(reg) rnd => rnd);
         }
+
+        promise.cookie = rnd;
+
+        let promise = Box::new(promise);
+
+        self.promises.push(promise);
+        self.promises.last().unwrap()
     }
 
-    ///
-    /// # Remove Notify Handler
-    ///
-    /// Removes a new notify handler.
-    ///
-    /// ## Arguments
-    /// handler - Handler that will be unregistered.
-    ///
-    /// ## Warning
-    /// This function internally makes a service request.
-    /// The plugin must be authorized before use, or an [ErrorCode::NotAllowed] will be returned.
-    ///
-    /// ## Returns
-    /// Result from the hypervisor. See [HypervisorError]
-    pub fn remove_notify_handler(&mut self, async_cookie: u16) -> Result<(), HypervisorError> {
-        let req = RemoveAsyncHandlerRequest {
+    pub fn init(&mut self) -> Result<EmptyResponse, HypervisorError> {
+        AddAsyncHandlerRequest {
             addr: Self::async_event as *const u64 as u64,
-            cookie: async_cookie,
-        };
-        self.handlers.retain(|x| x.cookie != async_cookie);
-
-        match req.send() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
         }
+        .send()
     }
 
     pub const fn new() -> Self {
-        let ret = Self {
-            handlers: Vec::new(),
-        };
-
-        ret
+        Self {
+            promises: Vec::new(),
+        }
     }
 }

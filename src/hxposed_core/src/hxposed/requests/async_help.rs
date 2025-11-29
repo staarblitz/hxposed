@@ -6,14 +6,12 @@ use crate::hxposed::responses::empty::EmptyResponse;
 #[repr(C)]
 pub struct AddAsyncHandlerRequest {
     pub addr: u64,
-    pub cookie: u16,
 }
 
 #[derive(Default, Debug, Clone)]
 #[repr(C)]
 pub struct RemoveAsyncHandlerRequest {
     pub addr: u64,
-    pub cookie: u16
 }
 
 impl VmcallRequest for RemoveAsyncHandlerRequest  {
@@ -30,7 +28,6 @@ impl VmcallRequest for RemoveAsyncHandlerRequest  {
     fn from_raw(call: HypervisorCall, args: (u64, u64, u64)) -> Self {
         Self {
             addr: args.0,
-            cookie: call.async_cookie()
         }
     }
 }
@@ -49,7 +46,6 @@ impl VmcallRequest for AddAsyncHandlerRequest  {
     fn from_raw(call: HypervisorCall, args: (u64, u64, u64)) -> Self {
         Self {
             addr: args.0,
-            cookie: call.async_cookie()
         }
     }
 }

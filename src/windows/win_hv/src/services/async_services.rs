@@ -20,8 +20,6 @@ pub fn add_async_handler(
     }
 
     match plugin.add_notify_handler(AsyncNotifyHandler {
-        filter: vec![],
-        cookie: request.cookie,
         handler: unsafe { core::mem::transmute(request.addr) },
     }) {
         Ok(_) => EmptyResponse::with_service(ServiceFunction::AddAsyncHandler),
@@ -34,7 +32,7 @@ pub fn remove_async_handler(
     request: RemoveAsyncHandlerRequest,
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
-    plugin.remove_notify_handler(request.cookie);
+    plugin.remove_notify_handler(request.addr);
 
     EmptyResponse::with_service(ServiceFunction::RemoveAsyncHandler)
 }

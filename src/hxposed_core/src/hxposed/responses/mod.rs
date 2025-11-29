@@ -1,5 +1,5 @@
 use crate::error::HypervisorError;
-use crate::hxposed::call::{HypervisorCall, HypervisorResult};
+use crate::hxposed::call::{HypervisorCall, HypervisorResult, ServiceParameter};
 use crate::hxposed::error::{ErrorCode, ErrorSource, NotAllowedReason};
 use crate::plugins::plugin_perms::PluginPermissions;
 
@@ -21,6 +21,14 @@ impl HypervisorResponse {
         Self {
             result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed),
             arg1: reason.into_bits() as _,
+            ..Default::default()
+        }
+    }
+
+    pub fn invalid_params(param: ServiceParameter) -> Self {
+        Self {
+            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::InvalidParams),
+            arg1: param.into_bits() as _,
             ..Default::default()
         }
     }
@@ -50,7 +58,7 @@ impl HypervisorResponse {
     }
 }
 
-pub trait VmcallResponse: Sized {
+pub trait VmcallResponse: Sized + Send + Sync {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError>;
     fn into_raw(self) -> HypervisorResponse;
 }

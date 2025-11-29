@@ -10,67 +10,131 @@ use wdk_sys::ntddk::{
     RtlUTF8StringToUnicodeString,
 };
 use wdk_sys::{
-    ACCESS_MASK, BOOLEAN, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES,
+    BOOLEAN, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES,
     PCLIENT_ID, PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
-    PSECURITY_DESCRIPTOR, PUNICODE_STRING, PVOID, SIZE_T, TRUE, ULONG, UNICODE_STRING, USHORT,
-    UTF8_STRING,
+    PSECURITY_DESCRIPTOR, PULONG, PUNICODE_STRING, PVOID
+    , TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING,
 };
 
 pub(crate) mod alloc;
 pub(crate) mod macros;
 pub(crate) mod timing;
 
-pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(*mut PEPROCESS, NTSTATUS) -> NTSTATUS;
-pub(crate) type PsSetContextThreadType =
-    unsafe extern "C" fn(*mut PETHREAD, PCONTEXT, KPROCESSOR_MODE) -> NTSTATUS;
-pub(crate) static NT_PS_SET_CONTEXT_THREAD: AtomicPtr<PsSetContextThreadType> =
-    AtomicPtr::new(null_mut());
+pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(PEPROCESS, NTSTATUS) -> NTSTATUS;
+pub(crate) type PsGetSetContextThreadInternal = unsafe extern "C" fn(
+    PETHREAD,
+    PCONTEXT,
+    KPROCESSOR_MODE,
+    KPROCESSOR_MODE,
+    KPROCESSOR_MODE,
+) -> NTSTATUS;
 pub(crate) static NT_PS_TERMINATE_PROCESS: AtomicPtr<PsTerminateProcessType> =
     AtomicPtr::new(null_mut());
+pub(crate) static NT_PS_GET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextThreadInternal> =
+    AtomicPtr::new(null_mut());
+pub(crate) static NT_PS_SET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextThreadInternal> =
+    AtomicPtr::new(null_mut());
 
 #[allow(non_snake_case)]
-pub(crate) unsafe fn PsSetContextThread(
-    Thread: &PETHREAD,
-    Context: PCONTEXT,
-    ProcessorMode: KPROCESSOR_MODE,
-) -> NTSTATUS {
-    let mut status = 0;
+pub(crate) unsafe fn PsTerminateProcess(Process: PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
+    let mut status = NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed);
     // the beautiful rust doesn't allow misaligned pointers.
     // it isn't my fault PsTerminateProcess is 0x8 unaligned. come on dude
     unsafe {
         asm!(
-        "mov rcx, {0}",
-        "mov rdx, {1}",
-        "mov r8, {2}",
-        "mov rax, {3}",
-        "mov {4}, rax",
-        in(reg) Thread,in(reg) Context, in(reg) ProcessorMode as u32, in(reg) NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed),
-        inout(reg) status => status);
-    }
-    status as _
-}
-
-#[allow(non_snake_case)]
-pub(crate) unsafe fn PsTerminateProcess(Process: &PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
-    let mut status = 0;
-    // the beautiful rust doesn't allow misaligned pointers.
-    // it isn't my fault PsTerminateProcess is 0x8 unaligned. come on dude
-    unsafe {
-        asm!(
-        "mov rcx, {0}",
-        "mov rdx, {1}",
-        "mov rax, {2}",
         "call rax",
-        "mov {3}, rax",
-        in(reg) Process,in(reg) ExitCode, in(reg) NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed),
-        inout(reg) status => status);
+        in("rcx") Process,in("rdx") ExitCode, inout("rax") status => status);
     }
     status as _
 }
+
+// these are not required since those functions are 0x8 aligned.
+/*#[allow(non_snake_case)]
+pub(crate) unsafe fn PsGetContextThreadInternal(
+    Process: PETHREAD,
+    ExitCode: NTSTATUS,
+    ProcessorMode: KPROCESSOR_MODE,
+    ProcessorMode2: KPROCESSOR_MODE,
+    ProcessorMode3: KPROCESSOR_MODE,
+) -> NTSTATUS {
+    let mut status = NT_PS_GET_CONTEXT_THREAD_INTERNAL.load(Ordering::Relaxed);
+
+    /*
+PAGE:0000000140A968B0 48 83 EC 38                       sub     rsp, 38h
+PAGE:0000000140A968B4 45 8A C8                          mov     r9b, r8b
+PAGE:0000000140A968B7 C7 44 24 20 01 00                 mov     [rsp+38h+var_18], 1 ; int
+PAGE:0000000140A968B7 00 00
+PAGE:0000000140A968BF E8 3C 8F DD FF                    call    PspSetContextThreadInternal
+PAGE:0000000140A968C4 48 83 C4 38                       add     rsp, 38h
+PAGE:0000000140A968C8 C3                                retn
+     */
+    unsafe {
+        asm!(
+        "sub rsp, 0x38",
+        "mov [rsp + 20], rsi",
+        "call rax",
+        "add rsp, 0x38",
+        in("rcx") Process, in("rdx") ExitCode, in("r8b") ProcessorMode, in("r9b") ProcessorMode2, in("rsi") ProcessorMode3 as u64, inout("rax") status => status
+        )
+    }
+
+    status as _
+}
+
+#[allow(non_snake_case)]
+pub(crate) unsafe fn PsSetContextThreadInternal(
+    Process: PETHREAD,
+    ExitCode: NTSTATUS,
+    ProcessorMode: KPROCESSOR_MODE,
+    ProcessorMode2: KPROCESSOR_MODE,
+    ProcessorMode3: KPROCESSOR_MODE,
+) -> NTSTATUS {
+    let mut status = NT_PS_SET_CONTEXT_THREAD_INTERNAL.load(Ordering::Relaxed);
+
+    /*
+PAGE:0000000140A968B0 48 83 EC 38                       sub     rsp, 38h
+PAGE:0000000140A968B4 45 8A C8                          mov     r9b, r8b
+PAGE:0000000140A968B7 C7 44 24 20 01 00                 mov     [rsp+38h+var_18], 1 ; int
+PAGE:0000000140A968B7 00 00
+PAGE:0000000140A968BF E8 3C 8F DD FF                    call    PspSetContextThreadInternal
+PAGE:0000000140A968C4 48 83 C4 38                       add     rsp, 38h
+PAGE:0000000140A968C8 C3                                retn
+     */
+    unsafe {
+        asm!(
+        "sub rsp, 0x38",
+        "mov [rsp + 20], rsi",
+        "call rax",
+        "add rsp, 0x38",
+        in("rcx") Process, in("rdx") ExitCode, in("r8b") ProcessorMode, in("r9b") ProcessorMode2, in("rsi") ProcessorMode3 as u64, inout("rax") status => status
+        )
+    }
+
+    status as _
+}*/
+
+pub(crate) const NT_CURRENT_PROCESS: HANDLE = -1 as _;
 
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
     pub static PsLoadedModuleList: *mut _LDR_DATA_TABLE_ENTRY;
+
+    #[allow(non_snake_case)]
+    pub fn ZwResumeThread(Thread: HANDLE, PreviousWhateverGarbage: PULONG) -> NTSTATUS;
+
+    #[allow(non_snake_case)]
+    pub fn PsSetContextThread(
+        Thread: PETHREAD,
+        Context: PCONTEXT,
+        AccessMode: KPROCESSOR_MODE,
+    ) -> NTSTATUS;
+
+    #[allow(non_snake_case)]
+    pub fn PsGetContextThread(
+        Thread: PETHREAD,
+        Context: PCONTEXT,
+        AccessMode: KPROCESSOR_MODE,
+    ) -> NTSTATUS;
 
     #[allow(non_snake_case)]
     pub fn RtlCreateUserThread(
@@ -78,8 +142,8 @@ unsafe extern "C" {
         ThreadSecurityDescriptor: PSECURITY_DESCRIPTOR,
         CreateSuspended: BOOLEAN,
         ZeroBits: ULONG,
-        MaximumStackSize: ULONG,
-        CommittedStackSize: ULONG,
+        MaximumStackSize: PULONG,
+        CommittedStackSize: PULONG,
         StartAddress: PVOID,
         Parameter: PVOID,
         ThreadHandle: PHANDLE,

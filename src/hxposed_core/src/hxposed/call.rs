@@ -3,6 +3,7 @@ use crate::hxposed::func::ServiceFunction;
 use bitfield_struct::bitfield;
 
 #[bitfield(u32)]
+#[derive(PartialEq, Eq)]
 pub struct HypervisorCall {
     #[bits(16)]
     pub func: ServiceFunction,
@@ -48,6 +49,7 @@ impl HypervisorCall {
 }
 
 #[bitfield(u32)]
+#[derive(PartialEq, Eq)]
 pub struct HypervisorResult {
     #[bits(16)]
     pub func: ServiceFunction,
@@ -81,5 +83,41 @@ impl HypervisorResult {
             .with_error_source(error_source)
             .with_error_code(error_code)
             .with_cookie(cookie)
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub enum ServiceParameter {
+    #[default]
+    None = 0,
+    Function,
+    IsFast,
+    IgnoreResult,
+    BufferByUser,
+    YieldExecution,
+    IsAsync,
+    AsyncCookie,
+    Arg1,
+    Arg2,
+    Arg3
+}
+
+impl ServiceParameter{
+    pub const fn into_bits(self) -> u32 {self as _}
+
+    pub const fn from_bits(value: u32) -> Self {
+        match value {
+            1 => Self::Function,
+            2 => Self::IsFast,
+            3 => Self::IgnoreResult,
+            4 => Self::BufferByUser,
+            5 => Self::YieldExecution,
+            6 => Self::IsAsync,
+            7 => Self::AsyncCookie,
+            8 => Self::Arg1,
+            9 => Self::Arg2,
+            10 => Self::Arg3,
+            _ => Self::None
+        }
     }
 }

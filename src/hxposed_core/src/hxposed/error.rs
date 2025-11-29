@@ -8,6 +8,7 @@ pub enum ErrorCode {
     NotAllowed = 2,
     NotLoaded = 3,
     NotFound = 4,
+    InvalidParams = 5
 }
 
 impl ErrorCode {
@@ -22,6 +23,7 @@ impl ErrorCode {
             2 => Self::NotAllowed,
             3 => Self::NotLoaded,
             4 => Self::NotFound,
+            5 => Self::InvalidParams,
             _ => Self::Unknown,
         }
     }

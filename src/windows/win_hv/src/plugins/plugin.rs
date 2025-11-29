@@ -82,8 +82,8 @@ impl Plugin {
     ///
     /// ## Arguments
     /// cookie - Async cookie of the handler.
-    pub fn remove_notify_handler(&mut self, cookie: u16) {
-        self.handlers.retain(|h| h.cookie != cookie);
+    pub fn remove_notify_handler(&mut self, addr: u64) {
+        self.handlers.retain(|h| h.handler as *const u64 as u64 != addr);
     }
 
     ///

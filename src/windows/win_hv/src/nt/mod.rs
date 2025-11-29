@@ -1,7 +1,7 @@
 pub(crate) mod process;
 pub(crate) mod worker;
 
-use crate::win::{PsLoadedModuleList, PsTerminateProcessType, NT_PS_TERMINATE_PROCESS, _LDR_DATA_TABLE_ENTRY};
+use crate::win::{PsGetSetContextThreadInternal, PsLoadedModuleList, PsTerminateProcessType, NT_PS_GET_CONTEXT_THREAD_INTERNAL, NT_PS_SET_CONTEXT_THREAD_INTERNAL, NT_PS_TERMINATE_PROCESS, _LDR_DATA_TABLE_ENTRY};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use wdk_sys::ntddk::RtlGetVersion;
@@ -34,6 +34,16 @@ pub(crate) fn get_nt_info() {
             get_nt_proc::<PsTerminateProcessType>(NtProcedure::PsTerminateProcessProc),
             Ordering::Relaxed,
         );
+
+        NT_PS_SET_CONTEXT_THREAD_INTERNAL.store(
+            get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspSetContextThreadInternal),
+            Ordering::Relaxed,
+        );
+
+        NT_PS_GET_CONTEXT_THREAD_INTERNAL.store(
+            get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspGetContextThreadInternal),
+            Ordering::Relaxed,
+        );
     }
 }
 
@@ -51,7 +61,9 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
         base.add(match build {
         26200 /* 25H2 */ => {
             match proc {
-                NtProcedure::PsTerminateProcessProc => 0x91f3d4
+                NtProcedure::PsTerminateProcessProc => 0x91f3d4,
+                NtProcedure::PspGetContextThreadInternal => 0x00909940,
+                NtProcedure::PspSetContextThreadInternal => 0x009095f0,
             }
         }
         _ => panic!("Unknown NT build {}", build)
@@ -105,6 +117,8 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
 
 pub enum NtProcedure {
     PsTerminateProcessProc,
+    PspSetContextThreadInternal,
+    PspGetContextThreadInternal,
 }
 
 /// TODO: Document what those return

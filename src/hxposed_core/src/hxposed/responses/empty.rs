@@ -3,6 +3,7 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
+#[derive(Debug)]
 pub struct EmptyResponse;
 
 impl EmptyResponse{

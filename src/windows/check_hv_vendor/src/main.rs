@@ -7,6 +7,8 @@ use hxposed_core::hxposed::requests::{Vmcall, VmcallRequest};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::process::HxProcess;
 use std::str::FromStr;
+use hxposed_core::hxposed::responses::empty::EmptyResponse;
+use hxposed_core::services::async_service::{AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER};
 use uuid::Uuid;
 
 fn main() {
@@ -30,6 +32,19 @@ fn main() {
     println!("Permissions: {:?}", resp.permissions);
 
     println!("Getting status");
+
+    match {
+        let mut lock = GLOBAL_ASYNC_NOTIFY_HANDLER.lock();
+        lock.init()
+    } {
+        Ok(_) => {
+            println!("GLOBAL_ASYNC_NOTIFY_HANDLER has been initialized");
+        }
+        Err(e) => {
+            println!("Error reigstering async handler! {:?}", e);
+        }
+    }
+
     let req = StatusRequest::default();
     let resp = req.send();
     match resp {
@@ -63,7 +78,7 @@ fn main() {
 
     println!("Opened process!");
 
-    match process.kill(0) {
+    match AsyncPromise::spin_wait::<EmptyResponse>(process.kill_async(0)) {
         Ok(_) => {
             println!("Killed process!");
         }
