@@ -7,7 +7,6 @@ use alloc::format;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use hxposed_core::services::async_service::AsyncNotifyHandler;
 use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
@@ -26,7 +25,6 @@ pub(crate) struct Plugin {
     pub authorized_permissions: PluginPermissions,
     pub process: AtomicPtr<_KPROCESS>,
     pub open_processes: Vec<AtomicPtr<_KPROCESS>>,
-    pub handlers: Vec<AsyncNotifyHandler>,
     pub awaiting_commands: VecDeque<Box<dyn AsyncCommand>>
 }
 impl Plugin {
@@ -50,37 +48,6 @@ impl Plugin {
     /// - Whatever [`VecDeque::pop_back`] returns.
     pub fn dequeue_command(&mut self) -> Option<Box<dyn AsyncCommand>> {
         self.awaiting_commands.pop_front()
-    }
-
-    ///
-    /// # Add Notify Handler
-    ///
-    /// Adds a notify handler for this instance of plugin.
-    ///
-    /// ## Arguments
-    /// * `handler` - [`AsyncNotifyHandler`] instance.
-    ///
-    /// ## Returns
-    /// - A very basic [`Result`]. It returns an err if the handlers is full.
-    pub fn add_notify_handler(&mut self, handler: AsyncNotifyHandler) -> Result<(), ()> {
-        if self.handlers.len() > 47 {
-            return Err(()); // We cannot dare to allocate in VMEXIT.
-        }
-
-        self.handlers.push(handler);
-
-        Ok(())
-    }
-
-    ///
-    /// # Remove Notify Handler
-    ///
-    /// Removes a notify handler for this instance of plugin
-    ///
-    /// ## Arguments
-    /// * `cookie` - Async cookie of the handler.
-    pub fn remove_notify_handler(&mut self, addr: u64) {
-        self.handlers.retain(|h| h.handler as *const u64 as u64 != addr);
     }
 
     ///
@@ -260,7 +227,6 @@ impl Plugin {
             authorized_permissions: permissions,
             process: AtomicPtr::default(),
             open_processes: Vec::new(),
-            handlers: Vec::with_capacity(48),
             awaiting_commands: VecDeque::with_capacity(32),
         })
     }
