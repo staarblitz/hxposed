@@ -9,4 +9,7 @@ unsafe extern "C" {
 
     #[allow(non_snake_case)]
     pub(crate) fn CloseHandle(handle: u64);
+
+    #[allow(non_snake_case)]
+    pub(crate) fn SetEvent(handle: u64) -> u32;
 }
