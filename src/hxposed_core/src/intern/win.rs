@@ -1,5 +1,5 @@
 #[cfg(feature = "usermode")]
-#[link(name = "kernel32.dll")]
+#[link(name = "kernel32")]
 unsafe extern "C" {
     #[allow(non_snake_case)]
     pub(crate) fn WaitForSingleObject(handle: u64, time: u32) -> u32;
