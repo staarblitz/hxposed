@@ -8,7 +8,7 @@ use crate::hxposed::responses::VmcallResponse;
 use crate::intern::instructions::vmcall;
 #[cfg(feature = "usermode")]
 use crate::services::async_service::{AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER};
-use crate::services::async_service::AsyncInfo;
+use crate::services::async_service::{AsyncInfo, HxPosedAsyncService};
 
 pub mod auth;
 pub mod process;
@@ -54,7 +54,7 @@ pub trait VmcallRequest {
 pub trait Vmcall<T: VmcallRequest> {
     fn send(self) -> Result<T::Response, HypervisorError>;
     #[cfg(feature = "usermode")]
-    fn send_async(self) -> AsyncPromise<T::Response>;
+    fn get_promise(self) ->Box<AsyncPromise<T::Response>>;
 }
 
 impl<T> Vmcall<T> for T
@@ -66,20 +66,7 @@ where
     }
 
     #[cfg(feature = "usermode")]
-    fn send_async(self) -> AsyncPromise<T::Response> {
-        let mut raw = self.into_raw();
-
-        raw.call.set_is_async(true);
-        let mut lock = GLOBAL_ASYNC_NOTIFY_HANDLER.lock();
-        let mut promise = lock.new_promise::<T::Response>();
-
-        unsafe { GLOBAL_ASYNC_NOTIFY_HANDLER.force_unlock() }
-
-        raw.async_info.handle = promise.event;
-        raw.async_info.result_values = AtomicPtr::new(Arc::as_ptr(&promise.result_memory) as *mut _);
-
-        vmcall(raw);
-
-        (*promise).clone()
+    fn get_promise(self) -> Box<AsyncPromise<T::Response>> {
+       HxPosedAsyncService::new_promise(self.into_raw())
     }
 }
