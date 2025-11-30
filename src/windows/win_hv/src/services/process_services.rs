@@ -1,5 +1,6 @@
 use crate::plugins::async_command::KillProcessAsyncCommand;
 use crate::plugins::plugin::Plugin;
+use crate::win::PsTerminateProcess;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
@@ -12,9 +13,9 @@ use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::OpenProcessResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
+use hxposed_core::services::async_service::AsyncInfo;
 use wdk_sys::ntddk::PsLookupProcessByProcessId;
-use wdk_sys::{PEPROCESS, STATUS_SUCCESS};
-use crate::win::PsTerminateProcess;
+use wdk_sys::{HANDLE, PEPROCESS, STATUS_SUCCESS};
 
 ///
 /// # Kill Process
@@ -25,6 +26,7 @@ use crate::win::PsTerminateProcess;
 /// * `guest` - Currently unused.
 /// * `request` - Identifies the target process and the exit code to use.See [`KillProcessRequest`].
 /// * `plugin` - The plugin requesting the operation. See [`Plugin`].
+/// * `async_handle` - Handle object plugin created.
 ///
 /// ## Warning
 /// - This function only enqueues the request; success does **not** imply the process was actually terminated.
@@ -39,6 +41,7 @@ pub(crate) fn kill_process_async(
     _guest: &mut dyn Guest,
     request: KillProcessRequest,
     plugin: &'static mut Plugin,
+    async_info: &AsyncInfo,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
@@ -49,11 +52,11 @@ pub(crate) fn kill_process_async(
         None => return HypervisorResponse::not_found(),
     };
 
-    plugin.queue_command(Box::new(KillProcessAsyncCommand {
-        exit_code: request.exit_code,
-        call: request,
+    plugin.queue_command(Box::new(KillProcessAsyncCommand::new(
+        request,
         process,
-    }));
+        async_info,
+    )));
 
     EmptyResponse::with_service(ServiceFunction::KillProcess)
 }
@@ -67,21 +70,22 @@ pub(crate) fn kill_process_async(
 /// * `request` - Pointer to [`KillProcessAsyncCommand`]
 /// * `plugin` - [`Plugin`] that asked for the service.
 ///
+/// ## Warning
+/// - Caller must signal the request *after* calling this function.
+///
 /// ## Return
 /// * [`HypervisorResponse::ok`] - The process was killed.
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
 pub(crate) fn kill_process_sync(
     request: &KillProcessAsyncCommand,
-    plugin: &Plugin
+    plugin: &Plugin,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
     }
 
     match unsafe { PsTerminateProcess(request.process, request.exit_code as _) } {
-        STATUS_SUCCESS => {
-            EmptyResponse::with_service(ServiceFunction::KillProcess)
-        }
+        STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillProcess),
         err => HypervisorResponse::nt_error(err as _),
     }
 }
@@ -144,7 +148,7 @@ pub(crate) fn open_process(
     let mut process = PEPROCESS::default();
 
     match unsafe { PsLookupProcessByProcessId(request.process_id as _, &mut process) } {
-        STATUS_SUCCESS => {},
+        STATUS_SUCCESS => {}
         err => return HypervisorResponse::nt_error(err as _),
     }
 
