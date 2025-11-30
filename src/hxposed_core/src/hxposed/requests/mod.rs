@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 use core::any::{Any, TypeId};
 use core::sync::atomic::{AtomicPtr, Ordering};
 use crate::error::HypervisorError;
@@ -13,14 +14,27 @@ pub mod auth;
 pub mod process;
 pub mod status;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct HypervisorRequest {
     pub(crate) call: HypervisorCall,
     pub(crate) arg1: u64,
     pub(crate) arg2: u64,
     pub(crate) arg3: u64,
     pub(crate) async_handle: u64,
-    pub(crate) result_data: Box<[u64;4]>
+    pub(crate) result_data: AtomicPtr<[u64;4]>
+}
+
+impl Clone for HypervisorRequest {
+    fn clone(&self) -> Self {
+        Self {
+            call: self.call.clone(),
+            arg1: self.arg1.clone(),
+            arg2: self.arg2.clone(),
+            arg3: self.arg3.clone(),
+            async_handle: self.async_handle.clone(),
+            result_data: AtomicPtr::new(self.result_data.load(Ordering::Relaxed)),
+        }
+    }
 }
 
 pub trait VmcallRequest {
@@ -54,7 +68,7 @@ where
         unsafe { GLOBAL_ASYNC_NOTIFY_HANDLER.force_unlock() }
 
         raw.async_handle = promise.event;
-        raw.result_memory = Box::new();
+        raw.result_data = AtomicPtr::new(Arc::as_ptr(&promise.result_memory) as *mut _);
 
         vmcall(raw);
 

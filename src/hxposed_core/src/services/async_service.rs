@@ -3,6 +3,7 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::error::ErrorCode;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 use core::marker::PhantomData;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
@@ -42,10 +43,7 @@ impl Clone for AsyncInfo {
 pub struct AsyncPromise<T> {
     pub event: u64,
     pub completed: bool,
-    pub result: HypervisorResult,
-    pub arg1: u64,
-    pub arg2: u64,
-    pub arg3: u64,
+    pub result_memory: Arc<[u64;4]>,
     phantom: PhantomData<T>,
 }
 #[cfg(feature = "usermode")]
@@ -68,10 +66,10 @@ where
         unsafe { WaitForSingleObject(self.event, u32::MAX) };
 
         let result = T::from_raw(HypervisorResponse {
-            result: self.result,
-            arg1: self.arg1,
-            arg2: self.arg2,
-            arg3: self.arg3,
+            result: HypervisorResult::from_bits(self.result_memory[0] as _),
+            arg1: self.result_memory[1] as _,
+            arg2: self.result_memory[2] as _,
+            arg3: self.result_memory[3] as _,
         });
 
         unsafe {
@@ -97,10 +95,10 @@ where
     pub fn wait_timespan(self, ms: u32) -> Result<T, HypervisorError> {
         let result = match unsafe { WaitForSingleObject(self.event, ms) } {
             0 => T::from_raw(HypervisorResponse {
-                result: self.result,
-                arg1: self.arg1,
-                arg2: self.arg2,
-                arg3: self.arg3,
+                result: HypervisorResult::from_bits(self.result_memory[0] as _),
+                arg1: self.result_memory[1] as _,
+                arg2: self.result_memory[2] as _,
+                arg3: self.result_memory[3] as _,
             }),
             0x102 => Err(HypervisorError::not_found()),
 
@@ -122,11 +120,8 @@ impl HxPosedAsyncService {
     {
         Box::new(AsyncPromise::<T> {
             event: unsafe { CreateEventA(null_mut(), 0, 0, null_mut()) },
-            arg1: 0,
-            arg2: 0,
-            arg3: 0,
             completed: false,
-            result: HypervisorResult::default(),
+            result_memory: unsafe {Arc::<[u64;4]>::new_uninit().assume_init()},
             phantom: PhantomData,
         })
     }
