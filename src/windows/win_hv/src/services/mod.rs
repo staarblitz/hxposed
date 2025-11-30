@@ -1,5 +1,4 @@
 use crate::plugins::plugin::Plugin;
-use crate::services::async_services::*;
 use crate::services::process_services::*;
 use crate::write_response;
 use core::ops::BitAnd;
@@ -13,9 +12,10 @@ use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::services::async_service::AsyncInfo;
+use wdk_sys::HANDLE;
 use wdk_sys::ntddk::IoGetCurrentProcess;
 
-pub mod async_services;
 pub mod process_services;
 
 ///
@@ -55,31 +55,6 @@ pub fn authorize_plugin(
 }
 
 ///
-/// # Handle Async Services
-///
-/// Dispatches the async service requests to [async_services]
-pub fn handle_async_services(
-    guest: &mut dyn Guest,
-    call: HypervisorCall,
-    args: (u64, u64, u64),
-    plugin: &'static mut Plugin,
-) {
-    let result = match call.func() {
-        ServiceFunction::AddAsyncHandler => {
-            add_async_handler(guest, AddAsyncHandlerRequest::from_raw(call, args), plugin)
-        }
-        ServiceFunction::RemoveAsyncHandler => remove_async_handler(
-            guest,
-            RemoveAsyncHandlerRequest::from_raw(call, args),
-            plugin,
-        ),
-        _ => unreachable!(),
-    };
-
-    write_response(guest, result)
-}
-
-///
 /// # Handle Process Services
 ///
 /// Dispatches the process service request to [process_services].
@@ -88,7 +63,8 @@ pub fn handle_process_services(
     guest: &mut dyn Guest,
     call: HypervisorCall,
     args: (u64, u64, u64),
-    plugin: &'static mut Plugin
+    plugin: &'static mut Plugin,
+    async_info: &AsyncInfo
 ) {
     let result = match call.func() {
         ServiceFunction::OpenProcess => {
@@ -102,7 +78,7 @@ pub fn handle_process_services(
                 HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
             }
             else {
-                kill_process_async(guest, KillProcessRequest::from_raw(call, args), plugin)
+                kill_process_async(guest, KillProcessRequest::from_raw(call, args), plugin, async_info)
             }
         }
         _ => unreachable!(),
