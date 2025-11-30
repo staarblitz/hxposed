@@ -36,13 +36,6 @@ pub struct GetProcessFieldRequest {
     pub user_buffer_len: u16,
 }
 
-#[derive(Default, Debug)]
-#[repr(C)]
-pub struct GetProcessFieldRequestArguments {
-    pub user_buffer: AtomicPtr<u16>,
-    pub user_buffer_len: u16,
-}
-
 impl Clone for GetProcessFieldRequest {
     fn clone(&self) -> Self {
         Self {
@@ -119,16 +112,13 @@ impl VmcallRequest for GetProcessFieldRequest {
     type Response = GetProcessFieldResponse;
 
     fn into_raw(self) -> HypervisorRequest {
-        GetProcessFieldRequestArguments {
-            user_buffer: self.user_buffer,
-            user_buffer_len: self.user_buffer_len,
-        };
-
-
         HypervisorRequest {
             call: HypervisorCall::get_process_field(),
             arg1: self.id as _,
             arg2: self.field as _,
+
+            extended_arg1: self.user_buffer.load(Ordering::Relaxed) as _,
+            extended_arg2: self.user_buffer_len as _,
             ..Default::default()
         }
     }
@@ -138,8 +128,8 @@ impl VmcallRequest for GetProcessFieldRequest {
         Self {
             id: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
-            user_buffer: AtomicPtr::new(request.arg3 as _),
-            user_buffer_len: request.extended_arg1 as _,
+            user_buffer: AtomicPtr::new(request.extended_arg1 as _),
+            user_buffer_len: request.extended_arg2 as _,
         }
     }
 }
@@ -148,15 +138,15 @@ impl VmcallRequest for GetProcessFieldRequest {
 pub enum ProcessField {
     #[default]
     Unknown,
-    NtPath,
-    Protection,
+    NtPath = 1,
+    Protection = 2,
 }
 
 impl ProcessField {
     pub const fn from_bits(bits: u16) -> Self {
         match bits {
-            0 => Self::NtPath,
-            1 => Self::Protection,
+            1 => Self::NtPath,
+            2 => Self::Protection,
             _ => Self::Unknown,
         }
     }
