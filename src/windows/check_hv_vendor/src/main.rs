@@ -39,7 +39,7 @@ fn main() {
         _ => {}
     }
 
-    let resp = unsafe { resp.unwrap() };
+    let resp = resp.unwrap();
 
     println!(
         "Hypervisor status: Current: {}, Version: {}",
