@@ -22,6 +22,7 @@ impl VmcallRequest for AuthorizationRequest {
             arg1: uuid.0,
             arg2: uuid.1,
             arg3: self.permissions.bits(),
+            ..Default::default()
         }
     }
 
