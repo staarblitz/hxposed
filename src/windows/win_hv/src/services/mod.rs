@@ -73,8 +73,6 @@ pub fn handle_process_services(
         ServiceFunction::GetProcessField => {
             if !request.call.is_async() {
                 HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            } else if !request.call.buffer_by_user() {
-                HypervisorResponse::invalid_params(ServiceParameter::BufferByUser)
             }
             else {
                 get_process_field_async(guest, GetProcessFieldRequest::from_raw(request), plugin, &request.async_info)
