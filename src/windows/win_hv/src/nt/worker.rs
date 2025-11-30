@@ -1,11 +1,11 @@
+use crate::PLUGINS;
 use crate::plugins::async_command::KillProcessAsyncCommand;
 use crate::services::process_services::kill_process_sync;
 use crate::win::timing;
-use crate::PLUGINS;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
-use wdk_sys::ntddk::KeDelayExecutionThread;
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::KeDelayExecutionThread;
 use wdk_sys::{FALSE, LARGE_INTEGER, PVOID};
 
 ///
@@ -19,7 +19,7 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
     loop {
         // this labeled loops are fire 🔥🔥🔥
         'inner: for plugin in plugins.plugins.iter_mut() {
-            let command = match plugin.dequeue_command() {
+            let mut command = match plugin.dequeue_command() {
                 None => {
                     let _ = unsafe {
                         KeDelayExecutionThread(
@@ -33,7 +33,7 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                 Some(x) => x,
             };
 
-            let result = match command.get_service_function() {
+            command.complete(match command.get_service_function() {
                 ServiceFunction::KillProcess => kill_process_sync(
                     command
                         .as_any()
@@ -42,9 +42,7 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                     plugin,
                 ),
                 _ => unreachable!(),
-            };
-
-            // inform the user mode app. but how?
+            });
         }
     }
 }
