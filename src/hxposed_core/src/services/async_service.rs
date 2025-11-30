@@ -26,7 +26,7 @@ pub static GLOBAL_ASYNC_NOTIFY_HANDLER: Mutex<HxPosedAsyncService> =
 #[derive(Debug, Default)]
 pub struct HxPosedAsyncService {}
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct AsyncInfo {
     pub handle: u64,
     pub result_values: AtomicPtr<[u64; 4]>,
