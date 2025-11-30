@@ -6,7 +6,7 @@ use crate::hxposed::requests::process::{
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::{
-    AsyncNotifyHandler, AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER,
+    AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER,
 };
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -75,7 +75,7 @@ impl HxProcess {
     ///
     /// ## Returns
     /// [Result] with most likely an NT error.
-    pub fn kill_async(self, exit_code: u32) -> u16 {
+    pub fn kill_async(self, exit_code: u32) -> AsyncPromise<EmptyResponse> {
         KillProcessRequest {
             id: self.id,
             exit_code,
