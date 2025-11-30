@@ -8,20 +8,25 @@ use crate::hxposed::responses::VmcallResponse;
 use crate::intern::instructions::vmcall;
 #[cfg(feature = "usermode")]
 use crate::services::async_service::{AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER};
+use crate::services::async_service::AsyncInfo;
 
-pub mod async_help;
 pub mod auth;
 pub mod process;
 pub mod status;
 
 #[derive(Default, Debug)]
 pub struct HypervisorRequest {
-    pub(crate) call: HypervisorCall,
-    pub(crate) arg1: u64,
-    pub(crate) arg2: u64,
-    pub(crate) arg3: u64,
-    pub(crate) async_handle: u64,
-    pub(crate) result_data: AtomicPtr<[u64;4]>
+    pub call: HypervisorCall,
+    pub arg1: u64,
+    pub arg2: u64,
+    pub arg3: u64,
+
+    pub async_info: AsyncInfo,
+
+    pub extended_arg1: u128,
+    pub extended_arg2: u128,
+    pub extended_arg3: u128,
+    pub extended_arg4: u128,
 }
 
 impl Clone for HypervisorRequest {
@@ -31,8 +36,11 @@ impl Clone for HypervisorRequest {
             arg1: self.arg1.clone(),
             arg2: self.arg2.clone(),
             arg3: self.arg3.clone(),
-            async_handle: self.async_handle.clone(),
-            result_data: AtomicPtr::new(self.result_data.load(Ordering::Relaxed)),
+            async_info: self.async_info.clone(),
+            extended_arg1: self.extended_arg1,
+            extended_arg2: self.extended_arg2,
+            extended_arg3: self.extended_arg3,
+            extended_arg4: self.extended_arg4
         }
     }
 }
@@ -40,7 +48,7 @@ impl Clone for HypervisorRequest {
 pub trait VmcallRequest {
     type Response: VmcallResponse + Any + Send + Sync + Clone;
     fn into_raw(self) -> HypervisorRequest;
-    fn from_raw(call: HypervisorCall, args: (u64, u64, u64)) -> Self;
+    fn from_raw(request: &HypervisorRequest) -> Self;
 }
 
 pub trait Vmcall<T: VmcallRequest> {
@@ -67,8 +75,8 @@ where
 
         unsafe { GLOBAL_ASYNC_NOTIFY_HANDLER.force_unlock() }
 
-        raw.async_handle = promise.event;
-        raw.result_data = AtomicPtr::new(Arc::as_ptr(&promise.result_memory) as *mut _);
+        raw.async_info.handle = promise.event;
+        raw.async_info.result_values = AtomicPtr::new(Arc::as_ptr(&promise.result_memory) as *mut _);
 
         vmcall(raw);
 
