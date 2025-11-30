@@ -33,14 +33,14 @@ impl KernelProcess {
 
     fn open_process(ptr: PEPROCESS) -> Self {
         let nt_path = unsafe {
-            get_eprocess_field::<UNICODE_STRING>(
+            get_eprocess_field::<*mut UNICODE_STRING>(
                 EProcessField::SeAuditProcessCreationInfo,
                 ptr,
             )
         };
         Self {
             nt_process: AtomicPtr::new(ptr),
-            nt_path: AtomicPtr::new(nt_path),
+            nt_path: AtomicPtr::new(unsafe{*nt_path}),
             id: unsafe { PsGetProcessId(ptr) } as _,
         }
     }
