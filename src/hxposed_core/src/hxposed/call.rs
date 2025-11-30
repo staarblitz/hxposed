@@ -14,7 +14,7 @@ pub struct HypervisorCall {
     pub is_async: bool,
 
     #[bits(11)]
-    pub async_cookie: u16,
+    pub reserved: u64,
 }
 
 impl HypervisorCall {
