@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::error::{ErrorCode, ErrorSource};
@@ -20,6 +21,7 @@ pub(crate) fn vmcall(request: HypervisorRequest) -> HypervisorResponse {
         inout("r9") request.arg2 => response.arg2,
         inout("r10") request.arg3 => response.arg3,
         in("r11") request.async_handle,
+        in("r12") Box::leak(request.result_data) as *mut _,
         inout("rsi") request.call.into_bits() => result,
         inout("rcx") leaf);
     }

@@ -4,9 +4,9 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::KillProcessRequest;
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use hxposed_core::services::async_service::AsyncInfo;
+use wdk_sys::ntddk::{KeSetEvent, ObReferenceObjectByHandle, ObfDereferenceObject};
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{KeSetEvent, ObReferenceObjectByHandle, ObfDereferenceObject, ProbeForRead};
-use wdk_sys::{EVENT_ALL_ACCESS, ExEventObjectType, FALSE, HANDLE, KEVENT, PEPROCESS};
+use wdk_sys::{ExEventObjectType, EVENT_ALL_ACCESS, FALSE, KEVENT, PEPROCESS};
 
 pub trait AsyncCommand: Any {
     fn get_service_function(&self) -> ServiceFunction;
@@ -57,8 +57,8 @@ impl AsyncCommand for KillProcessAsyncCommand {
         ServiceFunction::KillProcess
     }
     fn complete(&mut self, result: HypervisorResponse) {
-        if let Ok(_) = microseh::try_seh(|| unsafe {
-            let ptr = &mut unsafe{*self.info.result_values.load(Ordering::Relaxed)};
+        if let Ok(_) = microseh::try_seh(|| {
+            let ptr = &mut unsafe { *self.info.result_values.load(Ordering::Relaxed) };
             ptr[0] = result.result.into_bits() as u64;
             ptr[1] = result.arg1;
             ptr[2] = result.arg2;
