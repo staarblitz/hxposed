@@ -1,15 +1,18 @@
-use crate::error::HypervisorError;
-use crate::hxposed::requests::Vmcall;
-use crate::hxposed::requests::process::{
-    CloseProcessRequest, KillProcessRequest, OpenProcessRequest, ProcessOpenType,
-};
-use crate::hxposed::responses::empty::EmptyResponse;
-use crate::plugins::plugin_perms::PluginPermissions;
-use crate::services::async_service::{
-    AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER,
-};
 use alloc::boxed::Box;
-use core::sync::atomic::{AtomicU64, Ordering};
+use crate::error::HypervisorError;
+use crate::hxposed::requests::process::{
+    CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
+    ProcessField, ProcessOpenType,
+};
+use crate::hxposed::requests::Vmcall;
+use crate::hxposed::responses::empty::EmptyResponse;
+use crate::hxposed::responses::process::GetProcessFieldResponse;
+use crate::plugins::plugin_perms::PluginPermissions;
+use crate::services::async_service::AsyncPromise;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::ptr::{null_mut, slice_from_raw_parts};
+use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 
 pub struct HxProcess {
     pub id: u32,
@@ -45,7 +48,6 @@ impl HxProcess {
     ///
     /// ```rust
     /// let process = HxProcess::open(4).unwrap();
-    /// println!("{}", process.nt_path);
     /// ```
     pub fn open(id: u32) -> Result<Self, HypervisorError> {
         let call = OpenProcessRequest {
@@ -58,6 +60,65 @@ impl HxProcess {
             id,
             addr: AtomicU64::new(call.addr),
         })
+    }
+
+    ///
+    /// # Get Nt Path
+    ///
+    /// Gets the Nt path of the process.
+    ///
+    /// E.g. it starts with (\\?\), not C:.
+    ///
+    /// ## Panic
+    /// - This function panics if hypervisor returns anything else than [`GetProcessFieldResponse::NtPath`]. Which it SHOULD NOT.
+    /// - Issue a bug report if you observe a panic.
+    ///
+    /// ## Return
+    /// * [`String`] - Full path of the process.
+    /// * [`HypervisorError::not_found`] - Unable to decode string from UTF16.
+    pub fn get_nt_path(&self) -> Result<String, HypervisorError> {
+        let mut bytes = 0u16;
+
+        match (GetProcessFieldRequest {
+            id: self.id,
+            field: ProcessField::NtPath,
+            user_buffer: AtomicPtr::new(null_mut()),
+            user_buffer_len: 0,
+        }
+        .send())
+        {
+            Ok(resp) => match resp {
+                GetProcessFieldResponse::NtPath(length) => {
+                   bytes = length
+                }
+                _ => unreachable!(),
+            },
+            Err(e) => return Err(e),
+        };
+
+        let mut buffer = Vec::<u16>::with_capacity(bytes as usize);
+
+        match (GetProcessFieldRequest {
+            id: self.id,
+            field: ProcessField::NtPath,
+            user_buffer: AtomicPtr::new(buffer.as_mut_ptr()),
+            user_buffer_len: buffer.capacity() as _,
+        }).send() {
+            Ok(resp) => match resp {
+                GetProcessFieldResponse::NtPath(length) => {
+                    if length != bytes {
+                        // warn?
+                    }
+
+                    match String::from_utf16(buffer.as_slice()) {
+                        Ok(str) => Ok(str),
+                        Err(_) => Err(HypervisorError::not_found()),
+                    }
+                }
+                _ => unreachable!(),
+            }
+            Err(e) => Err(e),
+        }
     }
 
     ///
