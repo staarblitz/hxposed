@@ -1,6 +1,8 @@
 use crate::PLUGINS;
-use crate::plugins::async_command::KillProcessAsyncCommand;
-use crate::services::process_services::kill_process_sync;
+use crate::plugins::async_command::{GetProcessFieldAsyncCommand, KillProcessAsyncCommand};
+use crate::services::process_services::{
+    get_process_field_async, get_process_field_sync, kill_process_sync,
+};
 use crate::win::timing;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -39,7 +41,12 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .as_any()
                         .downcast_ref::<KillProcessAsyncCommand>()
                         .unwrap(),
-                    plugin,
+                ),
+                ServiceFunction::GetProcessField => get_process_field_sync(
+                    command
+                        .as_any()
+                        .downcast_ref::<GetProcessFieldAsyncCommand>()
+                        .unwrap(),
                 ),
                 _ => unreachable!(),
             });
