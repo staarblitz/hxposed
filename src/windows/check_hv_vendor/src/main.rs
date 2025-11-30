@@ -6,6 +6,7 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::process::HxProcess;
 use std::io::stdin;
 use std::str::FromStr;
+use hxposed_core::error::HypervisorError;
 use uuid::Uuid;
 
 fn main() {
@@ -62,6 +63,18 @@ fn main() {
     };
 
     println!("Opened process!");
+
+    let path = match process.get_nt_path() {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting nt path: {:?}", e);
+            return;
+        }
+    };
+
+    println!("NT path of the process object: {}", path);
+
+    println!("Sending command to kill process...");
 
     match process.kill_async(0).wait() {
         Ok(_) => {
