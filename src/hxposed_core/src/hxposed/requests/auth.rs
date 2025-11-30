@@ -11,6 +11,12 @@ pub struct AuthorizationRequest {
     pub permissions: PluginPermissions,
 }
 
+impl AuthorizationRequest {
+    pub fn new(uuid: Uuid, permissions: PluginPermissions) -> Self {
+        Self { uuid, permissions }
+    }
+}
+
 impl VmcallRequest for AuthorizationRequest {
     type Response = AuthorizationResponse;
 
