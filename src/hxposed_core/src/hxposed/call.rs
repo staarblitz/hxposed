@@ -1,4 +1,4 @@
-use crate::hxposed::error::{InternalErrorCode, ErrorSource};
+use crate::hxposed::error::{ErrorSource, InternalErrorCode};
 use crate::hxposed::func::ServiceFunction;
 use bitfield_struct::bitfield;
 
@@ -12,8 +12,9 @@ pub struct HypervisorCall {
     pub buffer_by_user: bool,
     pub yield_execution: bool,
     pub is_async: bool,
+    pub extended_args_present: bool,
 
-    #[bits(11)]
+    #[bits(10)]
     pub reserved: u64,
 }
 
@@ -33,6 +34,12 @@ impl HypervisorCall {
 
     pub(crate) fn kill_process() -> Self {
         Self::new().with_func(ServiceFunction::KillProcess)
+    }
+
+    pub(crate) fn get_process_field() -> Self {
+        Self::new()
+            .with_func(ServiceFunction::GetProcessField)
+            .with_extended_args_present(true)
     }
 
     pub(crate) fn add_async_handler() -> Self {
@@ -99,11 +106,13 @@ pub enum ServiceParameter {
     AsyncCookie,
     Arg1,
     Arg2,
-    Arg3
+    Arg3,
 }
 
-impl ServiceParameter{
-    pub const fn into_bits(self) -> u32 {self as _}
+impl ServiceParameter {
+    pub const fn into_bits(self) -> u32 {
+        self as _
+    }
 
     pub const fn from_bits(value: u32) -> Self {
         match value {
@@ -117,7 +126,7 @@ impl ServiceParameter{
             8 => Self::Arg1,
             9 => Self::Arg2,
             10 => Self::Arg3,
-            _ => Self::None
+            _ => Self::None,
         }
     }
 }
