@@ -20,6 +20,8 @@ panic="abort"
 [profile.test]
 panic="abort"
 
+[features]
+usermode = []
 
 [lib]
 crate-type = ["rlib"]
