@@ -19,6 +19,7 @@ pub(crate) fn vmcall(request: HypervisorRequest) -> HypervisorResponse {
         inout("r8") request.arg1 => response.arg1,
         inout("r9") request.arg2 => response.arg2,
         inout("r10") request.arg3 => response.arg3,
+        in("r11") request.async_handle,
         inout("rsi") request.call.into_bits() => result,
         inout("rcx") leaf);
     }
