@@ -1,16 +1,19 @@
-use alloc::boxed::Box;
 use crate::error::HypervisorError;
+use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::{
     CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
     ProcessField, ProcessOpenType,
 };
-use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
-use crate::services::async_service::AsyncPromise;
+use crate::services::async_service::{
+    AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER, HxPosedAsyncService,
+};
+use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::arch::asm;
 use core::ptr::{null_mut, slice_from_raw_parts};
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 
@@ -79,31 +82,43 @@ impl HxProcess {
     pub fn get_nt_path(&self) -> Result<String, HypervisorError> {
         let mut bytes = 0u16;
 
-        match (GetProcessFieldRequest {
+        let promise = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::NtPath,
             user_buffer: AtomicPtr::new(null_mut()),
             user_buffer_len: 0,
         }
-        .send())
-        {
+        .get_promise();
+
+        unsafe{
+            asm!("int 0x3")
+        };
+
+        promise.send_async();
+
+        match promise.wait() {
             Ok(resp) => match resp {
                 GetProcessFieldResponse::NtPath(length) => {
-                   bytes = length
+                    bytes = length;
                 }
                 _ => unreachable!(),
             },
             Err(e) => return Err(e),
-        };
+        }
 
         let mut buffer = Vec::<u16>::with_capacity(bytes as usize);
 
-        match (GetProcessFieldRequest {
+        let promise = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::NtPath,
             user_buffer: AtomicPtr::new(buffer.as_mut_ptr()),
             user_buffer_len: buffer.capacity() as _,
-        }).send() {
+        }
+        .get_promise();
+
+        promise.send_async();
+
+        match promise.wait() {
             Ok(resp) => match resp {
                 GetProcessFieldResponse::NtPath(length) => {
                     if length != bytes {
@@ -116,7 +131,7 @@ impl HxProcess {
                     }
                 }
                 _ => unreachable!(),
-            }
+            },
             Err(e) => Err(e),
         }
     }
@@ -148,11 +163,15 @@ impl HxProcess {
     //         }
     //     }
     /// ```
-    pub fn kill_async(self, exit_code: u32) -> AsyncPromise<EmptyResponse> {
-        KillProcessRequest {
+    pub fn kill_async(self, exit_code: u32) -> Box<AsyncPromise<EmptyResponse>> {
+        let promise = KillProcessRequest {
             id: self.id,
             exit_code,
         }
-        .send_async()
+        .get_promise();
+
+        promise.send_async();
+
+        promise
     }
 }
