@@ -7,19 +7,14 @@ use hxposed_core::services::process::HxProcess;
 use std::io::stdin;
 use std::str::FromStr;
 use hxposed_core::error::HypervisorError;
+use hxposed_core::hxposed::error::{ErrorSource, InternalErrorCode};
 use uuid::Uuid;
 
 fn main() {
     let uuid = Uuid::from_str("ca170835-4a59-4c6d-a04b-f5866f592c38").unwrap();
     println!("Authorizing with UUID {}", uuid);
-    let parts = uuid.as_u64_pair();
-    println!("Parts: {:x}, {:x}", parts.0, parts.1);
-    let req = AuthorizationRequest::from_raw(
-        HypervisorCall::default(),
-        (parts.0, parts.1, PluginPermissions::all().bits()),
-    );
 
-    let resp = match req.send() {
+    let resp = match AuthorizationRequest::new(uuid, PluginPermissions::all()).send() {
         Err(e) => {
             println!("Error authorization request! {:?}", e);
             return;
@@ -67,7 +62,14 @@ fn main() {
     let path = match process.get_nt_path() {
         Ok(x) => x,
         Err(e) => {
-            println!("Error getting nt path: {:?}", e);
+            match e.error_source {
+                ErrorSource::Hx => {
+                    println!("Error getting path (HX): {:?}", InternalErrorCode::from_bits(e.error_code as _));
+                }
+                _ => {
+                    println!("Error getting path (Other): {:x}", e.error_code);
+                }
+            }
             return;
         }
     };
