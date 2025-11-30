@@ -6,10 +6,9 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::async_help::*;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::process::*;
-use hxposed_core::hxposed::requests::VmcallRequest;
+use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::services::async_service::AsyncInfo;
@@ -61,24 +60,32 @@ pub fn authorize_plugin(
 ///
 pub fn handle_process_services(
     guest: &mut dyn Guest,
-    call: HypervisorCall,
-    args: (u64, u64, u64),
+    request: &HypervisorRequest,
     plugin: &'static mut Plugin,
-    async_info: &AsyncInfo
 ) {
-    let result = match call.func() {
+    let result = match request.call.func() {
         ServiceFunction::OpenProcess => {
-            open_process(guest, OpenProcessRequest::from_raw(call, args), plugin)
+            open_process(guest, OpenProcessRequest::from_raw(request), plugin)
         }
         ServiceFunction::CloseProcess => {
-            close_process(guest, CloseProcessRequest::from_raw(call, args), plugin)
+            close_process(guest, CloseProcessRequest::from_raw(request), plugin)
+        }
+        ServiceFunction::GetProcessField => {
+            if !request.call.is_async() {
+                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+            } else if !request.call.buffer_by_user() {
+                HypervisorResponse::invalid_params(ServiceParameter::BufferByUser)
+            }
+            else {
+                get_process_field_async(guest, GetProcessFieldRequest::from_raw(request), plugin, &request.async_info)
+            }
         }
         ServiceFunction::KillProcess => {
-            if !call.is_async() {
+            if !request.call.is_async() {
                 HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
             }
             else {
-                kill_process_async(guest, KillProcessRequest::from_raw(call, args), plugin, async_info)
+                kill_process_async(guest, KillProcessRequest::from_raw(request), plugin, &request.async_info)
             }
         }
         _ => unreachable!(),

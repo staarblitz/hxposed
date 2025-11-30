@@ -1,4 +1,5 @@
-use crate::plugins::async_command::KillProcessAsyncCommand;
+use crate::nt::{EProcessField, get_eprocess_field};
+use crate::plugins::async_command::{GetProcessFieldAsyncCommand, KillProcessAsyncCommand};
 use crate::plugins::plugin::Plugin;
 use crate::win::PsTerminateProcess;
 use alloc::boxed::Box;
@@ -7,24 +8,127 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::{
-    CloseProcessRequest, KillProcessRequest, OpenProcessRequest,
+    CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
+    ProcessField,
 };
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
-use hxposed_core::hxposed::responses::process::OpenProcessResponse;
+use hxposed_core::hxposed::responses::process::{GetProcessFieldResponse, OpenProcessResponse};
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::AsyncInfo;
-use wdk_sys::ntddk::PsLookupProcessByProcessId;
-use wdk_sys::{HANDLE, PEPROCESS, STATUS_SUCCESS};
+use wdk_sys::ntddk::{ProbeForWrite, PsLookupProcessByProcessId};
+use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
+
+///
+/// # Get Process Field
+///
+/// Queues command for [`GetProcessFieldRequest`] on specified plugin.
+///
+/// ## Arguments
+/// * `guest` - Currently unused.
+/// * `request` - Identifies the target process and the exit code to use. See [`GetProcessFieldRequest`].
+/// * `plugin` - The plugin requesting the operation. See [`Plugin`].
+/// * `async_handle` - Handle object plugin created.
+///
+/// ## Warning
+/// - This function only enqueues the request; success does **not** imply the process was actually terminated.
+///
+/// ## Return
+/// * [`HypervisorResponse::not_found`] - The specified process does not exist.
+/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
+/// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
+pub(crate) fn get_process_field_async(
+    _guest: &mut dyn Guest,
+    request: GetProcessFieldRequest,
+    plugin: &'static mut Plugin,
+    async_info: &AsyncInfo,
+) -> HypervisorResponse {
+    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
+    }
+
+    let process = match plugin.get_open_process(Some(request.id), None) {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found(),
+    };
+
+    plugin.queue_command(Box::new(GetProcessFieldAsyncCommand::new(
+        plugin.process.load(Ordering::Relaxed),
+        process,
+        request.field,
+        request.user_buffer_len,
+        request.user_buffer,
+        async_info,
+    )));
+
+    EmptyResponse::with_service(ServiceFunction::KillProcess)
+}
+
+///
+/// # Get Process Field (Sync)
+///
+/// Gets a field from executive process object.
+///
+/// ## Arguments
+/// * `request` - Arguments for the request. See [`GetProcessFieldAsyncCommand`].
+///
+/// ## Warning
+/// - Caller must signal the request *after* calling this function.
+///
+/// ## Return
+/// * [`HypervisorResponse::nt_error`] - An error occurred writing to the user buffer.
+/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
+/// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
+///
+pub(crate) fn get_process_field_sync(
+    request: &GetProcessFieldAsyncCommand,
+) -> HypervisorResponse {
+    match request.field {
+        ProcessField::Unknown => GetProcessFieldResponse::Unknown,
+        ProcessField::NtPath => {
+            let field = unsafe {
+                &mut *get_eprocess_field::<_UNICODE_STRING>(
+                    EProcessField::SeAuditProcessCreationInfo,
+                    request.process,
+                )
+            };
+
+            if request.user_buffer_len == 0 {
+                GetProcessFieldResponse::NtPath(field.Length)
+            } else {
+                match microseh::try_seh(|| unsafe {
+                    ProbeForWrite(
+                        request.user_buffer.load(Ordering::Relaxed) as _,
+                        request.user_buffer_len as _,
+                        1,
+                    )
+                }) {
+                    Ok(_) => {
+                        unsafe {
+                            field.Buffer.copy_to_nonoverlapping(
+                                request.user_buffer.load(Ordering::Relaxed),
+                                field.Length as _,
+                            )
+                        }
+                        GetProcessFieldResponse::NtPath(field.Length)
+                    }
+                    Err(x) => return HypervisorResponse::nt_error(x.code() as _),
+                }
+            }
+        }
+        ProcessField::Protection => GetProcessFieldResponse::Unknown, // not implemented yet
+    }
+    .into_raw()
+}
 
 ///
 /// # Kill Process
 ///
-/// Queues command for [KillProcessRequest] on specified plugin.
+/// Queues command for [`KillProcessRequest`] on specified plugin.
 ///
 /// ## Arguments
 /// * `guest` - Currently unused.
-/// * `request` - Identifies the target process and the exit code to use.See [`KillProcessRequest`].
+/// * `request` - Identifies the target process and the exit code to use. See [`KillProcessRequest`].
 /// * `plugin` - The plugin requesting the operation. See [`Plugin`].
 /// * `async_handle` - Handle object plugin created.
 ///
@@ -79,12 +183,7 @@ pub(crate) fn kill_process_async(
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
 pub(crate) fn kill_process_sync(
     request: &KillProcessAsyncCommand,
-    plugin: &Plugin,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
-    }
-
     match unsafe { PsTerminateProcess(request.process, request.exit_code as _) } {
         STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillProcess),
         err => HypervisorResponse::nt_error(err as _),
