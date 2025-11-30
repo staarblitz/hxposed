@@ -22,7 +22,7 @@ pub struct CloseProcessRequest {
 #[repr(C)]
 pub struct KillProcessRequest {
     pub id: u32,
-    pub exit_code: u32
+    pub exit_code: u32,
 }
 
 impl VmcallRequest for OpenProcessRequest {
@@ -33,7 +33,7 @@ impl VmcallRequest for OpenProcessRequest {
             call: HypervisorCall::open_process(),
             arg1: self.process_id as _,
             arg2: self.open_type.to_bits() as _,
-            arg3: 0
+            ..Default::default()
         }
     }
 
@@ -54,7 +54,7 @@ impl VmcallRequest for CloseProcessRequest {
             call: HypervisorCall::close_process(),
             arg1: self.addr as _,
             arg2: self.open_type.to_bits() as _,
-            arg3: 0
+            ..Default::default()
         }
     }
 
