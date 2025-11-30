@@ -1,4 +1,5 @@
 use core::arch::global_asm;
+use core::ops::BitOr;
 
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
@@ -41,9 +42,15 @@ impl Registers {
 
 #[repr(C, align(16))]
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct Xmm {
-    pub(crate) low: u64,
-    pub(crate) hight: u64,
+pub struct Xmm {
+    pub low: u64,
+    pub hight: u64,
+}
+
+impl Into<u128> for Xmm {
+    fn into(self) -> u128 {
+        (self.low as u128).bitor(((self.hight as u128) << 63))
+    }
 }
 
 unsafe extern "C" {
