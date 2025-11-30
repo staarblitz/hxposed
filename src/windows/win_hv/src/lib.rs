@@ -17,7 +17,7 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{PluginTable, load_plugins};
+use crate::plugins::{load_plugins, PluginTable};
 use crate::win::Utf8ToUnicodeString;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
@@ -25,14 +25,14 @@ use core::ops::{BitAnd, DerefMut};
 use core::panic::Location;
 use core::ptr::{null_mut, slice_from_raw_parts_mut};
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
+use hv::SharedHostData;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::func::ServiceFunction::Authorize;
-use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
+use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
@@ -46,9 +46,9 @@ use wdk_sys::ntddk::{
     CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwClose,
 };
 use wdk_sys::{
-    DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT,
-    POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
-    THREAD_ALL_ACCESS, ntddk::ExAllocatePool2,
+    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING,
+    PDRIVER_OBJECT, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
+    STATUS_TOO_LATE, THREAD_ALL_ACCESS,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -173,15 +173,24 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         return;
     }
 
-    let args = get_args(guest);
-    let mut async_info = AsyncInfo::default();
+    let mut request = HypervisorRequest {
+        call: info,
+        arg1: guest.regs().r8,
+        arg2: guest.regs().r9,
+        arg3: guest.regs().r10,
+        async_info: Default::default(),
+        extended_arg1: guest.regs().xmm0.into(),
+        extended_arg2: guest.regs().xmm1.into(),
+        extended_arg3: guest.regs().xmm2.into(),
+        extended_arg4: guest.regs().xmm3.into(),
+    };
 
     if info.is_async() {
         match microseh::try_seh(|| unsafe {
             ProbeForRead(guest.regs().r12 as _, 16, 1);
         }) {
             Ok(_) => {
-                async_info = AsyncInfo {
+                request.async_info = AsyncInfo {
                     handle: guest.regs().r11,
                     result_values: AtomicPtr::new(unsafe {
                         &mut *(slice_from_raw_parts_mut(guest.regs().r12 as *mut u64, 4)
@@ -196,7 +205,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     let plugin = match Plugin::current() {
         None => {
             if info.func() == Authorize {
-                authorize_plugin(guest, AuthorizationRequest::from_raw(info, args));
+                authorize_plugin(guest, AuthorizationRequest::from_raw(&request));
                 return;
             }
             write_response(
@@ -211,18 +220,15 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     match info.func() {
         ServiceFunction::OpenProcess
         | ServiceFunction::CloseProcess
-        | ServiceFunction::KillProcess => {
-            services::handle_process_services(guest, info, args, plugin, &async_info);
+        | ServiceFunction::KillProcess
+        | ServiceFunction::GetProcessField => {
+            services::handle_process_services(guest, &request, plugin);
         }
         _ => {
             println!("Unsupported vmcall function: {:?}", info.func());
             write_response(guest, HypervisorResponse::not_found())
         }
     }
-}
-
-pub(crate) fn get_args(guest: &mut dyn Guest) -> (u64, u64, u64) {
-    (guest.regs().r8, guest.regs().r9, guest.regs().r10)
 }
 
 pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse) {
