@@ -17,25 +17,26 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{load_plugins, PluginTable};
+use crate::plugins::{PluginTable, load_plugins};
 use crate::win::Utf8ToUnicodeString;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use core::ops::{BitAnd, DerefMut};
 use core::panic::Location;
-use core::ptr::null_mut;
+use core::ptr::{null_mut, slice_from_raw_parts_mut};
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::hypervisor::host::Guest;
 use hv::SharedHostData;
+use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::func::ServiceFunction::Authorize;
-use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::VmcallRequest;
+use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
+use hxposed_core::services::async_service::AsyncInfo;
 use wdk::println;
 
 use crate::nt::worker::async_worker_thread;
@@ -43,9 +44,9 @@ use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
 use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx, PsCreateSystemThread, ZwClose};
 use wdk_sys::{
-    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING,
-    PDRIVER_OBJECT, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
-    STATUS_TOO_LATE, THREAD_ALL_ACCESS,
+    DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT,
+    POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
+    THREAD_ALL_ACCESS, ntddk::ExAllocatePool2,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -171,6 +172,12 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     }
 
     let args = get_args(guest);
+    let async_info = AsyncInfo {
+        handle: guest.regs().r11,
+        result_values: AtomicPtr::new(unsafe {
+            &mut *(slice_from_raw_parts_mut(guest.regs().r12 as *mut u64, 4) as *mut [u64; 4])
+        }), // rsi, r8, r9, r10. total 4
+    };
 
     let plugin = match Plugin::current() {
         None => {
@@ -191,10 +198,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         ServiceFunction::OpenProcess
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess => {
-            services::handle_process_services(guest, info, args, plugin)
-        }
-        ServiceFunction::AddAsyncHandler | ServiceFunction::RemoveAsyncHandler => {
-            services::handle_async_services(guest, info, args, plugin)
+            services::handle_process_services(guest, info, args, plugin, &async_info);
         }
         _ => {
             println!("Unsupported vmcall function: {:?}", info.func());
@@ -234,10 +238,10 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
         .unwrap_or("Could not unwrap message");
     let param2 = _info.location().unwrap_or(Location::caller());
 
-    // First parameter is the message.
-    // Second parameter is the column and line encoded. First 32 bits (LSB) is column, next 32 bits are the line.
-    // Third parameter is the file location.
-    // Fourth parameter is reserved.
+    // first parameter is the message.
+    // second parameter is the column and line encoded. First 32 bits (LSB) is column, next 32 bits are the line.
+    // third parameter is the file location.
+    // fourth parameter is reserved.
 
     unsafe {
         KeBugCheckEx(
