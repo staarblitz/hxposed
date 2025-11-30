@@ -1,15 +1,14 @@
-use uuid::Uuid;
 use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::process::OpenProcessRequest;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::auth::AuthorizationResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
+use uuid::Uuid;
 
 #[derive(Clone, Default, Debug)]
 #[repr(C)]
 pub struct AuthorizationRequest {
     pub uuid: Uuid,
-    pub permissions: PluginPermissions
+    pub permissions: PluginPermissions,
 }
 
 impl VmcallRequest for AuthorizationRequest {
@@ -17,7 +16,7 @@ impl VmcallRequest for AuthorizationRequest {
 
     fn into_raw(self) -> HypervisorRequest {
         let uuid = self.uuid.as_u64_pair();
-        HypervisorRequest{
+        HypervisorRequest {
             call: HypervisorCall::auth(),
             arg1: uuid.0,
             arg2: uuid.1,
@@ -26,10 +25,10 @@ impl VmcallRequest for AuthorizationRequest {
         }
     }
 
-    fn from_raw(call: HypervisorCall, args: (u64,u64,u64)) -> Self {
+    fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            uuid: Uuid::from_u64_pair(args.0, args.1),
-            permissions: PluginPermissions::from_bits(args.2).unwrap()
+            uuid: Uuid::from_u64_pair(request.arg1, request.arg2),
+            permissions: PluginPermissions::from_bits(request.arg3).unwrap(),
         }
     }
 }
