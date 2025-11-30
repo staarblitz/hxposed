@@ -87,7 +87,7 @@ pub(crate) fn get_process_field_sync(
         ProcessField::Unknown => GetProcessFieldResponse::Unknown,
         ProcessField::NtPath => {
             let field = unsafe {
-                &mut *get_eprocess_field::<_UNICODE_STRING>(
+                &mut **get_eprocess_field::<*mut _UNICODE_STRING>(
                     EProcessField::SeAuditProcessCreationInfo,
                     request.process,
                 )
