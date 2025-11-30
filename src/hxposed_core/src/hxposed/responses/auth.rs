@@ -13,7 +13,7 @@ pub struct AuthorizationResponse {
 impl VmcallResponse for AuthorizationResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<AuthorizationResponse, HypervisorError> {
         if raw.result.is_error() {
-            return Err(HypervisorError::from(raw.result));
+            return Err(HypervisorError::from_response(raw));
         }
         Ok(Self {
             permissions: PluginPermissions::from_bits(raw.arg1).unwrap()

@@ -11,31 +11,32 @@ pub struct OpenProcessResponse {
 }
 
 #[derive(Clone, Default, Debug)]
+#[repr(u16)]
 pub enum GetProcessFieldResponse {
     #[default]
-    Unknown,
-    NtPath(u16),
-    Protection(u32),
+    Unknown = 0,
+    NtPath(u16) = 1,
+    Protection(u32) = 2,
 }
 
 impl VmcallResponse for GetProcessFieldResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
         if raw.result.is_error() {
-            return Err(HypervisorError::from(raw.result));
+            return Err(HypervisorError::from_response(raw));
         }
 
         Ok(match raw.arg1 {
-            0 => NtPath(raw.arg2 as _),
-            1 => Protection(raw.arg2 as _),
+            1 => NtPath(raw.arg2 as _),
+            2 => Protection(raw.arg2 as _),
             _ => Unknown,
         })
     }
 
     fn into_raw(self) -> HypervisorResponse {
         let (arg1, arg2, arg3) = match self {
-            NtPath(x) => (x as _, u64::MAX, u64::MAX),
-            Protection(x) => (x as _, u64::MAX, u64::MAX),
-            _ => (u64::MAX, u64::MAX, u64::MAX),
+            NtPath(x) => (1, x as _, 0),
+            Protection(x) => (2, x as _, 0),
+            _ => (0, 0, 0),
         };
 
         HypervisorResponse {
@@ -50,7 +51,7 @@ impl VmcallResponse for GetProcessFieldResponse {
 impl VmcallResponse for OpenProcessResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
         if raw.result.is_error() {
-            return Err(HypervisorError::from(raw.result));
+            return Err(HypervisorError::from_response(raw));
         }
         Ok(Self { addr: raw.arg1 })
     }

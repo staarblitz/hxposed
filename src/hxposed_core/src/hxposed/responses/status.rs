@@ -14,7 +14,7 @@ pub struct StatusResponse {
 impl VmcallResponse for StatusResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
         if raw.result.is_error() {
-            return Err(HypervisorError::from(raw.result));
+            return Err(HypervisorError::from_response(raw));
         }
         Ok(Self {
             state: HypervisorStatus::from(raw.arg1 as u32),
