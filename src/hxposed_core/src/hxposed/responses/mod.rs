@@ -1,6 +1,6 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::{HypervisorCall, HypervisorResult, ServiceParameter};
-use crate::hxposed::error::{ErrorCode, ErrorSource, NotAllowedReason};
+use crate::hxposed::error::{InternalErrorCode, ErrorSource, NotAllowedReason};
 use crate::plugins::plugin_perms::PluginPermissions;
 
 pub mod auth;
@@ -19,7 +19,7 @@ pub struct HypervisorResponse {
 impl HypervisorResponse {
     pub fn not_allowed(reason: NotAllowedReason) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed),
+            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotAllowed),
             arg1: reason.into_bits() as _,
             ..Default::default()
         }
@@ -27,7 +27,7 @@ impl HypervisorResponse {
 
     pub fn invalid_params(param: ServiceParameter) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::InvalidParams),
+            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::InvalidParams),
             arg1: param.into_bits() as _,
             ..Default::default()
         }
@@ -35,7 +35,7 @@ impl HypervisorResponse {
 
     pub fn not_allowed_perms(permissions: PluginPermissions) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotAllowed),
+            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotAllowed),
             arg1: NotAllowedReason::MissingPermissions as _,
             arg2: permissions.bits(),
             arg3: 0,
@@ -44,7 +44,7 @@ impl HypervisorResponse {
 
     pub fn nt_error(reason: u32) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Nt, ErrorCode::Unknown),
+            result: HypervisorResult::error(ErrorSource::Nt, InternalErrorCode::Unknown),
             arg1: reason as _,
             ..Default::default()
         }
@@ -52,7 +52,7 @@ impl HypervisorResponse {
 
     pub fn not_found() -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, ErrorCode::NotFound),
+            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotFound),
             ..Default::default()
         }
     }

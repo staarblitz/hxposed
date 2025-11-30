@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::error::{ErrorCode, ErrorSource};
+use crate::hxposed::error::{InternalErrorCode, ErrorSource};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use core::arch::asm;
@@ -29,7 +29,7 @@ pub(crate) fn vmcall(request: HypervisorRequest) -> HypervisorResponse {
 
     // that means hypervisor did not handle our cpuid trap.
     if leaf != 0x2009 {
-        response.result = HypervisorResult::error(ErrorSource::Hv, ErrorCode::NotLoaded)
+        response.result = HypervisorResult::error(ErrorSource::Hv, InternalErrorCode::NotLoaded)
     } else {
         response.result = HypervisorResult::from_bits(result)
     }

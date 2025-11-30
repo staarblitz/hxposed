@@ -1,6 +1,6 @@
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 #[repr(u32)]
-pub enum ErrorCode {
+pub enum InternalErrorCode {
     #[default]
     Unknown = 0,
     Ok = 1,
@@ -11,7 +11,7 @@ pub enum ErrorCode {
     InvalidParams = 5
 }
 
-impl ErrorCode {
+impl InternalErrorCode {
     pub const fn into_bits(self) -> u16 {
         self as _
     }

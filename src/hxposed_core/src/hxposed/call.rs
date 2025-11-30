@@ -1,4 +1,4 @@
-use crate::hxposed::error::{ErrorCode, ErrorSource};
+use crate::hxposed::error::{InternalErrorCode, ErrorSource};
 use crate::hxposed::func::ServiceFunction;
 use bitfield_struct::bitfield;
 
@@ -56,27 +56,27 @@ pub struct HypervisorResult {
     #[bits(2)]
     pub error_source: ErrorSource,
     #[bits(3)]
-    pub error_code: ErrorCode,
+    pub error_code: InternalErrorCode,
     #[bits(11)]
     pub cookie: u16,
 }
 
 impl HypervisorResult {
     pub fn is_error(&self) -> bool {
-        !(self.error_source() == ErrorSource::Hx && self.error_code() == ErrorCode::Ok)
+        !(self.error_source() == ErrorSource::Hx && self.error_code() == InternalErrorCode::Ok)
     }
 
     pub fn ok(func: ServiceFunction) -> Self {
-        Self::error(ErrorSource::Hx, ErrorCode::Ok).with_func(func)
+        Self::error(ErrorSource::Hx, InternalErrorCode::Ok).with_func(func)
     }
 
-    pub fn error(error_source: ErrorSource, error_code: ErrorCode) -> Self {
+    pub fn error(error_source: ErrorSource, error_code: InternalErrorCode) -> Self {
         Self::error_with_cookie(error_source, error_code, 0)
     }
 
     pub fn error_with_cookie(
         error_source: ErrorSource,
-        error_code: ErrorCode,
+        error_code: InternalErrorCode,
         cookie: u16,
     ) -> Self {
         HypervisorResult::default()

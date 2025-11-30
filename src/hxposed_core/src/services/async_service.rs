@@ -1,6 +1,6 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::error::ErrorCode;
+use crate::hxposed::error::InternalErrorCode;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use alloc::boxed::Box;
 use alloc::sync::Arc;
@@ -92,7 +92,7 @@ where
     /// * `s `- Maximum milliseconds to wait.
     ///
     /// ## Return
-    /// * [`ErrorCode::NotFound`] - Timed out.
+    /// * [`InternalErrorCode::NotFound`] - Timed out.
     /// * [`T`] - Hypervisor responded.
     pub fn wait_timespan(self, ms: u32) -> Result<T, HypervisorError> {
         let result = match unsafe { WaitForSingleObject(self.event, ms) } {
