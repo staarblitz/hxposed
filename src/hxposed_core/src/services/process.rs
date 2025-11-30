@@ -33,13 +33,13 @@ impl HxProcess {
     /// Opens a process.
     ///
     /// ## Arguments
-    /// id - Process id
-    ///
-    /// ## Returns
-    /// [Result] containing [NtProcess] or error.
+    /// * `id` - Process id
     ///
     /// ## Permissions
     /// [PluginPermissions::PROCESS_EXECUTIVE]
+    ///
+    /// ## Returns
+    /// - [Result] containing [NtProcess] or error.
     ///
     /// ## Example
     ///
@@ -68,13 +68,25 @@ impl HxProcess {
     /// Consumes the object.
     ///
     /// ## Arguments
-    /// exit_code - The NTSTATUS exit code of the process.
+    /// * `exit_code` - The [`NTSTATUS`] exit code of the process.
     ///
     /// ## Permissions
-    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    /// - [PluginPermissions::PROCESS_EXECUTIVE]
     ///
     /// ## Returns
-    /// [Result] with most likely an NT error.
+    /// - [Result] with most likely an NT error.
+    ///
+    /// ## Example
+    /// ```rust
+    ///  match process.kill_async(0).wait() {
+    //         Ok(_) => {
+    //             println!("Killed process!");
+    //         }
+    //         Err(e) => {
+    //             println!("Error killing process: {:?}", e);
+    //         }
+    //     }
+    /// ```
     pub fn kill_async(self, exit_code: u32) -> AsyncPromise<EmptyResponse> {
         KillProcessRequest {
             id: self.id,
