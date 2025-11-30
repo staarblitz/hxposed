@@ -10,6 +10,8 @@ use core::sync::atomic::{AtomicPtr, Ordering};
 use spin::Mutex;
 
 #[cfg(feature = "usermode")]
+use core::arch::asm;
+#[cfg(feature = "usermode")]
 use crate::intern::win::{CloseHandle, CreateEventA, WaitForSingleObject};
 
 ///
@@ -118,6 +120,7 @@ impl HxPosedAsyncService {
     where
         T: VmcallResponse,
     {
+
         Box::new(AsyncPromise::<T> {
             event: unsafe { CreateEventA(null_mut(), 0, 0, null_mut()) },
             completed: false,

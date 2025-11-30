@@ -53,7 +53,8 @@ pub(crate) fn kill_process_async(
     };
 
     plugin.queue_command(Box::new(KillProcessAsyncCommand::new(
-        request,
+        plugin.process.load(Ordering::Relaxed),
+        request.exit_code,
         process,
         async_info,
     )));

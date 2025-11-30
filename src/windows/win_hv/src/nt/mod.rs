@@ -1,5 +1,6 @@
 pub(crate) mod process;
 pub(crate) mod worker;
+pub(crate) mod context;
 
 use crate::win::{PsGetSetContextThreadInternal, PsLoadedModuleList, PsTerminateProcessType, NT_PS_GET_CONTEXT_THREAD_INTERNAL, NT_PS_SET_CONTEXT_THREAD_INTERNAL, NT_PS_TERMINATE_PROCESS, _LDR_DATA_TABLE_ENTRY};
 use core::ptr::null_mut;

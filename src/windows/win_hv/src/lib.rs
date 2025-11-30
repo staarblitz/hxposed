@@ -42,7 +42,9 @@ use wdk::println;
 use crate::nt::worker::async_worker_thread;
 use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
-use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx, PsCreateSystemThread, ZwClose};
+use wdk_sys::ntddk::{
+    CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwClose,
+};
 use wdk_sys::{
     DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT,
     POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
@@ -172,12 +174,24 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     }
 
     let args = get_args(guest);
-    let async_info = AsyncInfo {
-        handle: guest.regs().r11,
-        result_values: AtomicPtr::new(unsafe {
-            &mut *(slice_from_raw_parts_mut(guest.regs().r12 as *mut u64, 4) as *mut [u64; 4])
-        }), // rsi, r8, r9, r10. total 4
-    };
+    let mut async_info = AsyncInfo::default();
+
+    if info.is_async() {
+        match microseh::try_seh(|| unsafe {
+            ProbeForRead(guest.regs().r12 as _, 16, 1);
+        }) {
+            Ok(_) => {
+                async_info = AsyncInfo {
+                    handle: guest.regs().r11,
+                    result_values: AtomicPtr::new(unsafe {
+                        &mut *(slice_from_raw_parts_mut(guest.regs().r12 as *mut u64, 4)
+                            as *mut [u64; 4])
+                    }), // rsi, r8, r9, r10. total 4
+                };
+            }
+            Err(_) => {}
+        }
+    }
 
     let plugin = match Plugin::current() {
         None => {
