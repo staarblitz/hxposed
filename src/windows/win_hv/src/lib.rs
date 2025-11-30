@@ -17,16 +17,17 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{load_plugins, PluginTable};
+use crate::plugins::{PluginTable, load_plugins};
 use crate::win::Utf8ToUnicodeString;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 use core::ops::{BitAnd, DerefMut};
 use core::panic::Location;
 use core::ptr::{null_mut, slice_from_raw_parts_mut};
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::hypervisor::host::Guest;
 use hv::SharedHostData;
+use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -46,9 +47,9 @@ use wdk_sys::ntddk::{
     CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwClose,
 };
 use wdk_sys::{
-    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING,
-    PDRIVER_OBJECT, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
-    STATUS_TOO_LATE, THREAD_ALL_ACCESS,
+    DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT,
+    POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
+    THREAD_ALL_ACCESS, ntddk::ExAllocatePool2,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -192,10 +193,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             Ok(_) => {
                 request.async_info = AsyncInfo {
                     handle: guest.regs().r11,
-                    result_values: AtomicPtr::new(unsafe {
-                        &mut *(slice_from_raw_parts_mut(guest.regs().r12 as *mut u64, 4)
-                            as *mut [u64; 4])
-                    }), // rsi, r8, r9, r10. total 4
+                    result_values: AtomicPtr::new(guest.regs().r12 as *mut u64), // rsi, r8, r9, r10. total 4
                 };
             }
             Err(_) => {}
