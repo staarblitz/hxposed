@@ -7,6 +7,7 @@ use core::arch::asm;
 use core::arch::x86_64::_mm_load_si128;
 use core::ops::BitAnd;
 use core::sync::atomic::Ordering;
+use crate::services::async_service::AsyncInfo;
 
 // my dear Rust, you are beautiful. but also so annoying.
 fn u128_to_sliced(value: u128) -> [i64; 2] {
@@ -16,13 +17,23 @@ fn u128_to_sliced(value: u128) -> [i64; 2] {
     ]
 }
 
-pub fn vmcall_typed<R: VmcallRequest>(req: R) -> Result<R::Response, HypervisorError> {
-    let raw_resp = vmcall(req.into_raw());
+pub fn vmcall_typed<R: VmcallRequest>(req: R, async_info: Option<&mut AsyncInfo>) -> Result<R::Response, HypervisorError> {
+    let raw_resp = vmcall(req.into_raw(), async_info);
     R::Response::from_raw(raw_resp)
 }
-pub(crate) fn vmcall(mut request: HypervisorRequest) -> HypervisorResponse {
+
+pub(crate) fn vmcall(request: HypervisorRequest, mut async_info: Option<&mut AsyncInfo>) -> HypervisorResponse {
     let mut response = HypervisorResponse::default();
     let mut result = 0;
+
+    let handle = match async_info {
+        Some(ref async_info) => async_info.handle,
+        None => 0
+    };
+    let shared_mem = match async_info {
+        Some(ref mut async_info) => async_info.result_values.as_mut_ptr(),
+        None => 0 as _
+    };
 
     let mut leaf = 0x2009;
     if request.call.extended_args_present() {
@@ -32,8 +43,8 @@ pub(crate) fn vmcall(mut request: HypervisorRequest) -> HypervisorResponse {
             inout("r8") request.arg1 => response.arg1,
             inout("r9") request.arg2 => response.arg2,
             inout("r10") request.arg3 => response.arg3,
-            in("r11") request.async_info.handle,
-            in("r12") request.async_info.result_values.load(Ordering::Relaxed),
+            in("r11") handle,
+            in("r12") shared_mem,
 
             in("xmm0") _mm_load_si128(&request.extended_arg1 as *const _ as _),
             in("xmm1") _mm_load_si128(&request.extended_arg2 as *const _ as _),
@@ -50,8 +61,8 @@ pub(crate) fn vmcall(mut request: HypervisorRequest) -> HypervisorResponse {
             inout("r8") request.arg1 => response.arg1,
             inout("r9") request.arg2 => response.arg2,
             inout("r10") request.arg3 => response.arg3,
-            in("r11") request.async_info.handle,
-            in("r12") request.async_info.result_values.load(Ordering::Relaxed),
+            in("r11") handle,
+            in("r12") shared_mem,
             inout("rsi") request.call.into_bits() => result,
             inout("rcx") leaf);
         }
