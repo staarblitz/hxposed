@@ -5,7 +5,7 @@ use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::{KillProcessRequest, ProcessField};
 use hxposed_core::hxposed::responses::HypervisorResponse;
-use hxposed_core::services::async_service::AsyncInfo;
+use hxposed_core::services::async_service::{AsyncInfo, UnsafeAsyncInfo};
 use wdk::println;
 use wdk_sys::ntddk::{ProbeForWrite, ZwSetEvent};
 use wdk_sys::{HANDLE, PEPROCESS, STATUS_SUCCESS};
@@ -20,7 +20,7 @@ pub trait AsyncCommand: Any {
 pub struct GetProcessFieldAsyncCommand {
     pub process: PEPROCESS,
     pub field: ProcessField,
-    pub info: AsyncInfo,
+    pub async_info: UnsafeAsyncInfo,
     pub plugin_process: PEPROCESS,
 
     pub user_buffer_len: u16,
@@ -34,13 +34,13 @@ impl GetProcessFieldAsyncCommand {
         field: ProcessField,
         user_buffer_len: u16,
         user_buffer: AtomicPtr<u16>,
-        async_info: &AsyncInfo,
+        async_info: UnsafeAsyncInfo,
     ) -> GetProcessFieldAsyncCommand {
         Self {
             process,
             field,
             plugin_process,
-            info: async_info.clone(),
+            async_info,
             user_buffer,
             user_buffer_len,
         }
@@ -50,7 +50,7 @@ impl GetProcessFieldAsyncCommand {
 pub struct KillProcessAsyncCommand {
     pub exit_code: u32,
     pub process: PEPROCESS,
-    pub info: AsyncInfo,
+    pub async_info: UnsafeAsyncInfo,
     pub plugin_process: PEPROCESS,
 }
 
@@ -59,13 +59,13 @@ impl KillProcessAsyncCommand {
         plugin_process: PEPROCESS,
         exit_code: u32,
         process: PEPROCESS,
-        async_info: &AsyncInfo,
+        async_info: UnsafeAsyncInfo,
     ) -> Self {
         Self {
             exit_code,
             process,
             plugin_process,
-            info: async_info.clone(),
+            async_info
         }
     }
 }
@@ -80,8 +80,8 @@ impl AsyncCommand for KillProcessAsyncCommand {
 
         write_and_set(
             &result,
-            self.info.result_values.load(Ordering::Relaxed),
-            self.info.handle as _,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
         );
 
         drop(_ctx);
@@ -102,8 +102,8 @@ impl AsyncCommand for GetProcessFieldAsyncCommand {
 
         write_and_set(
             &result,
-            self.info.result_values.load(Ordering::Relaxed),
-            self.info.handle as _,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
         );
 
         drop(_ctx);
