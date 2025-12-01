@@ -82,19 +82,17 @@ impl HxProcess {
     pub fn get_nt_path(&self) -> Result<String, HypervisorError> {
         let mut bytes = 0u16;
 
-        let promise = GetProcessFieldRequest {
+        let mut promise = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::NtPath,
             user_buffer: AtomicPtr::new(null_mut()),
             user_buffer_len: 0,
         }
-        .get_promise();
+        .send_async();
 
         unsafe{
             asm!("int 0x3")
-        };
-
-        promise.send_async();
+        }
 
         match promise.wait() {
             Ok(resp) => match resp {
@@ -108,15 +106,13 @@ impl HxProcess {
 
         let mut buffer = Vec::<u16>::with_capacity(bytes as usize);
 
-        let promise = GetProcessFieldRequest {
+        let mut promise = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::NtPath,
             user_buffer: AtomicPtr::new(buffer.as_mut_ptr()),
             user_buffer_len: buffer.capacity() as _,
         }
-        .get_promise();
-
-        promise.send_async();
+        .send_async();
 
         match promise.wait() {
             Ok(resp) => match resp {
@@ -164,14 +160,10 @@ impl HxProcess {
     //     }
     /// ```
     pub fn kill_async(self, exit_code: u32) -> Box<AsyncPromise<EmptyResponse>> {
-        let promise = KillProcessRequest {
+        KillProcessRequest {
             id: self.id,
             exit_code,
         }
-        .get_promise();
-
-        promise.send_async();
-
-        promise
+        .send_async()
     }
 }
