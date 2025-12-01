@@ -15,7 +15,7 @@ use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::{GetProcessFieldResponse, OpenProcessResponse};
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use hxposed_core::services::async_service::AsyncInfo;
+use hxposed_core::services::async_service::{AsyncInfo, UnsafeAsyncInfo};
 use wdk_sys::ntddk::{ProbeForWrite, PsLookupProcessByProcessId};
 use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
 
@@ -41,7 +41,7 @@ pub(crate) fn get_process_field_async(
     _guest: &mut dyn Guest,
     request: GetProcessFieldRequest,
     plugin: &'static mut Plugin,
-    async_info: &AsyncInfo,
+    async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
@@ -145,7 +145,7 @@ pub(crate) fn kill_process_async(
     _guest: &mut dyn Guest,
     request: KillProcessRequest,
     plugin: &'static mut Plugin,
-    async_info: &AsyncInfo,
+    async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
