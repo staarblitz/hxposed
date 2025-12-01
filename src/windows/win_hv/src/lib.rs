@@ -37,7 +37,7 @@ use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
-use hxposed_core::services::async_service::AsyncInfo;
+use hxposed_core::services::async_service::{AsyncInfo, UnsafeAsyncInfo};
 use wdk::println;
 
 use crate::nt::worker::async_worker_thread;
@@ -174,12 +174,13 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         return;
     }
 
+    let mut async_info = UnsafeAsyncInfo::default();
+
     let mut request = HypervisorRequest {
         call: info,
         arg1: guest.regs().r8,
         arg2: guest.regs().r9,
         arg3: guest.regs().r10,
-        async_info: Default::default(),
         extended_arg1: guest.regs().xmm0.into(),
         extended_arg2: guest.regs().xmm1.into(),
         extended_arg3: guest.regs().xmm2.into(),
@@ -191,9 +192,9 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             ProbeForRead(guest.regs().r12 as _, 16, 1);
         }) {
             Ok(_) => {
-                request.async_info = AsyncInfo {
+                async_info = UnsafeAsyncInfo {
                     handle: guest.regs().r11,
-                    result_values: AtomicPtr::new(guest.regs().r12 as *mut u64), // rsi, r8, r9, r10. total 4
+                    result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
                 };
             }
             Err(_) => {}
@@ -220,7 +221,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess
         | ServiceFunction::GetProcessField => {
-            services::handle_process_services(guest, &request, plugin);
+            services::handle_process_services(guest, &request, plugin, async_info);
         }
         _ => {
             println!("Unsupported vmcall function: {:?}", info.func());
