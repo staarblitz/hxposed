@@ -42,6 +42,12 @@ impl HypervisorCall {
             .with_extended_args_present(true)
     }
 
+    pub(crate) fn set_process_field() -> Self {
+        Self::new()
+            .with_func(ServiceFunction::SetProcessField)
+            .with_extended_args_present(true)
+    }
+
     pub(crate) fn add_async_handler() -> Self {
         Self::new().with_func(ServiceFunction::AddAsyncHandler)
     }
