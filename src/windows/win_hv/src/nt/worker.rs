@@ -9,13 +9,14 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::KeDelayExecutionThread;
 use wdk_sys::{FALSE, LARGE_INTEGER, PVOID};
+use crate::nt::context::ApcProcessContext;
 
 ///
 /// # Async Worker Thread
 ///
 /// Dequeues commands from each plugin's async command queue, "works" them, fires the result callback.
 pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
-    let mut interval = timing::relative(timing::milliseconds(2500));
+    let mut interval = timing::relative(timing::milliseconds(100));
     let plugins = unsafe { &mut *PLUGINS.load(Ordering::Relaxed) };
 
     loop {
@@ -35,6 +36,8 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                 Some(x) => x,
             };
 
+            let ctx = ApcProcessContext::begin(plugin.process.load(Ordering::Relaxed));
+
             command.complete(match command.get_service_function() {
                 ServiceFunction::KillProcess => kill_process_sync(
                     command
@@ -50,6 +53,8 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                 ),
                 _ => unreachable!(),
             });
+
+            drop(ctx);
         }
     }
 }
