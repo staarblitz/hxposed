@@ -1,20 +1,21 @@
 use crate::error::HypervisorError;
+use crate::hxposed::func::ServiceFunction::GetProcessField;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::{
     CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField, ProcessOpenType,
+    ProcessField, ProcessOpenType, SetProcessFieldRequest,
 };
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
+use crate::services::types::process_fields::ProcessProtection;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::pin::Pin;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use crate::services::types::process_fields::ProcessProtection;
 
 pub struct HxProcess {
     pub id: u32,
@@ -65,9 +66,40 @@ impl HxProcess {
     }
 
     ///
+    /// # Set Protection
+    ///
+    /// Sets the internal process protection object. The `_PS_PROTECTION`.
+    ///
+    /// ## Permissions
+    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    ///
+    /// ## Returns
+    /// * [`EmptyResponse`] - Empty. You can use [`Self::get_protection`] to check the operation if you have anxiety problems.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// match process.set_protection(
+    //         ProcessProtection::new()
+    //             .with_audit(false)
+    //             .with_protection_type(ProtectionType::None)
+    //             .with_signer(ProtectionSigner::None),
+    //     ).await {
+    //         Ok(_) => println!("Process protection changed!"),
+    //         Err(x) => println!("Error changing process protection: {:?}", x),
+    //     }
+    /// ```
+    pub fn set_protection(
+        &mut self,
+        mut new_protection: ProcessProtection,
+    ) -> Pin<Box<AsyncPromise<EmptyResponse>>> {
+        SetProcessFieldRequest::set_protection(self.id, &mut new_protection).send_async()
+    }
+
+    ///
     /// # Get Protection
     ///
-    /// Gets the internal process protection object. The` _PS_PROTECTION`.
+    /// Gets the internal process protection object. The `_PS_PROTECTION`.
     ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetProcessFieldResponse::Protection`]. Which it SHOULD NOT.
