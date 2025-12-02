@@ -4,20 +4,7 @@ Based on [barevisor](https://github.com/tandasat/barevisor)
 
 ![the demo](assets/prev.gif)
 
-## Repo structure
-`src` contains the code written in Rust.
-- `hvcore` the hypervisor core.
-- `hxposed_core` core API providing access to hypervisor.
-- `uefi` UEFI driver. Unusued.
-- `windows` Windows driver of hxposed.
-
-`HxPosed.GUI` contains the code written in C#.
-- `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
-- `libhxposed` native library providing access to hypervisor. Written in C and asm.
-- `HxPosed.Plugins` plugin managing code.
-- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
-
-## What is the purpose of this project?
+## HxPosed
 HxPosed gives you full control over your computer by breaking free from the limitations imposed by traditional user-mode access. With HxPosed, you can:
 - Protect or unprotect processes at will
 - Create or delete files anywhere on your system
@@ -42,6 +29,19 @@ And yes, we purposefully mean it. There is no bullshit, no-nonsense. That is rig
 - A safe API written in Rust (available for C# and C too),
 - A beautifully documented hypervisor interface,
 - A no-nonsense "it just works" functionality.
+
+## Repo structure
+`src` contains the code written in Rust.
+- `hvcore` the hypervisor core.
+- `hxposed_core` core API providing access to hypervisor.
+- `uefi` UEFI driver. Unusued.
+- `windows` Windows driver of hxposed.
+
+`HxPosed.GUI` contains the code written in C#.
+- `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
+- `libhxposed` native library providing access to hypervisor. Written in C and asm.
+- `HxPosed.Plugins` plugin managing code.
+- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
 
 ## Get me to the point
 ### How to use?
