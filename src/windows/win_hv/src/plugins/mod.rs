@@ -16,7 +16,7 @@ use wdk_sys::{
 };
 
 pub(crate) mod plugin;
-pub(crate) mod async_command;
+pub(crate) mod commands;
 
 pub(crate) struct PluginTable {
     pub plugins: &'static mut [&'static mut Plugin],
