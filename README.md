@@ -28,6 +28,45 @@ And yes, we purposefully mean it. There is no bullshit, no-nonsense. That is rig
 - A beautifully documented hypervisor interface,
 - A no-nonsense "it just works" functionality.
 
+## See It In Action
+This is just a fraction of what HxPosed can offer to you.
+```rust
+    // Open a process via help of the kernel.
+    let mut process = match HxProcess::open(id) {
+        Ok(x) => x, // Good. Now we own *full* rights to the process.
+        Err(e) => {
+            println!("Error opening process: {:?}", e); // Gracefully explains error source, error code and reason.
+        // Error source: HxPosed. Error Code: Not Found. Error Reason: No extra information.
+            return;
+        }
+    };
+
+    // Want to set its protection level? No problem.
+    match process
+        .set_protection(
+            ProcessProtection::new()
+                .with_audit(false)
+                .with_protection_type(ProtectionType::None)
+                .with_signer(ProtectionSigner::None),
+        )
+        .await
+    {
+        Ok(_) => println!("Process protection changed!"), // Now you can kill services.exe for whatever reason.
+        Err(x) => println!("Error changing process protection: {:?}", x),
+    }
+
+    // Has anxiety problems? No problem.
+    let protection = match process.get_protection() {
+        Ok(x) => x, // Now you know services.exe has no chance to escape your task manager.
+        Err(e) => {
+            println!("Error getting process protection: {:?}", e);
+            return;
+        }
+    };
+```
+
+Easy. Powerful. No-nonsense.
+
 ![the demo](assets/prev.gif)
 
 ## Repo structure
