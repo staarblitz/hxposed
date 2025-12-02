@@ -1,25 +1,104 @@
 use crate::nt::{EProcessField, get_eprocess_field};
-use crate::plugins::async_command::{GetProcessFieldAsyncCommand, KillProcessAsyncCommand};
+use crate::plugins::commands::process::{
+    GetProcessFieldAsyncCommand, KillProcessAsyncCommand, SetProcessFieldAsyncCommand,
+};
 use crate::plugins::plugin::Plugin;
 use crate::win::PsTerminateProcess;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
+use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::process::{
-    CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField,
-};
+use hxposed_core::hxposed::requests::process::{CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest, ProcessField, SetProcessFieldRequest};
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::{GetProcessFieldResponse, OpenProcessResponse};
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use hxposed_core::services::async_service::{AsyncInfo, UnsafeAsyncInfo};
+use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::ProcessProtection;
-use wdk_sys::ntddk::{ProbeForWrite, PsLookupProcessByProcessId};
+use wdk_sys::ntddk::{ProbeForRead, ProbeForWrite, PsLookupProcessByProcessId};
 use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
+
+///
+/// # Set Process Field
+///
+/// Queues command for [`SetProcessFieldRequest`] on specified plugin.
+///
+/// ## Arguments
+/// * `guest` - Currently unused.
+/// * `request` - Identifies the target process and the exit code to use. See [`SetProcessFieldRequest`].
+/// * `plugin` - The plugin requesting the operation. See [`Plugin`].
+/// * `async_handle` - Handle object plugin created.
+///
+/// ## Warning
+/// - This function only enqueues the request; success does **not** imply the process was actually terminated.
+///
+/// ## Return
+/// * [`HypervisorResponse::not_found`] - The specified process does not exist.
+/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
+/// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
+pub(crate) fn set_process_field_async(
+    _guest: &mut dyn Guest,
+    request: SetProcessFieldRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) -> HypervisorResponse {
+    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
+    }
+
+    let process = match plugin.get_open_process(Some(request.id), None) {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found(),
+    };
+
+    plugin.queue_command(Box::new(SetProcessFieldAsyncCommand::new(
+        plugin.process.load(Ordering::Relaxed),
+        process,
+        request.field,
+        request.user_buffer_len,
+        request.user_buffer,
+        async_info,
+    )));
+
+    EmptyResponse::with_service(ServiceFunction::SetProcessField)
+}
+
+pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> HypervisorResponse {
+    match request.field {
+        ProcessField::Protection => {
+            let field = unsafe {
+                get_eprocess_field::<ProcessProtection>(EProcessField::Protection, request.process)
+            };
+
+            if request.user_buffer_len != 1 {
+                return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
+            }
+
+            match microseh::try_seh(|| unsafe {
+                ProbeForRead(
+                    request.user_buffer.load(Ordering::Relaxed) as *mut _ as _,
+                    request.user_buffer_len as _,
+                    1,
+                )
+            }) {
+                Ok(_) => {
+                    let new_field = unsafe {
+                        *(request.user_buffer.load(Ordering::Relaxed) as *mut ProcessProtection)
+                    };
+
+                    unsafe { field.write(new_field) };
+
+                    EmptyResponse::with_service(ServiceFunction::SetProcessField)
+                }
+                Err(x) => HypervisorResponse::nt_error(x.code() as _),
+            }
+        }
+        _ => HypervisorResponse::not_found(),
+    }
+}
 
 ///
 /// # Get Process Field
@@ -57,7 +136,7 @@ pub(crate) fn get_process_field_async(
     match request.field {
         ProcessField::NtPath => {
             if !async_info.is_present() {
-                return HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+                return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
             }
 
             plugin.queue_command(Box::new(GetProcessFieldAsyncCommand::new(

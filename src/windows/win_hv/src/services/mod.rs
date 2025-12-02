@@ -77,6 +77,12 @@ pub fn handle_process_services(
             plugin,
             async_info,
         ),
+        ServiceFunction::SetProcessField => set_process_field_async(
+            guest,
+            SetProcessFieldRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
         ServiceFunction::KillProcess => {
             if !request.call.is_async() {
                 HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
