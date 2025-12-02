@@ -66,7 +66,7 @@ This is just a fraction of what HxPosed can offer to you.
     };
 ```
 
-It's a bit unsafe at the core, but thats the peice you pay for the power. Don't worry, you, as a plugin developer, will never have to worry about those.
+It's a bit unsafe at the core, but thats the price you pay for the power. Don't worry, you, as a plugin developer, will never have to worry about those.
 
 It *just works*. Because we know how frustrating it is when it *just doesn't*.
 
