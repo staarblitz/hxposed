@@ -1,7 +1,6 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
-use crate::hxposed::responses::process::GetProcessFieldResponse::{NtPath, Protection, Unknown};
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
 #[derive(Clone, Default, Debug)]
@@ -17,6 +16,7 @@ pub enum GetProcessFieldResponse {
     Unknown = 0,
     NtPath(u16) = 1,
     Protection(u32) = 2,
+    Signers(u16) = 3
 }
 
 impl VmcallResponse for GetProcessFieldResponse {
@@ -26,17 +26,18 @@ impl VmcallResponse for GetProcessFieldResponse {
         }
 
         Ok(match raw.arg1 {
-            1 => NtPath(raw.arg2 as _),
-            2 => Protection(raw.arg2 as _),
-            _ => Unknown,
+            1 => Self::NtPath(raw.arg2 as _),
+            2 => Self::Protection(raw.arg2 as _),
+            _ => Self::Unknown,
         })
     }
 
     fn into_raw(self) -> HypervisorResponse {
         let (arg1, arg2, arg3) = match self {
-            NtPath(x) => (1, x as _, 0),
-            Protection(x) => (2, x as _, 0),
-            _ => (0, 0, 0),
+            Self::NtPath(x) => (1, x as _, 0),
+            Self::Protection(x) => (2, x as _, 0),
+            Self::Signers(x) => (3, x as _, 0),
+            GetProcessFieldResponse::Unknown => unreachable!(), // didn't use _ => on purpose, so I never forget implementing new ones
         };
 
         HypervisorResponse {
