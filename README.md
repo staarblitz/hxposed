@@ -17,6 +17,32 @@ Based on [barevisor](https://github.com/tandasat/barevisor)
 - `HxPosed.Plugins` plugin managing code.
 - `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
 
+## What is the purpose of this project?
+HxPosed gives you full control over your computer by breaking free from the limitations imposed by traditional user-mode access. With HxPosed, you can:
+- Protect or unprotect processes at will
+- Create or delete files anywhere on your system
+- Build custom computer management software
+- And much more...
+
+### The Problem
+In the standard user-mode environment, you're restricted in what you can do. For example, you can't:
+- Delete system-protected files
+- Kill processes that the OS restricts
+- Create files in system-protected directories
+- Or anything that is fun!
+
+In short, you're not fully in control of your own machine.
+
+### HxPosed - The Solution
+HxPosed changes that by giving you direct access to both the kernel and user mode. It’s a hypervisor-based kernel driver that uses VMCALLs (CPUID traps, actually) to manage both the kernel and user space.
+
+Since hypervisors operate in Ring -1 (a theoretical level even more privileged than the kernel), HxPosed enables you to leverage powers beyond the standard kernel-level access. This isn't just about optimizing Windows; it’s about owning it.
+
+And yes, we purposefully mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
+- A safe API written in Rust (available for C# and C too),
+- A beautifully documented hypervisor interface,
+- A no-nonsense "it just works" functionality.
+
 ## Get me to the point
 ### How to use?
 - Grab the latest release (I'll put it Soon™️)
@@ -46,6 +72,7 @@ Glad you asked.
 ## What we have so far?
 - [x] GetState service.
 - [x] Authorization service.
+- [x] Async message sending receiving (works with your favourite runtime).
 - [x] Plugin permission management.
 - [x] Cool fluent UI that fits Windows 11 design.
 - [x] Support for AMD and Intel.
