@@ -2,8 +2,6 @@
 A hypervisor based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
 Based on [barevisor](https://github.com/tandasat/barevisor)
 
-![the demo](assets/prev.gif)
-
 ## HxPosed
 HxPosed gives you full control over your computer by breaking free from the limitations imposed by traditional user-mode access. With HxPosed, you can:
 - Protect or unprotect processes at will
@@ -29,6 +27,8 @@ And yes, we purposefully mean it. There is no bullshit, no-nonsense. That is rig
 - A safe API written in Rust (available for C# and C too),
 - A beautifully documented hypervisor interface,
 - A no-nonsense "it just works" functionality.
+
+![the demo](assets/prev.gif)
 
 ## Repo structure
 `src` contains the code written in Rust.
