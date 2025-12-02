@@ -1,29 +1,26 @@
-use hxposed_core::hxposed::call::HypervisorCall;
+use std::arch::asm;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
-use hxposed_core::hxposed::requests::{Vmcall, VmcallRequest};
+use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::process::HxProcess;
+use std::fmt::Display;
 use std::io::stdin;
 use std::str::FromStr;
-use std::task;
-use hxposed_core::error::HypervisorError;
-use hxposed_core::hxposed::error::{ErrorSource, InternalErrorCode};
 use uuid::Uuid;
 
 async fn async_main() {
     let uuid = Uuid::from_str("ca170835-4a59-4c6d-a04b-f5866f592c38").unwrap();
     println!("Authorizing with UUID {}", uuid);
 
-    let resp = match AuthorizationRequest::new(uuid, PluginPermissions::all()).send() {
-        Err(e) => {
-            println!("Error authorization request! {:?}", e);
-            return;
-        }
-        Ok(x) => x,
-    };
+    let result = AuthorizationRequest::new(uuid, PluginPermissions::all()).send();
 
-    println!("Permissions: {:?}", resp.permissions);
+    if let Err(e) = result {
+        println!("Error authorizing: {:?}", e);
+        return
+    }
+
+    println!("Permissions: {:?}", result.unwrap().permissions);
 
     println!("Getting status");
 
@@ -70,18 +67,32 @@ async fn async_main() {
 
     println!("NT path of the process object: {}", path);
 
-    println!("Sending command to kill process...");
-
-    match process.kill(0).await {
-        Ok(_) => {
-            println!("Killed process!");
-        }
-        Err(e) => {
-            println!("Error killing process: {:?}", e);
-        }
+    unsafe{
+        asm!("int 0x3")
     }
+
+    let protection = match process.get_protection() {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting process protection: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Process protection: {:?}", protection);
+
+    // println!("Sending command to kill process...");
+    //
+    // match process.kill(0).await {
+    //     Ok(_) => {
+    //         println!("Killed process!");
+    //     }
+    //     Err(e) => {
+    //         println!("Error killing process: {:?}", e);
+    //     }
+    // }
 }
 
 fn main() {
-  async_std::task::block_on(async_main());
+    async_std::task::block_on(async_main());
 }
