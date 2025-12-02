@@ -106,8 +106,8 @@ pub(crate) fn get_process_field_sync(
                     Ok(_) => {
                         unsafe {
                             field.Buffer.copy_to_nonoverlapping(
-                                request.user_buffer.load(Ordering::Relaxed),
-                                field.Length as _,
+                                request.user_buffer.load(Ordering::Relaxed) as *mut u16,
+                                field.Length as usize / 2,
                             )
                         }
                         GetProcessFieldResponse::NtPath(field.Length)
