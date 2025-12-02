@@ -7,16 +7,14 @@ use crate::hxposed::requests::process::{
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
-use crate::services::async_service::{
-    AsyncPromise, GLOBAL_ASYNC_NOTIFY_HANDLER, HxPosedAsyncService,
-};
+use crate::services::async_service::AsyncPromise;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::arch::asm;
 use core::pin::Pin;
-use core::ptr::{null_mut, slice_from_raw_parts};
+use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use crate::services::types::process_fields::ProcessProtection;
 
 pub struct HxProcess {
     pub id: u32,
@@ -64,6 +62,43 @@ impl HxProcess {
             id,
             addr: AtomicU64::new(call.addr),
         })
+    }
+
+    ///
+    /// # Get Protection
+    ///
+    /// Gets the internal process protection object. The` _PS_PROTECTION`.
+    ///
+    /// ## Panic
+    /// - This function panics if hypervisor returns anything else than [`GetProcessFieldResponse::Protection`]. Which it SHOULD NOT.
+    /// - Issue a bug report if you observe a panic.
+    ///
+    /// ## Permissions
+    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    ///
+    /// ## Returns
+    /// * [`ProcessProtection`] - Full path of the process.
+    /// * [`HypervisorError`] - Most likely an NT side error.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// let protection = process.get_protection().unwrap();
+    /// ```
+    pub fn get_protection(&self) -> Result<ProcessProtection, HypervisorError> {
+        let result = GetProcessFieldRequest {
+            id: self.id,
+            field: ProcessField::Protection,
+            ..Default::default()
+        }
+        .send()?;
+
+        match result {
+            GetProcessFieldResponse::Protection(protection) => {
+                Ok(ProcessProtection::from_bits(protection as _))
+            }
+            _ => unreachable!(),
+        }
     }
 
     ///
