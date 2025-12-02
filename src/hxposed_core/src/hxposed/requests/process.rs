@@ -5,7 +5,7 @@ use crate::hxposed::responses::process::{GetProcessFieldResponse, OpenProcessRes
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use crate::hxposed::requests::process::ProcessField::Protection;
-use crate::services::types::process_fields::ProcessProtection;
+use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
 
 #[derive(Clone, Default, Debug)]
 #[repr(C)]
@@ -178,7 +178,16 @@ impl SetProcessFieldRequest {
             id,
             field: Protection,
             user_buffer: AtomicPtr::new(new_protection as *mut _ as *mut u8),
-            user_buffer_len: 1, // 1 byte
+            user_buffer_len: size_of::<ProcessProtection>() as _, // 1 byte
+        }
+    }
+
+    pub(crate) fn set_signature_levels(id: u32, new_levels: &mut ProcessSignatureLevels) -> Self {
+        Self {
+            id,
+            field: ProcessField::Signers,
+            user_buffer: AtomicPtr::new(new_levels as *mut _ as *mut u8),
+            user_buffer_len: size_of::<ProcessProtection>() as _,
         }
     }
 }
@@ -189,6 +198,7 @@ pub enum ProcessField {
     Unknown,
     NtPath = 1,
     Protection = 2,
+    Signers = 3
 }
 
 impl ProcessField {
@@ -196,6 +206,7 @@ impl ProcessField {
         match bits {
             1 => Self::NtPath,
             2 => Self::Protection,
+            3 => Self::Signers,
             _ => Self::Unknown,
         }
     }
