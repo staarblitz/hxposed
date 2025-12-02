@@ -32,7 +32,7 @@ pub struct GetProcessFieldRequest {
     pub id: u32,
     pub field: ProcessField,
     /// When set to null_mut, returns the number of bytes caller requires to allocate.
-    pub user_buffer: AtomicPtr<u16>,
+    pub user_buffer: AtomicPtr<u8>,
     pub user_buffer_len: u16,
 }
 
