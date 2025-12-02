@@ -24,7 +24,7 @@ pub struct GetProcessFieldAsyncCommand {
     pub plugin_process: PEPROCESS,
 
     pub user_buffer_len: u16,
-    pub user_buffer: AtomicPtr<u16>,
+    pub user_buffer: AtomicPtr<u8>,
 }
 
 impl GetProcessFieldAsyncCommand {
@@ -33,7 +33,7 @@ impl GetProcessFieldAsyncCommand {
         process: PEPROCESS,
         field: ProcessField,
         user_buffer_len: u16,
-        user_buffer: AtomicPtr<u16>,
+        user_buffer: AtomicPtr<u8>,
         async_info: UnsafeAsyncInfo,
     ) -> GetProcessFieldAsyncCommand {
         Self {
@@ -75,16 +75,11 @@ impl AsyncCommand for KillProcessAsyncCommand {
         ServiceFunction::KillProcess
     }
     fn complete(&mut self, result: HypervisorResponse) {
-        // we are in context of system. we need to switch to context of plugin's process to get access to its handle table and virtual address space.
-        let _ctx = ApcProcessContext::begin(self.plugin_process);
-
         write_and_set(
             &result,
             self.async_info.result_values as *mut _,
             self.async_info.handle as _,
         );
-
-        drop(_ctx);
         // seems like our user mode app tried to be a little too smart.
     }
     fn as_any(&self) -> &dyn Any {
@@ -98,15 +93,11 @@ impl AsyncCommand for GetProcessFieldAsyncCommand {
     }
 
     fn complete(&mut self, result: HypervisorResponse) {
-        let _ctx = ApcProcessContext::begin(self.plugin_process);
-
         write_and_set(
             &result,
             self.async_info.result_values as *mut _,
             self.async_info.handle as _,
         );
-
-        drop(_ctx);
     }
 
     fn as_any(&self) -> &dyn Any {
