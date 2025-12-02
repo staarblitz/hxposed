@@ -70,8 +70,6 @@ async fn async_main() {
 
     println!("NT path of the process object: {}", path);
 
-    unsafe { asm!("int 0x3") }
-
     let protection = match process.get_protection() {
         Ok(x) => x,
         Err(e) => {
