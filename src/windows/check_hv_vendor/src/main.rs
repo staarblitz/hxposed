@@ -63,14 +63,7 @@ async fn async_main() {
     let path = match process.get_nt_path().await {
         Ok(x) => x,
         Err(e) => {
-            match e.error_source {
-                ErrorSource::Hx => {
-                    println!("Error getting path (HX): {:?}", InternalErrorCode::from_bits(e.error_code as _));
-                }
-                _ => {
-                    println!("Error getting path (Other): {:x}", e.error_code);
-                }
-            }
+            println!("Error getting nt path of process: {:?}", e);
             return;
         }
     };
@@ -79,7 +72,7 @@ async fn async_main() {
 
     println!("Sending command to kill process...");
 
-    match process.kill_async(0).await {
+    match process.kill(0).await {
         Ok(_) => {
             println!("Killed process!");
         }
