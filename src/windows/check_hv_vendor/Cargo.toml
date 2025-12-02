@@ -7,7 +7,14 @@ rust-version.workspace = true
 publish.workspace = true
 
 [profile.dev]
+opt-level = 0
 debug = true
+debug-assertions = true
+overflow-checks = true
+panic = "unwind"
+incremental = false
+lto = false
+codegen-units = 1
 
 [dependencies]
 hxposed_core = { path = "../../hxposed_core", features = ["usermode"], default-features = false}
