@@ -1,5 +1,4 @@
 use crate::error::HypervisorError;
-use crate::hxposed::func::ServiceFunction::GetProcessField;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::{
     CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
@@ -9,7 +8,7 @@ use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
-use crate::services::types::process_fields::ProcessProtection;
+use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -32,6 +31,8 @@ impl Drop for HxProcess {
     }
 }
 
+pub type Future<T> = Pin<Box<AsyncPromise<T>>>;
+
 impl HxProcess {
     ///
     /// # Open
@@ -42,7 +43,7 @@ impl HxProcess {
     /// * `id` - Process id
     ///
     /// ## Permissions
-    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
     /// - [Result] containing [NtProcess] or error.
@@ -71,7 +72,7 @@ impl HxProcess {
     /// Sets the internal process protection object. The `_PS_PROTECTION`.
     ///
     /// ## Permissions
-    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
     /// * [`EmptyResponse`] - Empty. You can use [`Self::get_protection`] to check the operation if you have anxiety problems.
@@ -80,20 +81,94 @@ impl HxProcess {
     ///
     /// ```rust
     /// match process.set_protection(
-    //         ProcessProtection::new()
-    //             .with_audit(false)
-    //             .with_protection_type(ProtectionType::None)
-    //             .with_signer(ProtectionSigner::None),
-    //     ).await {
-    //         Ok(_) => println!("Process protection changed!"),
-    //         Err(x) => println!("Error changing process protection: {:?}", x),
-    //     }
+    ///         ProcessProtection::new()
+    ///             .with_audit(false)
+    ///             .with_protection_type(ProtectionType::None)
+    ///             .with_signer(ProtectionSigner::None),
+    ///     ).await {
+    ///         Ok(_) => println!("Process protection changed!"),
+    ///         Err(x) => println!("Error changing process protection: {:?}", x),
+    ///     }
     /// ```
     pub fn set_protection(
         &mut self,
         mut new_protection: ProcessProtection,
-    ) -> Pin<Box<AsyncPromise<EmptyResponse>>> {
+    ) -> Future<EmptyResponse> {
         SetProcessFieldRequest::set_protection(self.id, &mut new_protection).send_async()
+    }
+
+    ///
+    /// # Set Signature Level(s)
+    ///
+    /// Sets the internal process protection object. The `SignatureLevel` and `SectionSignatureLevel`.
+    ///
+    /// ## Permissions
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
+    ///
+    /// ## Returns
+    /// * [`EmptyResponse`] - Empty.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    ///  match process
+    ///         .set_signature_levels(
+    ///             ProcessSignatureLevels::new()
+    ///                 .with_signature_level(ProcessSignatureLevel::AntiMalware)
+    ///                 .with_section_signature_level(0),
+    ///         )
+    ///         .await
+    ///     {
+    ///         Ok(_) => println!("Process signature levels changed!"),
+    ///         Err(x) => println!("Error changing process signature levels: {:?}", x),
+    ///     }
+    /// ```
+    pub fn set_signature_levels(
+        &mut self,
+        mut new_levels: ProcessSignatureLevels,
+    ) -> Future<EmptyResponse> {
+        SetProcessFieldRequest::set_signature_levels(self.id, &mut new_levels).send_async()
+    }
+
+    ///
+    /// # Get Signature Levels
+    ///
+    /// - Gets the internal process signature levels. The `SignatureLevel` and `SectionSignatureLevel`.
+    /// - For more information about signature levels, protection and so on and so forth,
+    /// please visit [this article](https://www.crowdstrike.com/en-us/blog/protected-processes-part-3-windows-pki-internals-signing-levels-scenarios-signers-root-keys/).
+    ///
+    /// (You can also visit [this blog](https://staarblitz.github.io). I heard there is pretty neat stuff there.)
+    ///
+    /// ## Panic
+    /// - This function panics if hypervisor returns anything else than [`GetProcessFieldResponse::Signers`]. Which it SHOULD NOT.
+    /// - Issue a bug report if you observe a panic.
+    ///
+    /// ## Permissions
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
+    ///
+    /// ## Returns
+    /// * [`ProcessSignatureLevels`] - Signature levels (both `SignatureLevel` and `SectionSignatureLevel`)
+    /// * [`HypervisorError`] - Most likely an NT side error.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// let signature = process.get_signature_levels().unwrap();
+    /// ```
+    pub fn get_signature_levels(&self) -> Result<ProcessSignatureLevels, HypervisorError> {
+        let result = GetProcessFieldRequest {
+            id: self.id,
+            field: ProcessField::Signers,
+            ..Default::default()
+        }
+        .send()?;
+
+        match result {
+            GetProcessFieldResponse::Signers(signers) => {
+                Ok(ProcessSignatureLevels::from_bits(signers))
+            }
+            _ => unreachable!(),
+        }
     }
 
     ///
@@ -106,7 +181,7 @@ impl HxProcess {
     /// - Issue a bug report if you observe a panic.
     ///
     /// ## Permissions
-    /// [PluginPermissions::PROCESS_EXECUTIVE]
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
     /// * [`ProcessProtection`] - Full path of the process.
@@ -139,6 +214,9 @@ impl HxProcess {
     /// Gets the Nt path of the process.
     ///
     /// E.g. it starts with (\\?\), not C:.
+    ///
+    /// ## Permissions
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetProcessFieldResponse::NtPath`]. Which it SHOULD NOT.
@@ -210,7 +288,7 @@ impl HxProcess {
     /// * `exit_code` - The [`NTSTATUS`] exit code of the process.
     ///
     /// ## Permissions
-    /// - [PluginPermissions::PROCESS_EXECUTIVE]
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
     /// - [Result] with most likely an NT error.
@@ -218,15 +296,15 @@ impl HxProcess {
     /// ## Example
     /// ```rust
     ///  match process.kill(0).await {
-    //         Ok(_) => {
-    //             println!("Killed process!");
-    //         }
-    //         Err(e) => {
-    //             println!("Error killing process: {:?}", e);
-    //         }
-    //     }
+    ///         Ok(_) => {
+    ///             println!("Killed process!");
+    ///         }
+    ///         Err(e) => {
+    ///             println!("Error killing process: {:?}", e);
+    ///         }
+    ///     }
     /// ```
-    pub fn kill(self, exit_code: u32) -> Pin<Box<AsyncPromise<EmptyResponse>>> {
+    pub fn kill(self, exit_code: u32) -> Future<EmptyResponse> {
         KillProcessRequest {
             id: self.id,
             exit_code,
