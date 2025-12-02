@@ -5,6 +5,7 @@ use crate::win::PsTerminateProcess;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
+use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::{
@@ -16,6 +17,7 @@ use hxposed_core::hxposed::responses::process::{GetProcessFieldResponse, OpenPro
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::{AsyncInfo, UnsafeAsyncInfo};
+use hxposed_core::services::types::process_fields::ProcessProtection;
 use wdk_sys::ntddk::{ProbeForWrite, PsLookupProcessByProcessId};
 use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
 
@@ -31,7 +33,7 @@ use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
 /// * `async_handle` - Handle object plugin created.
 ///
 /// ## Warning
-/// - This function only enqueues the request; success does **not** imply the process was actually terminated.
+/// - This function only enqueues the request; success does **not** imply the process was actually terminated. (See the code for more information)
 ///
 /// ## Return
 /// * [`HypervisorResponse::not_found`] - The specified process does not exist.
@@ -52,16 +54,33 @@ pub(crate) fn get_process_field_async(
         None => return HypervisorResponse::not_found(),
     };
 
-    plugin.queue_command(Box::new(GetProcessFieldAsyncCommand::new(
-        plugin.process.load(Ordering::Relaxed),
-        process,
-        request.field,
-        request.user_buffer_len,
-        request.user_buffer,
-        async_info,
-    )));
+    match request.field {
+        ProcessField::NtPath => {
+            if !async_info.is_present() {
+                return HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+            }
 
-    EmptyResponse::with_service(ServiceFunction::KillProcess)
+            plugin.queue_command(Box::new(GetProcessFieldAsyncCommand::new(
+                plugin.process.load(Ordering::Relaxed),
+                process,
+                request.field,
+                request.user_buffer_len,
+                request.user_buffer,
+                async_info,
+            )));
+            EmptyResponse::with_service(ServiceFunction::KillProcess)
+        }
+        // directly call the sync counterpart.
+        ProcessField::Protection => get_process_field_sync(&GetProcessFieldAsyncCommand::new(
+            plugin.process.load(Ordering::Relaxed),
+            process,
+            request.field,
+            request.user_buffer_len,
+            request.user_buffer,
+            async_info,
+        )),
+        _ => HypervisorResponse::not_found(),
+    }
 }
 
 ///
@@ -80,11 +99,8 @@ pub(crate) fn get_process_field_async(
 /// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 ///
-pub(crate) fn get_process_field_sync(
-    request: &GetProcessFieldAsyncCommand,
-) -> HypervisorResponse {
+pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> HypervisorResponse {
     match request.field {
-        ProcessField::Unknown => GetProcessFieldResponse::Unknown,
         ProcessField::NtPath => {
             let field = unsafe {
                 &mut **get_eprocess_field::<*mut _UNICODE_STRING>(
@@ -116,7 +132,14 @@ pub(crate) fn get_process_field_sync(
                 }
             }
         }
-        ProcessField::Protection => GetProcessFieldResponse::Unknown, // not implemented yet
+        ProcessField::Protection => {
+            let field = unsafe {
+                *get_eprocess_field::<ProcessProtection>(EProcessField::Protection, request.process)
+            };
+
+            GetProcessFieldResponse::Protection(field.into_bits() as _)
+        }
+        _ => GetProcessFieldResponse::Unknown,
     }
     .into_raw()
 }
@@ -181,9 +204,7 @@ pub(crate) fn kill_process_async(
 /// ## Return
 /// * [`HypervisorResponse::ok`] - The process was killed.
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
-pub(crate) fn kill_process_sync(
-    request: &KillProcessAsyncCommand,
-) -> HypervisorResponse {
+pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> HypervisorResponse {
     match unsafe { PsTerminateProcess(request.process, request.exit_code as _) } {
         STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillProcess),
         err => HypervisorResponse::nt_error(err as _),
