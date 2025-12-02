@@ -70,7 +70,7 @@ pub(crate) fn vmcall(request: HypervisorRequest, mut async_info: Option<&mut Asy
 
     // that means hypervisor did not handle our cpuid trap.
     if leaf != 0x2009 {
-        response.result = HypervisorResult::error(ErrorSource::Hv, InternalErrorCode::NotLoaded)
+        response.result = HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotLoaded)
     } else {
         response.result = HypervisorResult::from_bits(result)
     }
