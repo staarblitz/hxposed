@@ -1,4 +1,4 @@
-use crate::nt::{EProcessField, get_eprocess_field};
+use crate::nt::{get_eprocess_field, EProcessField};
 use crate::plugins::commands::process::{
     GetProcessFieldAsyncCommand, KillProcessAsyncCommand, SetProcessFieldAsyncCommand,
 };
@@ -7,19 +7,21 @@ use crate::win::PsTerminateProcess;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
-use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::process::{CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest, ProcessField, SetProcessFieldRequest};
+use hxposed_core::hxposed::requests::process::{
+    CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
+    ProcessField, SetProcessFieldRequest,
+};
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::{GetProcessFieldResponse, OpenProcessResponse};
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use hxposed_core::services::types::process_fields::ProcessProtection;
+use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
 use wdk_sys::ntddk::{ProbeForRead, ProbeForWrite, PsLookupProcessByProcessId};
-use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
+use wdk_sys::{PEPROCESS, STATUS_SUCCESS, _UNICODE_STRING};
 
 ///
 /// # Set Process Field
@@ -66,16 +68,32 @@ pub(crate) fn set_process_field_async(
     EmptyResponse::with_service(ServiceFunction::SetProcessField)
 }
 
+///
+/// # Set Process Field (Sync)
+///
+/// Sets a field from executive process object.
+///
+/// ## Arguments
+/// * `request` - Arguments for the request. See [`SetProcessFieldAsyncCommand`].
+///
+/// ## Warning
+/// - Caller must signal the request *after* calling this function.
+///
+/// ## Return
+/// * [`HypervisorResponse::nt_error`] - An error occurred writing to the user buffer.
+/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
+/// * [`HypervisorResponse::invalid_params`] - Invalid buffer.
+/// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> HypervisorResponse {
     match request.field {
         ProcessField::Protection => {
-            let field = unsafe {
-                get_eprocess_field::<ProcessProtection>(EProcessField::Protection, request.process)
-            };
-
             if request.user_buffer_len != 1 {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
+
+            let field = unsafe {
+                get_eprocess_field::<ProcessProtection>(EProcessField::Protection, request.process)
+            };
 
             match microseh::try_seh(|| unsafe {
                 ProbeForRead(
@@ -89,6 +107,37 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                         *(request.user_buffer.load(Ordering::Relaxed) as *mut ProcessProtection)
                     };
 
+                    unsafe { field.write(new_field) };
+
+                    EmptyResponse::with_service(ServiceFunction::SetProcessField)
+                }
+                Err(x) => HypervisorResponse::nt_error(x.code() as _),
+            }
+        }
+        ProcessField::Signers => {
+            if request.user_buffer_len != 2 {
+                return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
+            }
+
+            let field = unsafe {
+                get_eprocess_field::<ProcessSignatureLevels>(
+                    EProcessField::SignatureLevels,
+                    request.process,
+                )
+            };
+
+            match microseh::try_seh(|| unsafe {
+                ProbeForRead(
+                    request.user_buffer.load(Ordering::Relaxed) as *mut _ as _,
+                    request.user_buffer_len as _,
+                    2,
+                )
+            }) {
+                Ok(_) => {
+                    let new_field = unsafe {
+                        *(request.user_buffer.load(Ordering::Relaxed)
+                            as *mut ProcessSignatureLevels)
+                    };
                     unsafe { field.write(new_field) };
 
                     EmptyResponse::with_service(ServiceFunction::SetProcessField)
@@ -150,14 +199,16 @@ pub(crate) fn get_process_field_async(
             EmptyResponse::with_service(ServiceFunction::KillProcess)
         }
         // directly call the sync counterpart.
-        ProcessField::Protection => get_process_field_sync(&GetProcessFieldAsyncCommand::new(
-            plugin.process.load(Ordering::Relaxed),
-            process,
-            request.field,
-            request.user_buffer_len,
-            request.user_buffer,
-            async_info,
-        )),
+        ProcessField::Protection | ProcessField::Signers => {
+            get_process_field_sync(&GetProcessFieldAsyncCommand::new(
+                plugin.process.load(Ordering::Relaxed),
+                process,
+                request.field,
+                request.user_buffer_len,
+                request.user_buffer,
+                async_info,
+            ))
+        }
         _ => HypervisorResponse::not_found(),
     }
 }
@@ -211,13 +262,15 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
                 }
             }
         }
-        ProcessField::Protection => {
-            let field = unsafe {
+        ProcessField::Protection => GetProcessFieldResponse::Protection(
+            unsafe {
                 *get_eprocess_field::<ProcessProtection>(EProcessField::Protection, request.process)
-            };
-
-            GetProcessFieldResponse::Protection(field.into_bits() as _)
-        }
+            }
+            .into_bits() as _,
+        ),
+        ProcessField::Signers => GetProcessFieldResponse::Signers(unsafe {
+            *get_eprocess_field::<u16>(EProcessField::SignatureLevels, request.process)
+        }),
         _ => GetProcessFieldResponse::Unknown,
     }
     .into_raw()
