@@ -30,6 +30,7 @@ And yes, we purposefully mean it. There is no bullshit, no-nonsense. That is rig
 
 ## See It In Action
 This is just a fraction of what HxPosed can offer to you.
+### The Interface
 ```rust
     // Open a process via help of the kernel.
     let mut process = match HxProcess::open(id) {
@@ -63,6 +64,32 @@ This is just a fraction of what HxPosed can offer to you.
             return;
         }
     };
+```
+
+It's a bit unsafe at the core, but thats the peice you pay for the power. Don't worry, you, as a plugin developer, will never have to worry about those.
+
+It *just works*. Because we know how frustrating it is when it *just doesn't*.
+
+
+### The Documentation
+We are documenting whatever we are doing. We guarantee you, you will never have questions about what you can expect from HxPosed. Here is an example:
+```rust
+    ///
+    /// # Get Protection
+    ///
+    /// Gets the internal process protection object. The `_PS_PROTECTION`.
+    ///
+    /// ## Panic
+    /// - This function panics if hypervisor returns anything else than [`GetProcessFieldResponse::Protection`]. Which it SHOULD NOT.
+    /// - Issue a bug report if you observe a panic.
+    ///
+    /// ## Permissions
+    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
+    ///
+    /// ## Returns
+    /// * [`ProcessProtection`] - Full path of the process.
+    /// * [`HypervisorError`] - Most likely an NT side error.
+    ///
 ```
 
 Easy. Powerful. No-nonsense.
