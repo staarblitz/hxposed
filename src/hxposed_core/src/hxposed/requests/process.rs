@@ -1,9 +1,11 @@
-use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::call::{HypervisorCall, HypervisorResult};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::{GetProcessFieldResponse, OpenProcessResponse};
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicPtr, Ordering};
+use crate::hxposed::requests::process::ProcessField::Protection;
+use crate::services::types::process_fields::ProcessProtection;
 
 #[derive(Clone, Default, Debug)]
 #[repr(C)]
@@ -26,9 +28,20 @@ pub struct KillProcessRequest {
     pub exit_code: u32,
 }
 
+
 #[derive(Default, Debug)]
 #[repr(C)]
 pub struct GetProcessFieldRequest {
+    pub id: u32,
+    pub field: ProcessField,
+    /// When set to null_mut, returns the number of bytes caller requires to allocate.
+    pub user_buffer: AtomicPtr<u8>,
+    pub user_buffer_len: u16,
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct SetProcessFieldRequest {
     pub id: u32,
     pub field: ProcessField,
     /// When set to null_mut, returns the number of bytes caller requires to allocate.
@@ -124,12 +137,48 @@ impl VmcallRequest for GetProcessFieldRequest {
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
-
         Self {
             id: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
             user_buffer: AtomicPtr::new(request.extended_arg1 as _),
             user_buffer_len: request.extended_arg2 as _,
+        }
+    }
+}
+
+impl VmcallRequest for SetProcessFieldRequest {
+    type Response = EmptyResponse;
+
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
+            call: HypervisorCall::set_process_field(),
+            arg1: self.id as _,
+            arg2: self.field as _,
+
+            extended_arg1: self.user_buffer.load(Ordering::Relaxed) as _,
+            extended_arg2: self.user_buffer_len as _,
+
+            ..Default::default()
+        }
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self{
+            id: request.arg1 as _,
+            field: ProcessField::from_bits(request.arg2 as _),
+            user_buffer: AtomicPtr::new(request.extended_arg1 as _),
+            user_buffer_len: request.extended_arg2 as _,
+        }
+    }
+}
+
+impl SetProcessFieldRequest {
+    pub(crate) fn set_protection(id: u32, new_protection: &mut ProcessProtection) -> Self {
+        Self {
+            id,
+            field: Protection,
+            user_buffer: AtomicPtr::new(new_protection as *mut _ as *mut u8),
+            user_buffer_len: 1, // 1 byte
         }
     }
 }
