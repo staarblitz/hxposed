@@ -71,20 +71,22 @@ pub fn handle_process_services(
         ServiceFunction::CloseProcess => {
             close_process(guest, CloseProcessRequest::from_raw(request), plugin)
         }
-        ServiceFunction::GetProcessField => {
-            if !request.call.is_async() {
-                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            }
-            else {
-                get_process_field_async(guest, GetProcessFieldRequest::from_raw(request), plugin, async_info)
-            }
-        }
+        ServiceFunction::GetProcessField => get_process_field_async(
+            guest,
+            GetProcessFieldRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
         ServiceFunction::KillProcess => {
             if !request.call.is_async() {
                 HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            }
-            else {
-                kill_process_async(guest, KillProcessRequest::from_raw(request), plugin, async_info)
+            } else {
+                kill_process_async(
+                    guest,
+                    KillProcessRequest::from_raw(request),
+                    plugin,
+                    async_info,
+                )
             }
         }
         _ => unreachable!(),
