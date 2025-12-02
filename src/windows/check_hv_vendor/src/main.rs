@@ -1,10 +1,13 @@
+use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
+use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::process::HxProcess;
 use hxposed_core::services::types::process_fields::{
-    ProcessProtection, ProtectionSigner, ProtectionType,
+    ProcessProtection, ProcessSignatureLevel, ProcessSignatureLevels, ProtectionSigner,
+    ProtectionType,
 };
 use std::arch::asm;
 use std::fmt::Display;
@@ -80,14 +83,39 @@ async fn async_main() {
 
     println!("Process protection: {:?}", protection);
 
-    match process.set_protection(
-        ProcessProtection::new()
-            .with_audit(false)
-            .with_protection_type(ProtectionType::None)
-            .with_signer(ProtectionSigner::None),
-    ).await {
+    let signature_levels = match process.get_signature_levels() {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting process signer levels: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Procecss signature levels: {:?}", signature_levels);
+
+    match process
+        .set_protection(
+            ProcessProtection::new()
+                .with_audit(false)
+                .with_protection_type(ProtectionType::None)
+                .with_signer(ProtectionSigner::None),
+        )
+        .await
+    {
         Ok(_) => println!("Process protection changed!"),
         Err(x) => println!("Error changing process protection: {:?}", x),
+    }
+
+    match process
+        .set_signature_levels(
+            ProcessSignatureLevels::new()
+                .with_signature_level(ProcessSignatureLevel::AntiMalware)
+                .with_section_signature_level(0),
+        )
+        .await
+    {
+        Ok(_) => println!("Process signature levels changed!"),
+        Err(x) => println!("Error changing process signature levels: {:?}", x),
     }
 
     // println!("Sending command to kill process...");
