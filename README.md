@@ -87,7 +87,7 @@ We are documenting whatever we are doing. We guarantee you, you will never have 
     /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
-    /// * [`ProcessProtection`] - Full path of the process.
+    /// * [`ProcessProtection`] - [`ProcessProtection`] object.
     /// * [`HypervisorError`] - Most likely an NT side error.
     ///
 ```
