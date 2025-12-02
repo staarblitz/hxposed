@@ -1,9 +1,12 @@
-use std::arch::asm;
+use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
-use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::process::HxProcess;
+use hxposed_core::services::types::process_fields::{
+    ProcessProtection, ProtectionSigner, ProtectionType,
+};
+use std::arch::asm;
 use std::fmt::Display;
 use std::io::stdin;
 use std::str::FromStr;
@@ -17,7 +20,7 @@ async fn async_main() {
 
     if let Err(e) = result {
         println!("Error authorizing: {:?}", e);
-        return
+        return;
     }
 
     println!("Permissions: {:?}", result.unwrap().permissions);
@@ -67,9 +70,7 @@ async fn async_main() {
 
     println!("NT path of the process object: {}", path);
 
-    unsafe{
-        asm!("int 0x3")
-    }
+    unsafe { asm!("int 0x3") }
 
     let protection = match process.get_protection() {
         Ok(x) => x,
@@ -80,6 +81,16 @@ async fn async_main() {
     };
 
     println!("Process protection: {:?}", protection);
+
+    match process.set_protection(
+        ProcessProtection::new()
+            .with_audit(false)
+            .with_protection_type(ProtectionType::None)
+            .with_signer(ProtectionSigner::None),
+    ).await {
+        Ok(_) => println!("Process protection changed!"),
+        Err(x) => println!("Error changing process protection: {:?}", x),
+    }
 
     // println!("Sending command to kill process...");
     //
