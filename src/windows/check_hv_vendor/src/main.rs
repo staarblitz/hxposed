@@ -6,11 +6,12 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::process::HxProcess;
 use std::io::stdin;
 use std::str::FromStr;
+use std::task;
 use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::error::{ErrorSource, InternalErrorCode};
 use uuid::Uuid;
 
-fn main() {
+async fn async_main() {
     let uuid = Uuid::from_str("ca170835-4a59-4c6d-a04b-f5866f592c38").unwrap();
     println!("Authorizing with UUID {}", uuid);
 
@@ -59,7 +60,7 @@ fn main() {
 
     println!("Opened process!");
 
-    let path = match process.get_nt_path() {
+    let path = match process.get_nt_path().await {
         Ok(x) => x,
         Err(e) => {
             match e.error_source {
@@ -78,7 +79,7 @@ fn main() {
 
     println!("Sending command to kill process...");
 
-    match process.kill_async(0).wait() {
+    match process.kill_async(0).await {
         Ok(_) => {
             println!("Killed process!");
         }
@@ -86,4 +87,8 @@ fn main() {
             println!("Error killing process: {:?}", e);
         }
     }
+}
+
+fn main() {
+  async_std::task::block_on(async_main());
 }
