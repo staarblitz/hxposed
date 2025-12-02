@@ -1,15 +1,13 @@
-use crate::PLUGINS;
-use crate::plugins::async_command::{GetProcessFieldAsyncCommand, KillProcessAsyncCommand};
-use crate::services::process_services::{
-    get_process_field_async, get_process_field_sync, kill_process_sync,
-};
+use crate::nt::context::ApcProcessContext;
+use crate::plugins::commands::process::*;
+use crate::services::process_services::*;
 use crate::win::timing;
+use crate::PLUGINS;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
-use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::KeDelayExecutionThread;
+use wdk_sys::_MODE::KernelMode;
 use wdk_sys::{FALSE, LARGE_INTEGER, PVOID};
-use crate::nt::context::ApcProcessContext;
 
 ///
 /// # Async Worker Thread
@@ -50,6 +48,9 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .as_any()
                         .downcast_ref::<GetProcessFieldAsyncCommand>()
                         .unwrap(),
+                ),
+                ServiceFunction::SetProcessField => set_process_field_sync(
+                    command.as_any().downcast_ref::<SetProcessFieldAsyncCommand>().unwrap()
                 ),
                 _ => unreachable!(),
             });
