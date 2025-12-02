@@ -7,6 +7,7 @@ use crate::services::async_service::AsyncPromise;
 use crate::services::async_service::HxPosedAsyncService;
 use alloc::boxed::Box;
 use core::any::Any;
+use core::pin::Pin;
 
 pub mod auth;
 pub mod process;
@@ -33,9 +34,9 @@ pub trait VmcallRequest {
 pub trait Vmcall<T: VmcallRequest> {
     fn send(self) -> Result<T::Response, HypervisorError>;
     #[cfg(feature = "usermode")]
-    fn send_async(self) -> Box<AsyncPromise<T::Response>>;
+    fn send_async(self) -> Pin<Box<AsyncPromise<T::Response>>>;
     #[cfg(feature = "usermode")]
-    fn get_promise(self) -> Box<AsyncPromise<T::Response>>;
+    fn get_promise(self) -> Pin<Box<AsyncPromise<T::Response>>>;
 }
 
 impl<T> Vmcall<T> for T
@@ -47,7 +48,7 @@ where
     }
 
     #[cfg(feature = "usermode")]
-    fn send_async(self) -> Box<AsyncPromise<T::Response>> {
+    fn send_async(self) -> Pin<Box<AsyncPromise<T::Response>>> {
         let mut promise = self.get_promise();
 
         promise.send_async();
@@ -56,7 +57,7 @@ where
     }
 
     #[cfg(feature = "usermode")]
-    fn get_promise(self) -> Box<AsyncPromise<T::Response>> {
+    fn get_promise(self) -> Pin<Box<AsyncPromise<T::Response>>> {
         HxPosedAsyncService::new_promise(self.into_raw())
     }
 }
