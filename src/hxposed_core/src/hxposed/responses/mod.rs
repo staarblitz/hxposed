@@ -58,7 +58,7 @@ impl HypervisorResponse {
     }
 }
 
-pub trait VmcallResponse: Sized + Send + Sync {
+pub trait VmcallResponse: Sized + Send + Sync + Unpin {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError>;
     fn into_raw(self) -> HypervisorResponse;
 }
