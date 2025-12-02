@@ -14,6 +14,7 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::arch::asm;
+use core::pin::Pin;
 use core::ptr::{null_mut, slice_from_raw_parts};
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 
@@ -79,7 +80,7 @@ impl HxProcess {
     /// ## Return
     /// * [`String`] - Full path of the process.
     /// * [`HypervisorError::not_found`] - Unable to decode string from UTF16.
-    pub fn get_nt_path(&self) -> Result<String, HypervisorError> {
+    pub async fn get_nt_path(&self) -> Result<String, HypervisorError> {
         let mut bytes = 0u16;
 
         let mut promise = GetProcessFieldRequest {
@@ -90,11 +91,7 @@ impl HxProcess {
         }
         .send_async();
 
-        unsafe{
-            asm!("int 0x3")
-        }
-
-        match promise.wait() {
+        match promise.await {
             Ok(resp) => match resp {
                 GetProcessFieldResponse::NtPath(length) => {
                     bytes = length;
@@ -104,21 +101,24 @@ impl HxProcess {
             Err(e) => return Err(e),
         }
 
-        let mut buffer = Vec::<u16>::with_capacity(bytes as usize);
+        let mut buffer = Vec::<u16>::with_capacity(bytes as usize / 2);
+        assert_eq!(buffer.capacity(), bytes as usize / 2);
 
         let mut promise = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::NtPath,
-            user_buffer: AtomicPtr::new(buffer.as_mut_ptr()),
+            user_buffer: AtomicPtr::new(buffer.as_mut_ptr() as *mut u8),
             user_buffer_len: buffer.capacity() as _,
         }
         .send_async();
 
-        match promise.wait() {
+        match promise.await {
             Ok(resp) => match resp {
                 GetProcessFieldResponse::NtPath(length) => {
-                    if length != bytes {
-                        // warn?
+                    assert_eq!(length, bytes);
+
+                    unsafe {
+                        buffer.set_len(bytes as usize / 2);
                     }
 
                     match String::from_utf16(buffer.as_slice()) {
@@ -159,7 +159,7 @@ impl HxProcess {
     //         }
     //     }
     /// ```
-    pub fn kill_async(self, exit_code: u32) -> Box<AsyncPromise<EmptyResponse>> {
+    pub fn kill_async(self, exit_code: u32) -> Pin<Box<AsyncPromise<EmptyResponse>>> {
         KillProcessRequest {
             id: self.id,
             exit_code,
