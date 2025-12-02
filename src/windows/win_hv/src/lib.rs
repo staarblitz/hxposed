@@ -17,17 +17,16 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{PluginTable, load_plugins};
+use crate::plugins::{load_plugins, PluginTable};
 use crate::win::Utf8ToUnicodeString;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use alloc::sync::Arc;
 use core::ops::{BitAnd, DerefMut};
 use core::panic::Location;
-use core::ptr::{null_mut, slice_from_raw_parts_mut};
+use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
+use hv::SharedHostData;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -37,7 +36,7 @@ use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
-use hxposed_core::services::async_service::{AsyncInfo, UnsafeAsyncInfo};
+use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk::println;
 
 use crate::nt::worker::async_worker_thread;
@@ -47,9 +46,9 @@ use wdk_sys::ntddk::{
     CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwClose,
 };
 use wdk_sys::{
-    DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT,
-    POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
-    THREAD_ALL_ACCESS, ntddk::ExAllocatePool2,
+    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING,
+    PDRIVER_OBJECT, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
+    STATUS_TOO_LATE, THREAD_ALL_ACCESS,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -176,7 +175,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
 
     let mut async_info = UnsafeAsyncInfo::default();
 
-    let mut request = HypervisorRequest {
+    let request = HypervisorRequest {
         call: info,
         arg1: guest.regs().r8,
         arg2: guest.regs().r9,
@@ -220,7 +219,8 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         ServiceFunction::OpenProcess
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess
-        | ServiceFunction::GetProcessField => {
+        | ServiceFunction::GetProcessField
+        | ServiceFunction::SetProcessField => {
             services::handle_process_services(guest, &request, plugin, async_info);
         }
         _ => {
