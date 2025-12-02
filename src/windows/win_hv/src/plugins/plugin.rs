@@ -16,7 +16,7 @@ use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, STATUS_SUCCESS,
 };
-use crate::plugins::async_command::AsyncCommand;
+use crate::plugins::commands::AsyncCommand;
 
 #[derive(Default)]
 pub(crate) struct Plugin {
