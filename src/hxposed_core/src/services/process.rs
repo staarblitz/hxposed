@@ -150,7 +150,7 @@ impl HxProcess {
     ///
     /// ## Example
     /// ```rust
-    ///  match process.kill_async(0).wait() {
+    ///  match process.kill(0).await {
     //         Ok(_) => {
     //             println!("Killed process!");
     //         }
@@ -159,7 +159,7 @@ impl HxProcess {
     //         }
     //     }
     /// ```
-    pub fn kill_async(self, exit_code: u32) -> Pin<Box<AsyncPromise<EmptyResponse>>> {
+    pub fn kill(self, exit_code: u32) -> Pin<Box<AsyncPromise<EmptyResponse>>> {
         KillProcessRequest {
             id: self.id,
             exit_code,
