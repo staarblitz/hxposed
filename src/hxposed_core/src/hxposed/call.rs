@@ -93,7 +93,7 @@ impl HypervisorResult {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub enum ServiceParameter {
     #[default]
     None = 0,
