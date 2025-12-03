@@ -176,7 +176,7 @@ impl SetProcessFieldRequest {
     pub(crate) fn set_protection(id: u32, new_protection: &mut ProcessProtection) -> Self {
         Self {
             id,
-            field: Protection,
+            field: ProcessField::Protection,
             user_buffer: AtomicPtr::new(new_protection as *mut _ as *mut u8),
             user_buffer_len: size_of::<ProcessProtection>() as _, // 1 byte
         }
@@ -187,7 +187,7 @@ impl SetProcessFieldRequest {
             id,
             field: ProcessField::Signers,
             user_buffer: AtomicPtr::new(new_levels as *mut _ as *mut u8),
-            user_buffer_len: size_of::<ProcessProtection>() as _,
+            user_buffer_len: size_of::<ProcessSignatureLevels>() as _,
         }
     }
 }
