@@ -6,11 +6,14 @@ use crate::intern::instructions::vmcall;
 #[cfg(feature = "usermode")]
 use crate::intern::win::{CloseHandle, CreateEventA, CreateThread, SetEvent, WaitForSingleObject};
 use alloc::boxed::Box;
+use core::arch::asm;
+use atomic_enum::atomic_enum;
 use core::marker::PhantomData;
 use core::pin::Pin;
 use core::ptr::null_mut;
-use core::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use core::sync::atomic::{AtomicPtr, Ordering};
 use core::task::{Context, Poll, Waker};
+use spin::Mutex;
 
 ///
 /// # Global Async Notify Handler
@@ -39,7 +42,7 @@ impl UnsafeAsyncInfo {
 pub struct AsyncInfo {
     pub handle: u64,
     // memory is manually managed, unfortunately
-    pub result_values: Box<[u64; 4]>,
+    pub result_values: Mutex<Box<[u64; 4]>>,
 }
 
 #[cfg(feature = "usermode")]
@@ -96,11 +99,19 @@ impl Drop for WakerCell {
 }
 
 #[cfg(feature = "usermode")]
-#[derive(Debug, Default)]
+#[atomic_enum]
+pub enum PromiseState {
+    None,
+    Waiting,
+    Completed,
+}
+
+#[cfg(feature = "usermode")]
+#[derive(Debug)]
 pub struct AsyncPromise<T> {
     pub request: HypervisorRequest,
     pub async_info: AsyncInfo,
-    pub completed: AtomicBool,
+    pub state: AtomicPromiseState,
     waker: WakerCell,
     phantom: PhantomData<T>,
 }
@@ -117,37 +128,33 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let me = unsafe { self.get_unchecked_mut() };
 
-        if me.completed.load(Ordering::Acquire) {
-            unsafe {
-                CloseHandle(me.async_info.handle);
+        match me.state.load(Ordering::Acquire) {
+            PromiseState::None => {
+                me.waker.register(cx.waker());
+                match unsafe {
+                    CreateThread(
+                        null_mut(),
+                        0,
+                        Self::hv_wait_worker,
+                        Pin::new_unchecked(me).get_unchecked_mut() as *mut _ as _,
+                        0,
+                        null_mut(),
+                    )
+                } {
+                    0 => panic!("CreateThread returned an error"),
+                    handle => unsafe { CloseHandle(handle) },
+                }
+
+                Poll::Pending
             }
-            return Poll::Ready(me.get_result());
+            PromiseState::Waiting => Poll::Pending,
+            PromiseState::Completed =>{
+                // unsafe {
+                //     asm!("int 0x3")
+                // }
+                Poll::Ready(me.get_result())
+            },
         }
-
-        me.waker.register(cx.waker());
-        // double check to avoid races
-        if me.completed.load(Ordering::Acquire) {
-            unsafe {
-                CloseHandle(me.async_info.handle);
-            }
-            return Poll::Ready(me.get_result());
-        }
-
-        match unsafe {
-            CreateThread(
-                null_mut(),
-                0,
-                Self::hv_wait_worker,
-                Pin::new_unchecked(me).get_unchecked_mut() as *mut _ as _,
-                0,
-                null_mut(),
-            )
-        } {
-            0 => panic!("CreateThread returned an error"),
-            handle => unsafe { CloseHandle(handle) },
-        }
-
-        Poll::Pending
     }
 }
 
@@ -160,7 +167,7 @@ where
         let me = &mut *(param as *mut AsyncPromise<T>);
         WaitForSingleObject(me.async_info.handle, u32::MAX);
 
-        me.completed.store(true, Ordering::Relaxed);
+        me.state.store(PromiseState::Completed, Ordering::Relaxed);
         if let Some(waker) = me.waker.take() {
             waker.wake();
         }
@@ -169,7 +176,7 @@ where
     }
 
     fn get_result(&mut self) -> Result<T, HypervisorError> {
-        let ptr = self.async_info.result_values.as_mut_ptr();
+        let ptr = self.async_info.result_values.lock().as_mut_ptr();
 
         unsafe {
             T::from_raw(HypervisorResponse {
@@ -185,7 +192,7 @@ where
         let response = vmcall(self.request.clone(), Some(&mut self.async_info));
         if response.result.is_error() {
             unsafe {
-                let ptr = self.async_info.result_values.as_mut_ptr();
+                let ptr = self.async_info.result_values.lock().as_mut_ptr();
 
                 ptr.write(response.result.into_bits() as _);
                 ptr.offset(1).write(response.arg1);
@@ -206,12 +213,12 @@ impl HxPosedAsyncService {
 
         Box::pin(AsyncPromise::<T> {
             request,
-            completed: AtomicBool::new(false),
+            state: AtomicPromiseState::new(PromiseState::None),
             waker: WakerCell::new(),
             phantom: PhantomData,
             async_info: AsyncInfo {
                 handle: unsafe { CreateEventA(null_mut(), 0, 0, null_mut()) },
-                result_values: Box::new([0; 4]),
+                result_values: Mutex::new(Box::new([0; 4])),
             },
         })
     }
