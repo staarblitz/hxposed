@@ -28,7 +28,8 @@ impl VmcallResponse for GetProcessFieldResponse {
         Ok(match raw.arg1 {
             1 => Self::NtPath(raw.arg2 as _),
             2 => Self::Protection(raw.arg2 as _),
-            _ => Self::Unknown,
+            3 => Self::Signers(raw.arg2 as _),
+            _ => unreachable!("Developer forgot to implement this one.")
         })
     }
 
