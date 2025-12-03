@@ -11,6 +11,7 @@ x86 = "0.52.0"
 uuid = {version = "1.18.1", default-features = false}
 bitflags = "2.10.0"
 static_assertions = "1.1.0"
+atomic_enum = {version = "0.3.0", default-features = false}
 spin = "0.10.0"
 
 [profile.dev]
