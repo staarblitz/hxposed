@@ -96,6 +96,9 @@ Easy. Powerful. No-nonsense.
 
 ![the demo](assets/prev.gif)
 
+> [!IMPORTANT]
+> Bindings for C# and C are *outdated*! They are not the main concern until core functionality is implemented
+
 ## Repo structure
 `src` contains the code written in Rust.
 - `hvcore` the hypervisor core.
