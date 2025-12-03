@@ -2,7 +2,7 @@
 A hypervisor based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
 Based on [barevisor](https://github.com/tandasat/barevisor)
 
-## HxPosed
+## HxPosed (Hypervisor eXposed)
 HxPosed gives you full control over your computer by breaking free from the limitations imposed by traditional user-mode access. With HxPosed, you can:
 - Protect or unprotect processes at will
 - Create or delete files anywhere on your system
