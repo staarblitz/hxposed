@@ -31,7 +31,7 @@ pub(crate) fn vmcall(request: HypervisorRequest, mut async_info: Option<&mut Asy
         None => 0
     };
     let shared_mem = match async_info {
-        Some(ref mut async_info) => async_info.result_values.as_mut_ptr(),
+        Some(ref mut async_info) => async_info.result_values.lock().as_mut_ptr(),
         None => 0 as _
     };
 
