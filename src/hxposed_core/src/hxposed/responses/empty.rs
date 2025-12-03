@@ -17,7 +17,11 @@ impl EmptyResponse{
 
 impl VmcallResponse for EmptyResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        Ok(EmptyResponse {})
+        if raw.result.is_error() {
+            Err(HypervisorError::from_response(raw))
+        } else {
+            Ok(EmptyResponse)
+        }
     }
 
     fn into_raw(self) -> HypervisorResponse {
