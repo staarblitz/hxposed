@@ -19,6 +19,32 @@ pub enum GetProcessFieldResponse {
     Signers(u16) = 3
 }
 
+#[derive(Clone,Default,Debug)]
+pub struct ReadProcessMemoryResponse {
+    pub bytes_read: usize,
+}
+
+impl VmcallResponse for ReadProcessMemoryResponse {
+    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
+        if raw.result.is_error() {
+            Err(HypervisorError::from_response(raw))
+        } else {
+            Ok(Self {
+                bytes_read: raw.arg1 as _
+            })
+        }
+    }
+
+    fn into_raw(self) -> HypervisorResponse {
+        HypervisorResponse {
+            result: HypervisorResult::ok(ServiceFunction::ReadMemory),
+            arg1: self.bytes_read as _,
+
+            ..Default::default()
+        }
+    }
+}
+
 impl VmcallResponse for GetProcessFieldResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
         if raw.result.is_error() {
