@@ -2,7 +2,7 @@ use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::{
     CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField, ProcessOpenType, SetProcessFieldRequest,
+    ProcessField, ProcessOpenType, ReadProcessMemoryRequest, SetProcessFieldRequest,
 };
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
@@ -11,9 +11,11 @@ use crate::services::async_service::AsyncPromise;
 use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
 use alloc::boxed::Box;
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::pin::Pin;
-use core::ptr::null_mut;
+use core::ptr;
+use core::ptr::{copy_nonoverlapping, null_mut};
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 
 pub struct HxProcess {
@@ -31,7 +33,7 @@ impl Drop for HxProcess {
     }
 }
 
-pub type Future<T> = Pin<Box<AsyncPromise<T>>>;
+pub type Future<T, X> = Pin<Box<AsyncPromise<T, X>>>;
 
 impl HxProcess {
     ///
@@ -93,7 +95,7 @@ impl HxProcess {
     pub fn set_protection(
         &mut self,
         mut new_protection: ProcessProtection,
-    ) -> Future<EmptyResponse> {
+    ) -> Future<SetProcessFieldRequest,EmptyResponse> {
         SetProcessFieldRequest::set_protection(self.id, &mut new_protection).send_async()
     }
 
@@ -126,7 +128,7 @@ impl HxProcess {
     pub fn set_signature_levels(
         &mut self,
         mut new_levels: ProcessSignatureLevels,
-    ) -> Future<EmptyResponse> {
+    ) -> Future<SetProcessFieldRequest, EmptyResponse> {
         SetProcessFieldRequest::set_signature_levels(self.id, &mut new_levels).send_async()
     }
 
@@ -169,6 +171,47 @@ impl HxProcess {
             }
             _ => unreachable!(),
         }
+    }
+
+    ///
+    /// # Read Memory
+    ///
+    /// Reads specified amount of memory from specified address.
+    ///
+    /// ## Arguments
+    /// * `address` - Address of memory to begin reading from.
+    /// * `count` - Number of **items** to read.
+    ///
+    /// ## Permissions
+    /// - [`PluginPermissions::PROCESS_MEMORY`]
+    ///
+    /// ## Returns
+    /// * [`Vec<T>`] - Number of items read.
+    /// * [`HypervisorError`] - Any error `ReadProcessMemory` can return.
+    ///
+    pub async fn read_mem<T>(&self, address: *mut u8, count: usize) -> Result<Vec<T>, HypervisorError> {
+        let mut raw = vec![0u8; count * size_of::<T>()];
+
+        let result = ReadProcessMemoryRequest {
+            id: self.id,
+            address: AtomicPtr::new(address),
+            count: count * size_of::<T>(),
+            user_buffer: AtomicPtr::new(raw.as_mut_ptr()),
+            user_buffer_len: count * size_of::<T>(),
+        }
+        .send_async()
+        .await?;
+
+        let ptr = raw.as_ptr() as *const T;
+        let len = result.bytes_read / size_of::<T>();
+
+        let mut out = Vec::with_capacity(len);
+        unsafe {
+            out.set_len(len);
+            copy_nonoverlapping(ptr, out.as_mut_ptr(), len);
+        }
+
+        Ok(out)
     }
 
     ///
@@ -231,8 +274,8 @@ impl HxProcess {
         let mut promise = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::NtPath,
-            user_buffer: AtomicPtr::new(null_mut()),
-            user_buffer_len: 0,
+            data: null_mut(),
+            data_len: 0,
         }
         .send_async();
 
@@ -252,8 +295,8 @@ impl HxProcess {
         let mut promise = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::NtPath,
-            user_buffer: AtomicPtr::new(buffer.as_mut_ptr() as *mut u8),
-            user_buffer_len: buffer.capacity() as _,
+            data: buffer.as_mut_ptr() as *mut u8,
+            data_len: buffer.capacity() as _,
         }
         .send_async();
 
@@ -304,7 +347,7 @@ impl HxProcess {
     ///         }
     ///     }
     /// ```
-    pub fn kill(self, exit_code: u32) -> Future<EmptyResponse> {
+    pub fn kill(self, exit_code: u32) -> Future<KillProcessRequest, EmptyResponse> {
         KillProcessRequest {
             id: self.id,
             exit_code,
