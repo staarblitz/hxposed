@@ -31,39 +31,35 @@ And yes, we purposefully mean it. There is no bullshit, no-nonsense. That is rig
 ## See It In Action
 This is just a fraction of what HxPosed can offer to you.
 ### The Interface
+This is the way it was supposed to be all along. Here it comes:
+
+Open a process. Easy as it should be.
 ```rust
-    // Open a process via help of the kernel.
-    let mut process = match HxProcess::open(id) {
-        Ok(x) => x, // Good. Now we own *full* rights to the process.
-        Err(e) => {
-            println!("Error opening process: {:?}", e); // Gracefully explains error source, error code and reason.
+let mut process = match HxProcess::open(id) {
+    Ok(x) => x, // Good. Now we own *full* rights to the process.
+    Err(e) => {
+        println!("Error opening process: {:?}", e); // Gracefully explains error source, error code and reason.
         // Error source: HxPosed. Error Code: Not Found. Error Reason: No extra information.
-            return;
-        }
-    };
-
-    // Want to set its protection level? No problem.
-    match process
-        .set_protection(
-            ProcessProtection::new()
-                .with_audit(false)
-                .with_protection_type(ProtectionType::None)
-                .with_signer(ProtectionSigner::None),
-        )
-        .await
-    {
-        Ok(_) => println!("Process protection changed!"), // Now you can kill services.exe for whatever reason.
-        Err(x) => println!("Error changing process protection: {:?}", x),
+        return;
     }
-
-    // Has anxiety problems? No problem.
-    let protection = match process.get_protection() {
-        Ok(x) => x, // Now you know services.exe has no chance to escape your task manager.
-        Err(e) => {
-            println!("Error getting process protection: {:?}", e);
-            return;
-        }
-    };
+};
+```
+Change its internals.
+- No offsets.
+- No definitions.
+- No NT version checks.
+```rust
+match process
+    .set_protection(
+        ProcessProtection::new()
+            .with_audit(false)
+            .with_protection_type(ProtectionType::None)
+            .with_signer(ProtectionSigner::None),
+    ).await
+{
+    Ok(_) => println!("Process protection changed!"), // Now you can kill services.exe for whatever reason.
+    Err(x) => println!("Error changing process protection: {:?}", x),
+}
 ```
 
 It's a bit unsafe at the core, but thats the price you pay for the power. Don't worry, you, as a plugin developer, will never have to worry about those.
@@ -72,32 +68,14 @@ It *just works*. Because we know how frustrating it is when it *just doesn't*.
 
 
 ### The Documentation
-We are documenting whatever we are doing. We guarantee you, you will never have questions about what you can expect from HxPosed. Here is an example:
-```rust
-    ///
-    /// # Get Protection
-    ///
-    /// Gets the internal process protection object. The `_PS_PROTECTION`.
-    ///
-    /// ## Panic
-    /// - This function panics if hypervisor returns anything else than [`GetProcessFieldResponse::Protection`]. Which it SHOULD NOT.
-    /// - Issue a bug report if you observe a panic.
-    ///
-    /// ## Permissions
-    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
-    ///
-    /// ## Returns
-    /// * [`ProcessProtection`] - [`ProcessProtection`] object.
-    /// * [`HypervisorError`] - Most likely an NT side error.
-    ///
-```
+We are documenting whatever we are doing. We guarantee you, you will never have questions about what you can expect from HxPosed. (wait for API stabilization to provide docs. Until then, you can read the inline documentation at hxposed_core)
 
 Easy. Powerful. No-nonsense.
 
 ![the demo](assets/prev.gif)
 
 > [!IMPORTANT]
-> Bindings for C# and C are *outdated*! They are not the main concern until core functionality is implemented
+> Bindings for C# and C are **outdated**! They are not the main concern until core functionality is implemented.
 
 ## Repo structure
 `src` contains the code written in Rust.
