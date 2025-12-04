@@ -11,6 +11,7 @@ pub enum ServiceFunction {
     RemoveAsyncHandler = 7,
     GetProcessField = 8,
     SetProcessField = 9,
+    ReadMemory = 10,
 }
 
 impl ServiceFunction {
@@ -30,6 +31,7 @@ impl ServiceFunction {
             7 => ServiceFunction::RemoveAsyncHandler,
             8 => ServiceFunction::GetProcessField,
             9 => ServiceFunction::SetProcessField,
+            10 => ServiceFunction::ReadMemory,
             _ => ServiceFunction::Unknown
         }
     }
