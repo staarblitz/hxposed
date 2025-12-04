@@ -15,7 +15,7 @@ pub struct GetProcessFieldAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
     pub plugin_process: PEPROCESS,
 
-    pub user_buffer_len: u16,
+    pub user_buffer_len: usize,
     pub user_buffer: AtomicPtr<u8>,
 }
 
@@ -25,7 +25,7 @@ pub struct SetProcessFieldAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
     pub plugin_process: PEPROCESS,
 
-    pub user_buffer_len: u16,
+    pub user_buffer_len: usize,
     pub user_buffer: AtomicPtr<u8>,
 }
 
@@ -41,7 +41,7 @@ impl SetProcessFieldAsyncCommand {
         plugin_process: PEPROCESS,
         process: PEPROCESS,
         field: ProcessField,
-        user_buffer_len: u16,
+        user_buffer_len: usize,
         user_buffer: AtomicPtr<u8>,
         async_info: UnsafeAsyncInfo,
     ) -> SetProcessFieldAsyncCommand {
@@ -61,7 +61,7 @@ impl GetProcessFieldAsyncCommand {
         plugin_process: PEPROCESS,
         process: PEPROCESS,
         field: ProcessField,
-        user_buffer_len: u16,
+        user_buffer_len: usize,
         user_buffer: AtomicPtr<u8>,
         async_info: UnsafeAsyncInfo,
     ) -> GetProcessFieldAsyncCommand {

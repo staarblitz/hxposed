@@ -60,8 +60,8 @@ pub(crate) fn set_process_field_async(
         plugin.process.load(Ordering::Relaxed),
         process,
         request.field,
-        request.user_buffer_len,
-        request.user_buffer,
+        request.data_len,
+        AtomicPtr::new(request.data),
         async_info,
     )));
 
@@ -192,8 +192,8 @@ pub(crate) fn get_process_field_async(
                 plugin.process.load(Ordering::Relaxed),
                 process,
                 request.field,
-                request.user_buffer_len,
-                request.user_buffer,
+                request.data_len,
+                AtomicPtr::new(request.data),
                 async_info,
             )));
             EmptyResponse::with_service(ServiceFunction::KillProcess)
@@ -204,8 +204,8 @@ pub(crate) fn get_process_field_async(
                 plugin.process.load(Ordering::Relaxed),
                 process,
                 request.field,
-                request.user_buffer_len,
-                request.user_buffer,
+                request.data_len,
+                AtomicPtr::new(request.data),
                 async_info,
             ))
         }
