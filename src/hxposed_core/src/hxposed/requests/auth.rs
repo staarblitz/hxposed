@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+use core::mem;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::auth::AuthorizationResponse;
@@ -20,15 +22,19 @@ impl AuthorizationRequest {
 impl VmcallRequest for AuthorizationRequest {
     type Response = AuthorizationResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> *mut HypervisorRequest {
         let uuid = self.uuid.as_u64_pair();
-        HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::auth(),
             arg1: uuid.0,
             arg2: uuid.1,
             arg3: self.permissions.bits(),
             ..Default::default()
-        }
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
