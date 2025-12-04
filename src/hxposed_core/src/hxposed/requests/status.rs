@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+use core::mem;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::responses::status::StatusResponse;
@@ -9,11 +11,15 @@ pub struct StatusRequest;
 impl VmcallRequest for StatusRequest {
     type Response = StatusResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
+    fn into_raw(self) -> *mut HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_status(),
             ..Default::default()
-        }
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
