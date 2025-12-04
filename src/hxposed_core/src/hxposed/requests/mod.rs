@@ -4,7 +4,6 @@ use crate::hxposed::responses::VmcallResponse;
 use crate::intern::instructions::vmcall;
 #[cfg(feature = "usermode")]
 use crate::services::async_service::AsyncPromise;
-use crate::services::async_service::HxPosedAsyncService;
 use alloc::boxed::Box;
 use core::any::Any;
 use core::pin::Pin;
@@ -27,16 +26,16 @@ pub struct HypervisorRequest {
 }
 pub trait VmcallRequest {
     type Response: VmcallResponse + Any + Send + Sync + Clone;
-    fn into_raw(self) -> HypervisorRequest;
+    fn into_raw(self) -> *mut HypervisorRequest;
     fn from_raw(request: &HypervisorRequest) -> Self;
 }
 
 pub trait Vmcall<T: VmcallRequest> {
     fn send(self) -> Result<T::Response, HypervisorError>;
     #[cfg(feature = "usermode")]
-    fn send_async(self) -> Pin<Box<AsyncPromise<T::Response>>>;
+    fn send_async(self) -> Pin<Box<AsyncPromise<T, T::Response>>>;
     #[cfg(feature = "usermode")]
-    fn get_promise(self) -> Pin<Box<AsyncPromise<T::Response>>>;
+    fn get_promise(self) -> Pin<Box<AsyncPromise<T, T::Response>>>;
 }
 
 impl<T> Vmcall<T> for T
@@ -48,7 +47,7 @@ where
     }
 
     #[cfg(feature = "usermode")]
-    fn send_async(self) -> Pin<Box<AsyncPromise<T::Response>>> {
+    fn send_async(self) -> Pin<Box<AsyncPromise<T, T::Response>>> {
         let mut promise = self.get_promise();
 
         promise.send_async();
@@ -57,7 +56,7 @@ where
     }
 
     #[cfg(feature = "usermode")]
-    fn get_promise(self) -> Pin<Box<AsyncPromise<T::Response>>> {
-        HxPosedAsyncService::new_promise(self.into_raw())
+    fn get_promise(self) -> Pin<Box<AsyncPromise<T, T::Response>>> {
+        AsyncPromise::<T, T::Response>::new_promise(self)
     }
 }
