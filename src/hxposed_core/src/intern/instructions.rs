@@ -22,7 +22,14 @@ pub fn vmcall_typed<R: VmcallRequest>(req: R, async_info: Option<&mut AsyncInfo>
     R::Response::from_raw(raw_resp)
 }
 
-pub(crate) fn vmcall(request: HypervisorRequest, mut async_info: Option<&mut AsyncInfo>) -> HypervisorResponse {
+pub(crate) fn vmcall(request: *mut HypervisorRequest, mut async_info: Option<&mut AsyncInfo>) -> HypervisorResponse {
+    let mut request = unsafe{&mut*request};
+
+    match async_info {
+        Some(_) => request.call.set_is_async(true),
+        None => request.call.set_is_async(false),
+    }
+
     let mut response = HypervisorResponse::default();
     let mut result = 0;
 
