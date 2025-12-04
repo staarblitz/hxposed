@@ -1,12 +1,11 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::requests::HypervisorRequest;
+use crate::hxposed::requests::VmcallRequest;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::intern::instructions::vmcall;
 #[cfg(feature = "usermode")]
 use crate::intern::win::{CloseHandle, CreateEventA, CreateThread, SetEvent, WaitForSingleObject};
 use alloc::boxed::Box;
-use core::arch::asm;
 use atomic_enum::atomic_enum;
 use core::marker::PhantomData;
 use core::pin::Pin;
@@ -20,8 +19,6 @@ use spin::Mutex;
 ///
 /// The global handler anyone can access.
 ///
-#[cfg(feature = "usermode")]
-pub static GLOBAL_ASYNC_NOTIFY_HANDLER: HxPosedAsyncService = HxPosedAsyncService::new();
 
 #[derive(Debug, Default)]
 pub struct HxPosedAsyncService {}
@@ -108,22 +105,24 @@ pub enum PromiseState {
 
 #[cfg(feature = "usermode")]
 #[derive(Debug)]
-pub struct AsyncPromise<T> {
-    pub request: HypervisorRequest,
+pub struct AsyncPromise<T, X> {
     pub async_info: AsyncInfo,
     pub state: AtomicPromiseState,
     waker: WakerCell,
-    phantom: PhantomData<T>,
+    phantom: PhantomData<X>,
+    request: Option<T>,
+    raw_request: Option<*mut T>,
 }
 #[cfg(feature = "usermode")]
-impl<T> Unpin for AsyncPromise<T> {}
+impl<T, X> Unpin for AsyncPromise<T, X> {}
 
 #[cfg(feature = "usermode")]
-impl<T> Future for AsyncPromise<T>
+impl<T, X> Future for AsyncPromise<T, X>
 where
-    T: VmcallResponse,
+    X: VmcallResponse,
+    T: VmcallRequest,
 {
-    type Output = Result<T, HypervisorError>;
+    type Output = Result<X, HypervisorError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let me = unsafe { self.get_unchecked_mut() };
@@ -148,26 +147,27 @@ where
                 Poll::Pending
             }
             PromiseState::Waiting => Poll::Pending,
-            PromiseState::Completed =>{
+            PromiseState::Completed => {
                 // unsafe {
                 //     asm!("int 0x3")
                 // }
                 Poll::Ready(me.get_result())
-            },
+            }
         }
     }
 }
 
 #[cfg(feature = "usermode")]
-impl<T> AsyncPromise<T>
+impl<T, X> AsyncPromise<T, X>
 where
-    T: VmcallResponse,
+    X: VmcallResponse,
+    T: VmcallRequest,
 {
     unsafe extern "C" fn hv_wait_worker(param: *mut u64) -> u32 {
-        let me = &mut *(param as *mut AsyncPromise<T>);
+        let me = &mut *(param as *mut AsyncPromise<T, X>);
         WaitForSingleObject(me.async_info.handle, u32::MAX);
 
-        me.state.store(PromiseState::Completed, Ordering::Relaxed);
+        me.state.store(PromiseState::Completed, Ordering::Release);
         if let Some(waker) = me.waker.take() {
             waker.wake();
         }
@@ -175,21 +175,39 @@ where
         0
     }
 
-    fn get_result(&mut self) -> Result<T, HypervisorError> {
+    fn get_result(&mut self) -> Result<X, HypervisorError> {
         let ptr = self.async_info.result_values.lock().as_mut_ptr();
 
-        unsafe {
-            T::from_raw(HypervisorResponse {
+        let result = unsafe {
+            X::from_raw(HypervisorResponse {
                 result: HypervisorResult::from_bits(ptr.read() as _),
                 arg1: ptr.offset(1).read() as _,
                 arg2: ptr.offset(2).read() as _,
                 arg3: ptr.offset(3).read() as _,
             })
+        };
+
+        // we are good to go, now we can free the memory we leaked.
+
+        if let Some(ptr) = self.raw_request {
+            unsafe { drop(Box::from_raw(ptr)) }
         }
+
+        result
     }
 
     pub fn send_async(&mut self) {
-        let response = vmcall(self.request.clone(), Some(&mut self.async_info));
+        let request = self
+            .request
+            .take()
+            .expect("send_async called more than once");
+
+        let raw_request = request.into_raw();
+
+        // save it for later
+        self.raw_request = Some(raw_request as *mut T);
+
+        let response = vmcall(raw_request, Some(&mut self.async_info));
         if response.result.is_error() {
             unsafe {
                 let ptr = self.async_info.result_values.lock().as_mut_ptr();
@@ -202,17 +220,11 @@ where
             }
         }
     }
-}
-#[cfg(feature = "usermode")]
-impl HxPosedAsyncService {
-    pub fn new_promise<T>(mut request: HypervisorRequest) -> Pin<Box<AsyncPromise<T>>>
-    where
-        T: VmcallResponse,
-    {
-        request.call.set_is_async(true);
 
-        Box::pin(AsyncPromise::<T> {
-            request,
+    pub fn new_promise(request: T) -> Pin<Box<AsyncPromise<T, X>>> {
+        Box::pin(AsyncPromise::<T, X> {
+            request: Some(request),
+            raw_request: None,
             state: AtomicPromiseState::new(PromiseState::None),
             waker: WakerCell::new(),
             phantom: PhantomData,
@@ -221,9 +233,5 @@ impl HxPosedAsyncService {
                 result_values: Mutex::new(Box::new([0; 4])),
             },
         })
-    }
-
-    pub const fn new() -> Self {
-        Self {}
     }
 }
