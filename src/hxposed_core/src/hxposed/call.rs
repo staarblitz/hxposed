@@ -36,9 +36,9 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
 
-    pub(crate) fn read_mem() -> Self {
+    pub(crate) fn process_vm_op() -> Self {
         Self::new()
-            .with_func(ServiceFunction::ReadMemory)
+            .with_func(ServiceFunction::ProcessVMOperation)
             .with_extended_args_present(true)
     }
 
