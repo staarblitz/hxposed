@@ -1,6 +1,6 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::{HypervisorCall, HypervisorResult, ServiceParameter};
-use crate::hxposed::error::{InternalErrorCode, ErrorSource, NotAllowedReason};
+use crate::hxposed::error::{InternalErrorCode, ErrorSource, NotAllowedReason, NotFoundReason};
 use crate::plugins::plugin_perms::PluginPermissions;
 
 pub mod auth;
@@ -53,6 +53,14 @@ impl HypervisorResponse {
     pub fn not_found() -> Self {
         Self {
             result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotFound),
+            ..Default::default()
+        }
+    }
+
+    pub fn not_found_what(what: NotFoundReason) -> Self {
+        Self {
+            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotFound),
+            arg1: what.into_bits() as _,
             ..Default::default()
         }
     }
