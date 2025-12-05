@@ -10,10 +10,10 @@ use wdk_sys::ntddk::{
     RtlUTF8StringToUnicodeString,
 };
 use wdk_sys::{
-    BOOLEAN, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES,
-    PCLIENT_ID, PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
-    PSECURITY_DESCRIPTOR, PULONG, PUNICODE_STRING, PVOID
-    , TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING,
+    BOOLEAN, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID,
+    PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
+    PSECURITY_DESCRIPTOR, PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T, TRUE, ULONG,
+    UNICODE_STRING, USHORT, UTF8_STRING,
 };
 
 pub(crate) mod alloc;
@@ -117,6 +117,17 @@ pub(crate) const NT_CURRENT_PROCESS: HANDLE = -1 as _;
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
     pub static PsLoadedModuleList: *mut _LDR_DATA_TABLE_ENTRY;
+
+    #[allow(non_snake_case)]
+    pub fn MmCopyVirtualMemory(
+        SourceProcess: PEPROCESS,
+        SourceAddress: PVOID,
+        TargetProcess: PEPROCESS,
+        TargetAddress: PVOID,
+        BufferSize: SIZE_T,
+        PreviousMode: KPROCESSOR_MODE,
+        ReturnSize: PSIZE_T,
+    ) -> NTSTATUS;
 
     #[allow(non_snake_case)]
     pub fn ZwResumeThread(Thread: HANDLE, PreviousWhateverGarbage: PULONG) -> NTSTATUS;
