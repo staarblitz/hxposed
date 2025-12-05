@@ -1,10 +1,9 @@
 use crate::hxposed::call::ServiceParameter;
-use crate::hxposed::error::InternalErrorCode::{InvalidParams, NotAllowed};
 use crate::hxposed::error::{ErrorSource, InternalErrorCode, NotAllowedReason};
 use crate::hxposed::responses::HypervisorResponse;
 use alloc::format;
 use alloc::string::ToString;
-use core::fmt::{Debug, Display, Formatter, Write};
+use core::fmt::{Debug, Display, Error, Formatter, Write};
 use static_assertions::assert_eq_size;
 
 #[derive(PartialEq, Eq, Clone, Copy, Default)]
@@ -18,71 +17,13 @@ assert_eq_size!(HypervisorError, u64);
 
 impl Debug for HypervisorError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        writeln!(f, "Hypervisor returned an error.")?;
-
-        let source = match self.error_source {
-            ErrorSource::Hx => "HxPosed",
-            ErrorSource::Nt => "Windows Kernel",
-            ErrorSource::Hv => "CPU Internal",
-        };
-        writeln!(f, "Error source: {source}")?;
-
-        match self.error_source {
-            ErrorSource::Hx => {
-                let code = InternalErrorCode::from_bits(self.error_code);
-                writeln!(f, "Error code: {:?}", code)?;
-            }
-            _ => writeln!(f, "Error code: {:x}", self.error_code)?,
-        }
-
-        let reason_string = match self.error_source {
-            ErrorSource::Hx => match InternalErrorCode::from_bits(self.error_code) {
-                NotAllowed => format!("{:?}", NotAllowedReason::from_bits(self.error_reason as _)),
-                InvalidParams => {
-                    format!("{:?}", ServiceParameter::from_bits(self.error_reason as _))
-                }
-                _ => "None".to_string(),
-            },
-            _ => format!("{:?}", self.error_reason),
-        };
-
-        writeln!(f, "Error reason: {reason_string}")?;
-        Ok(())
+        self.fmt_view(f)?
     }
 }
 
 impl Display for HypervisorError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        writeln!(f, "Hypervisor returned an error.")?;
-
-        let source = match self.error_source {
-            ErrorSource::Hx => "HxPosed",
-            ErrorSource::Nt => "Windows Kernel",
-            ErrorSource::Hv => "CPU Internal",
-        };
-        writeln!(f, "Error source: {source}")?;
-
-        match self.error_source {
-            ErrorSource::Hx => {
-                let code = InternalErrorCode::from_bits(self.error_code);
-                writeln!(f, "Error code: {:?}", code)?;
-            }
-            _ => writeln!(f, "Error code: {:x}", self.error_code)?,
-        }
-
-        let reason_string = match self.error_source {
-            ErrorSource::Hx => match InternalErrorCode::from_bits(self.error_code) {
-                NotAllowed => format!("{:?}", NotAllowedReason::from_bits(self.error_reason as _)),
-                InvalidParams => {
-                    format!("{:?}", ServiceParameter::from_bits(self.error_reason as _))
-                }
-                _ => "None".to_string(),
-            },
-            _ => format!("{:?}", self.error_reason),
-        };
-
-        writeln!(f, "Error reason: {reason_string}")?;
-        Ok(())
+        self.fmt_view(f)?
     }
 }
 impl HypervisorError {
@@ -112,5 +53,39 @@ impl HypervisorError {
             error_code: response.result.error_code() as _,
             error_reason: response.arg1 as _,
         }
+    }
+
+    fn fmt_view(&self, f: &mut Formatter) -> Result<Result<(), Error>, Error> {
+        writeln!(f, "Hypervisor returned an error.")?;
+
+        let source = match self.error_source {
+            ErrorSource::Hx => "HxPosed",
+            ErrorSource::Nt => "Windows Kernel",
+            ErrorSource::Hv => "CPU Internal",
+        };
+        writeln!(f, "Error source: {source}")?;
+
+        match self.error_source {
+            ErrorSource::Hx => {
+                let code = InternalErrorCode::from_bits(self.error_code);
+                writeln!(f, "Error code: {:?}", code)?;
+            }
+            _ => writeln!(f, "Error code: {:x}", self.error_code)?,
+        }
+
+        let reason_string = match self.error_source {
+            ErrorSource::Hx => match InternalErrorCode::from_bits(self.error_code) {
+                InternalErrorCode::NotAllowed => format!("{:?}", NotAllowedReason::from_bits(self.error_reason as _)),
+                InternalErrorCode::InvalidParams => {
+                    format!("{:?}", ServiceParameter::from_bits(self.error_reason as _))
+                }
+                InternalErrorCode::NotFound => format!("Object {:?} not found", NotAllowedReason::from_bits(self.error_reason as _)),
+                _ => "None".to_string(),
+            },
+            _ => format!("Unknown reason {:?}", self.error_reason),
+        };
+
+        writeln!(f, "Error reason: {reason_string}")?;
+        Ok(Ok(()))
     }
 }
