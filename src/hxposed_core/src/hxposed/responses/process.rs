@@ -20,25 +20,25 @@ pub enum GetProcessFieldResponse {
 }
 
 #[derive(Clone,Default,Debug)]
-pub struct ReadProcessMemoryResponse {
-    pub bytes_read: usize,
+pub struct RWProcessMemoryResponse {
+    pub bytes_processed: usize,
 }
 
-impl VmcallResponse for ReadProcessMemoryResponse {
+impl VmcallResponse for RWProcessMemoryResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
         if raw.result.is_error() {
             Err(HypervisorError::from_response(raw))
         } else {
             Ok(Self {
-                bytes_read: raw.arg1 as _
+                bytes_processed: raw.arg1 as _
             })
         }
     }
 
     fn into_raw(self) -> HypervisorResponse {
         HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::ReadMemory),
-            arg1: self.bytes_read as _,
+            result: HypervisorResult::ok(ServiceFunction::ProcessVMOperation),
+            arg1: self.bytes_processed as _,
 
             ..Default::default()
         }
