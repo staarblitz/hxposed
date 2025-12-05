@@ -1,12 +1,12 @@
+use crate::PLUGINS;
 use crate::nt::context::ApcProcessContext;
 use crate::plugins::commands::process::*;
 use crate::services::process_services::*;
 use crate::win::timing;
-use crate::PLUGINS;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
-use wdk_sys::ntddk::KeDelayExecutionThread;
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::KeDelayExecutionThread;
 use wdk_sys::{FALSE, LARGE_INTEGER, PVOID};
 
 ///
@@ -50,9 +50,18 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .unwrap(),
                 ),
                 ServiceFunction::SetProcessField => set_process_field_sync(
-                    command.as_any().downcast_ref::<SetProcessFieldAsyncCommand>().unwrap()
+                    command
+                        .as_any()
+                        .downcast_ref::<SetProcessFieldAsyncCommand>()
+                        .unwrap(),
                 ),
-                _ => unreachable!(),
+                ServiceFunction::ProcessVMOperation => process_vm_operation_sync(
+                    command
+                        .as_any()
+                        .downcast_ref::<RWProcessMemoryAsyncCommand>()
+                        .unwrap(),
+                ),
+                _ => unreachable!("Forgot to implement this one!"),
             });
 
             drop(ctx);
