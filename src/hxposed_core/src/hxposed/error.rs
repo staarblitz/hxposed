@@ -38,6 +38,25 @@ pub enum NotAllowedReason {
     MissingPermissions = 1
 }
 
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+#[repr(u32)]
+pub enum NotFoundReason {
+    #[default]
+    Unknown = 0,
+    Process = 1
+}
+
+impl NotFoundReason {
+    pub const fn into_bits(self) -> u32 {self as _}
+
+    pub const fn from_bits(value: u32) -> Self {
+        match value {
+            1 => Self::Process,
+            _ => Self::Unknown
+        }
+    }
+}
+
 impl NotAllowedReason {
     pub const fn into_bits(self) -> u32 {self as _}
 
