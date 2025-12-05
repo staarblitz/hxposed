@@ -71,6 +71,18 @@ pub fn handle_process_services(
         ServiceFunction::CloseProcess => {
             close_process(guest, CloseProcessRequest::from_raw(request), plugin)
         }
+        ServiceFunction::ProcessVMOperation => {
+            if !request.call.is_async() {
+                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+            } else {
+                process_vm_operation_async(
+                    guest,
+                    RWProcessMemoryRequest::from_raw(request),
+                    plugin,
+                    async_info,
+                )
+            }
+        }
         ServiceFunction::GetProcessField => get_process_field_async(
             guest,
             GetProcessFieldRequest::from_raw(request),
