@@ -1,27 +1,100 @@
-use crate::nt::{get_eprocess_field, EProcessField};
+use crate::nt::context::ApcProcessContext;
+use crate::nt::{EProcessField, get_eprocess_field};
 use crate::plugins::commands::process::{
-    GetProcessFieldAsyncCommand, KillProcessAsyncCommand, SetProcessFieldAsyncCommand,
+    GetProcessFieldAsyncCommand, KillProcessAsyncCommand, RWProcessMemoryAsyncCommand,
+    SetProcessFieldAsyncCommand,
 };
 use crate::plugins::plugin::Plugin;
-use crate::win::PsTerminateProcess;
+use crate::win::{MmCopyVirtualMemory, PsTerminateProcess};
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
-use hxposed_core::hxposed::error::NotAllowedReason;
+use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::{
     CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField, SetProcessFieldRequest,
+    ProcessField, ProcessMemoryOperation, RWProcessMemoryRequest, SetProcessFieldRequest,
 };
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
-use hxposed_core::hxposed::responses::process::{GetProcessFieldResponse, OpenProcessResponse};
+use hxposed_core::hxposed::responses::process::{
+    GetProcessFieldResponse, OpenProcessResponse, RWProcessMemoryResponse,
+};
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
+use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{ProbeForRead, ProbeForWrite, PsLookupProcessByProcessId};
-use wdk_sys::{PEPROCESS, STATUS_SUCCESS, _UNICODE_STRING};
+use wdk_sys::{_UNICODE_STRING, PEPROCESS, SIZE_T, STATUS_SUCCESS};
+
+pub(crate) fn process_vm_operation_async(
+    _guest: &mut dyn Guest,
+    request: RWProcessMemoryRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) -> HypervisorResponse {
+    // if !plugin.perm_check(PluginPermissions::PROCESS_MEMORY) {
+    //     return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_MEMORY);
+    // }
+
+    let process = match plugin.get_open_process(Some(request.id), None) {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+    };
+
+    plugin.queue_command(Box::new(RWProcessMemoryAsyncCommand {
+        plugin_process: plugin.process.load(Ordering::Relaxed),
+        process,
+        command: request,
+        async_info,
+    }));
+
+    EmptyResponse::with_service(ServiceFunction::ProcessVMOperation)
+}
+
+pub(crate) fn process_vm_operation_sync(
+    request: &RWProcessMemoryAsyncCommand,
+) -> HypervisorResponse {
+    if request.command.data_len > 4096 * 4 {
+        return HypervisorResponse::not_allowed(NotAllowedReason::Unknown);
+    }
+
+    let mut return_size = SIZE_T::default();
+
+    // this is gross but also amazing.
+    match match request.command.operation {
+        ProcessMemoryOperation::Read => unsafe {
+            MmCopyVirtualMemory(
+                request.process,
+                request.command.address as _,
+                request.plugin_process,
+                request.command.data as _,
+                request.command.data_len as _,
+                KernelMode as _,
+                &mut return_size,
+            )
+        },
+        ProcessMemoryOperation::Write => unsafe {
+            MmCopyVirtualMemory(
+                request.plugin_process,
+                request.command.data as _,
+                request.process,
+                request.command.address as _,
+                request.command.data_len as _,
+                KernelMode as _,
+                &mut return_size,
+            )
+        },
+    } {
+        STATUS_SUCCESS => RWProcessMemoryResponse {
+            bytes_processed: return_size as _,
+        }
+        .into_raw(),
+        err => HypervisorResponse::nt_error(err as _),
+    }
+}
 
 ///
 /// # Set Process Field
@@ -53,17 +126,15 @@ pub(crate) fn set_process_field_async(
 
     let process = match plugin.get_open_process(Some(request.id), None) {
         Some(x) => x,
-        None => return HypervisorResponse::not_found(),
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };
 
-    plugin.queue_command(Box::new(SetProcessFieldAsyncCommand::new(
-        plugin.process.load(Ordering::Relaxed),
+    plugin.queue_command(Box::new(SetProcessFieldAsyncCommand {
         process,
-        request.field,
-        request.data_len,
-        AtomicPtr::new(request.data),
+        plugin_process: plugin.process.load(Ordering::Relaxed),
+        command: request,
         async_info,
-    )));
+    }));
 
     EmptyResponse::with_service(ServiceFunction::SetProcessField)
 }
@@ -85,9 +156,9 @@ pub(crate) fn set_process_field_async(
 /// * [`HypervisorResponse::invalid_params`] - Invalid buffer.
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> HypervisorResponse {
-    match request.field {
+    match request.command.field {
         ProcessField::Protection => {
-            if request.user_buffer_len != 1 {
+            if request.command.data_len != 1 {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
@@ -96,16 +167,10 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
             };
 
             match microseh::try_seh(|| unsafe {
-                ProbeForRead(
-                    request.user_buffer.load(Ordering::Relaxed) as *mut _ as _,
-                    request.user_buffer_len as _,
-                    1,
-                )
+                ProbeForRead(request.command.data as _, request.command.data_len as _, 1)
             }) {
                 Ok(_) => {
-                    let new_field = unsafe {
-                        *(request.user_buffer.load(Ordering::Relaxed) as *mut ProcessProtection)
-                    };
+                    let new_field = unsafe { *(request.command.data as *mut ProcessProtection) };
 
                     unsafe { field.write(new_field) };
 
@@ -115,7 +180,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
             }
         }
         ProcessField::Signers => {
-            if request.user_buffer_len != 2 {
+            if request.command.data_len != 2 {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
@@ -127,17 +192,11 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
             };
 
             match microseh::try_seh(|| unsafe {
-                ProbeForRead(
-                    request.user_buffer.load(Ordering::Relaxed) as *mut _ as _,
-                    request.user_buffer_len as _,
-                    2,
-                )
+                ProbeForRead(request.command.data as _, request.command.data_len as _, 2)
             }) {
                 Ok(_) => {
-                    let new_field = unsafe {
-                        *(request.user_buffer.load(Ordering::Relaxed)
-                            as *mut ProcessSignatureLevels)
-                    };
+                    let new_field =
+                        unsafe { *(request.command.data as *mut ProcessSignatureLevels) };
                     unsafe { field.write(new_field) };
 
                     EmptyResponse::with_service(ServiceFunction::SetProcessField)
@@ -179,7 +238,7 @@ pub(crate) fn get_process_field_async(
 
     let process = match plugin.get_open_process(Some(request.id), None) {
         Some(x) => x,
-        None => return HypervisorResponse::not_found(),
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };
 
     match request.field {
@@ -188,26 +247,22 @@ pub(crate) fn get_process_field_async(
                 return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
             }
 
-            plugin.queue_command(Box::new(GetProcessFieldAsyncCommand::new(
-                plugin.process.load(Ordering::Relaxed),
+            plugin.queue_command(Box::new(GetProcessFieldAsyncCommand {
                 process,
-                request.field,
-                request.data_len,
-                AtomicPtr::new(request.data),
+                plugin_process: plugin.process.load(Ordering::Relaxed),
+                command: request,
                 async_info,
-            )));
+            }));
             EmptyResponse::with_service(ServiceFunction::KillProcess)
         }
         // directly call the sync counterpart.
         ProcessField::Protection | ProcessField::Signers => {
-            get_process_field_sync(&GetProcessFieldAsyncCommand::new(
-                plugin.process.load(Ordering::Relaxed),
+            get_process_field_sync(&GetProcessFieldAsyncCommand {
                 process,
-                request.field,
-                request.data_len,
-                AtomicPtr::new(request.data),
+                plugin_process: plugin.process.load(Ordering::Relaxed),
+                command: request,
                 async_info,
-            ))
+            })
         }
         _ => HypervisorResponse::not_found(),
     }
@@ -230,7 +285,7 @@ pub(crate) fn get_process_field_async(
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 ///
 pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> HypervisorResponse {
-    match request.field {
+    match request.command.field {
         ProcessField::NtPath => {
             let field = unsafe {
                 &mut **get_eprocess_field::<*mut _UNICODE_STRING>(
@@ -239,20 +294,16 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
                 )
             };
 
-            if request.user_buffer_len == 0 {
+            if request.command.data_len == 0 {
                 GetProcessFieldResponse::NtPath(field.Length)
             } else {
                 match microseh::try_seh(|| unsafe {
-                    ProbeForWrite(
-                        request.user_buffer.load(Ordering::Relaxed) as _,
-                        request.user_buffer_len as _,
-                        1,
-                    )
+                    ProbeForWrite(request.command.data as _, request.command.data_len as _, 1)
                 }) {
                     Ok(_) => {
                         unsafe {
                             field.Buffer.copy_to_nonoverlapping(
-                                request.user_buffer.load(Ordering::Relaxed) as *mut u16,
+                                request.command.data as *mut u16,
                                 field.Length as usize / 2,
                             )
                         }
@@ -308,15 +359,15 @@ pub(crate) fn kill_process_async(
 
     let process = match plugin.get_open_process(Some(request.id), None) {
         Some(x) => x,
-        None => return HypervisorResponse::not_found(),
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };
 
-    plugin.queue_command(Box::new(KillProcessAsyncCommand::new(
-        plugin.process.load(Ordering::Relaxed),
-        request.exit_code,
+    plugin.queue_command(Box::new(KillProcessAsyncCommand {
         process,
+        plugin_process: plugin.process.load(Ordering::Relaxed),
+        command: request,
         async_info,
-    )));
+    }));
 
     EmptyResponse::with_service(ServiceFunction::KillProcess)
 }
@@ -337,7 +388,7 @@ pub(crate) fn kill_process_async(
 /// * [`HypervisorResponse::ok`] - The process was killed.
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
 pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> HypervisorResponse {
-    match unsafe { PsTerminateProcess(request.process, request.exit_code as _) } {
+    match unsafe { PsTerminateProcess(request.process, request.command.exit_code as _) } {
         STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillProcess),
         err => HypervisorResponse::nt_error(err as _),
     }
