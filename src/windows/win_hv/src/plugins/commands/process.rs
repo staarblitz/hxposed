@@ -1,7 +1,7 @@
 use core::any::Any;
 use core::sync::atomic::AtomicPtr;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::process::ProcessField;
+use hxposed_core::hxposed::requests::process::{GetProcessFieldRequest, KillProcessRequest, ProcessField, RWProcessMemoryRequest, SetProcessFieldRequest};
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk::println;
@@ -11,86 +11,32 @@ use crate::plugins::commands::AsyncCommand;
 
 pub struct GetProcessFieldAsyncCommand {
     pub process: PEPROCESS,
-    pub field: ProcessField,
     pub async_info: UnsafeAsyncInfo,
     pub plugin_process: PEPROCESS,
-
-    pub user_buffer_len: usize,
-    pub user_buffer: AtomicPtr<u8>,
+    pub command: GetProcessFieldRequest,
 }
 
 pub struct SetProcessFieldAsyncCommand {
     pub process: PEPROCESS,
-    pub field: ProcessField,
+    pub command: SetProcessFieldRequest,
     pub async_info: UnsafeAsyncInfo,
     pub plugin_process: PEPROCESS,
-
-    pub user_buffer_len: usize,
-    pub user_buffer: AtomicPtr<u8>,
 }
 
 pub struct KillProcessAsyncCommand {
-    pub exit_code: u32,
+    pub command: KillProcessRequest,
     pub process: PEPROCESS,
     pub async_info: UnsafeAsyncInfo,
     pub plugin_process: PEPROCESS,
 }
 
-impl SetProcessFieldAsyncCommand {
-    pub fn new(
-        plugin_process: PEPROCESS,
-        process: PEPROCESS,
-        field: ProcessField,
-        user_buffer_len: usize,
-        user_buffer: AtomicPtr<u8>,
-        async_info: UnsafeAsyncInfo,
-    ) -> SetProcessFieldAsyncCommand {
-        Self {
-            process,
-            field,
-            plugin_process,
-            async_info,
-            user_buffer,
-            user_buffer_len,
-        }
-    }
+pub struct RWProcessMemoryAsyncCommand {
+    pub plugin_process: PEPROCESS,
+    pub process: PEPROCESS,
+    pub command: RWProcessMemoryRequest,
+    pub async_info: UnsafeAsyncInfo,
 }
 
-impl GetProcessFieldAsyncCommand {
-    pub fn new(
-        plugin_process: PEPROCESS,
-        process: PEPROCESS,
-        field: ProcessField,
-        user_buffer_len: usize,
-        user_buffer: AtomicPtr<u8>,
-        async_info: UnsafeAsyncInfo,
-    ) -> GetProcessFieldAsyncCommand {
-        Self {
-            process,
-            field,
-            plugin_process,
-            async_info,
-            user_buffer,
-            user_buffer_len,
-        }
-    }
-}
-
-impl KillProcessAsyncCommand {
-    pub fn new(
-        plugin_process: PEPROCESS,
-        exit_code: u32,
-        process: PEPROCESS,
-        async_info: UnsafeAsyncInfo,
-    ) -> Self {
-        Self {
-            exit_code,
-            process,
-            plugin_process,
-            async_info
-        }
-    }
-}
 
 impl AsyncCommand for KillProcessAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
@@ -130,6 +76,24 @@ impl AsyncCommand for GetProcessFieldAsyncCommand {
 impl AsyncCommand for SetProcessFieldAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::SetProcessField
+    }
+
+    fn complete(&mut self, result: HypervisorResponse) {
+        write_and_set(
+            &result,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
+        );
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl AsyncCommand for RWProcessMemoryAsyncCommand {
+    fn get_service_function(&self) -> ServiceFunction {
+        ServiceFunction::ProcessVMOperation
     }
 
     fn complete(&mut self, result: HypervisorResponse) {
