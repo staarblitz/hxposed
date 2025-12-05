@@ -220,7 +220,8 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess
         | ServiceFunction::GetProcessField
-        | ServiceFunction::SetProcessField => {
+        | ServiceFunction::SetProcessField
+        | ServiceFunction::ProcessVMOperation => {
             services::handle_process_services(guest, &request, plugin, async_info);
         }
         _ => {
