@@ -91,7 +91,7 @@ async fn async_main() {
         }
     };
 
-    println!("Procecss signature levels: {:?}", signature_levels);
+    println!("Process signature levels: {:?}", signature_levels);
 
     match process
         .set_protection(
@@ -118,6 +118,39 @@ async fn async_main() {
         Err(x) => println!("Error changing process signature levels: {:?}", x),
     }
 
+    println!("Address to read/write?: ");
+    let mut input = String::new();
+    stdin().read_line(&mut input).unwrap();
+
+    let addr = u64::from_str_radix(&input.trim(), 16).unwrap();
+
+    let vec = match process.memory.read_mem::<u8>(addr as *mut u8, 256).await {
+        Ok(x) => {
+            println!("Read {} bytes from the process", x.len());
+            x
+        }
+        Err(e) => {
+            println!("Error reading from process memory: {:?}", e);
+            return;
+        }
+    };
+
+    println!("BEGIN {}  ============================", addr);
+    print_hex_grid(&vec);
+    println!("END {}  ============================", addr + vec.len() as u64);
+
+    let mut zeros: [u8; 256] = [0; 256];
+
+    match process.memory.write_mem::<u8>(addr as _, zeros.as_mut_ptr() as _, zeros.len()).await {
+        Ok(x) => {
+            println!("Written {} bytes to the process", x.bytes_processed)
+        }
+        Err(e) => {
+            println!("Error writing to process memory: {:?}", e);
+            return;
+        }
+    }
+
     // println!("Sending command to kill process...");
     //
     // match process.kill(0).await {
@@ -132,4 +165,18 @@ async fn async_main() {
 
 fn main() {
     async_std::task::block_on(async_main());
+}
+
+fn print_hex_grid(data: &[u8]) {
+    let cols = 16;
+
+    for (i, byte) in data.iter().enumerate() {
+        print!("{:02X} ", byte);
+        if (i + 1) % cols == 0 {
+            println!();
+        }
+    }
+    if data.len() % cols != 0 {
+        println!();
+    }
 }
