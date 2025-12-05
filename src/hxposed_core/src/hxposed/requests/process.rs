@@ -4,7 +4,7 @@ use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::{
-    GetProcessFieldResponse, OpenProcessResponse, ReadProcessMemoryResponse,
+    GetProcessFieldResponse, OpenProcessResponse, RWProcessMemoryResponse,
 };
 use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
 use core::sync::atomic::{AtomicPtr, Ordering};
@@ -50,12 +50,13 @@ pub struct SetProcessFieldRequest {
 
 #[derive(Default, Debug)]
 #[repr(C)]
-pub struct ReadProcessMemoryRequest {
+pub struct RWProcessMemoryRequest {
     pub id: u32,
-    pub address: AtomicPtr<u8>,
+    pub address: *mut u8,
     pub count: usize,
-    pub user_buffer: AtomicPtr<u8>,
-    pub user_buffer_len: usize,
+    pub data: *mut u8,
+    pub data_len: usize,
+    pub operation: ProcessMemoryOperation,
 }
 
 impl VmcallRequest for OpenProcessRequest {
@@ -191,18 +192,19 @@ impl VmcallRequest for SetProcessFieldRequest {
     }
 }
 
-impl VmcallRequest for ReadProcessMemoryRequest {
-    type Response = ReadProcessMemoryResponse;
+impl VmcallRequest for RWProcessMemoryRequest {
+    type Response = RWProcessMemoryResponse;
 
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
-            call: HypervisorCall::read_mem(),
+            call: HypervisorCall::process_vm_op(),
             arg1: self.id as _,
-            arg2: self.address.load(Ordering::Relaxed) as _,
+            arg2: self.address as _,
             arg3: self.count as _,
 
-            extended_arg1: self.user_buffer.load(Ordering::Relaxed) as _,
-            extended_arg2: self.user_buffer_len as _,
+            extended_arg1: self.data as _,
+            extended_arg2: self.data_len as _,
+            extended_arg3: self.operation.clone().into_bits() as _,
 
             ..Default::default()
         });
@@ -215,11 +217,12 @@ impl VmcallRequest for ReadProcessMemoryRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             id: request.arg1 as _,
-            address: AtomicPtr::new(request.arg2 as *mut u8),
+            address: request.arg2 as *mut u8,
             count: request.arg3 as _,
 
-            user_buffer: AtomicPtr::new(request.extended_arg1 as _),
-            user_buffer_len: request.extended_arg2 as _,
+            data: request.extended_arg1 as _,
+            data_len: request.extended_arg2 as _,
+            operation: ProcessMemoryOperation::from_bits(request.extended_arg3 as _),
         }
     }
 }
@@ -240,6 +243,27 @@ impl SetProcessFieldRequest {
             field: ProcessField::Signers,
             data: new_levels as *mut _ as *mut u8,
             data_len: size_of::<ProcessSignatureLevels>() as _,
+        }
+    }
+}
+
+#[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
+pub enum ProcessMemoryOperation {
+    #[default]
+    Read,
+    Write
+}
+
+impl ProcessMemoryOperation {
+    pub const fn into_bits(self) -> u8 {
+        self as _
+    }
+
+    pub const fn from_bits(bits: u8) -> Self {
+        match bits {
+            0 => Self::Read,
+            1 => Self::Write,
+            _ => Self::Read,
         }
     }
 }
