@@ -2,12 +2,13 @@ use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::{
     CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField, ProcessOpenType, ReadProcessMemoryRequest, SetProcessFieldRequest,
+    ProcessField, ProcessOpenType, RWProcessMemoryRequest, SetProcessFieldRequest,
 };
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
+use crate::services::memory::HxMemory;
 use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -20,6 +21,7 @@ use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 
 pub struct HxProcess {
     pub id: u32,
+    pub memory: HxMemory,
     addr: AtomicU64,
 }
 
@@ -64,6 +66,7 @@ impl HxProcess {
 
         Ok(Self {
             id,
+            memory: HxMemory { id },
             addr: AtomicU64::new(call.addr),
         })
     }
@@ -95,7 +98,7 @@ impl HxProcess {
     pub fn set_protection(
         &mut self,
         mut new_protection: ProcessProtection,
-    ) -> Future<SetProcessFieldRequest,EmptyResponse> {
+    ) -> Future<SetProcessFieldRequest, EmptyResponse> {
         SetProcessFieldRequest::set_protection(self.id, &mut new_protection).send_async()
     }
 
@@ -171,47 +174,6 @@ impl HxProcess {
             }
             _ => unreachable!(),
         }
-    }
-
-    ///
-    /// # Read Memory
-    ///
-    /// Reads specified amount of memory from specified address.
-    ///
-    /// ## Arguments
-    /// * `address` - Address of memory to begin reading from.
-    /// * `count` - Number of **items** to read.
-    ///
-    /// ## Permissions
-    /// - [`PluginPermissions::PROCESS_MEMORY`]
-    ///
-    /// ## Returns
-    /// * [`Vec<T>`] - Number of items read.
-    /// * [`HypervisorError`] - Any error `ReadProcessMemory` can return.
-    ///
-    pub async fn read_mem<T>(&self, address: *mut u8, count: usize) -> Result<Vec<T>, HypervisorError> {
-        let mut raw = vec![0u8; count * size_of::<T>()];
-
-        let result = ReadProcessMemoryRequest {
-            id: self.id,
-            address: AtomicPtr::new(address),
-            count: count * size_of::<T>(),
-            user_buffer: AtomicPtr::new(raw.as_mut_ptr()),
-            user_buffer_len: count * size_of::<T>(),
-        }
-        .send_async()
-        .await?;
-
-        let ptr = raw.as_ptr() as *const T;
-        let len = result.bytes_read / size_of::<T>();
-
-        let mut out = Vec::with_capacity(len);
-        unsafe {
-            out.set_len(len);
-            copy_nonoverlapping(ptr, out.as_mut_ptr(), len);
-        }
-
-        Ok(out)
     }
 
     ///
