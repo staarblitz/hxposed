@@ -220,9 +220,11 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess
         | ServiceFunction::GetProcessField
-        | ServiceFunction::SetProcessField
-        | ServiceFunction::ProcessVMOperation => {
+        | ServiceFunction::SetProcessField => {
             services::handle_process_services(guest, &request, plugin, async_info);
+        }
+        ServiceFunction::ProcessVMOperation | ServiceFunction::ProtectProcessMemory => {
+            services::handle_memory_services(guest, &request, plugin, async_info);
         }
         _ => {
             println!("Unsupported vmcall function: {:?}", info.func());
