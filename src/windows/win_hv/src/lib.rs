@@ -17,7 +17,7 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 use crate::cback::registry_callback;
 use crate::nt::get_nt_info;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::{load_plugins, PluginTable};
+use crate::plugins::{PluginTable, load_plugins};
 use crate::win::Utf8ToUnicodeString;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
@@ -25,8 +25,8 @@ use core::ops::{BitAnd, DerefMut};
 use core::panic::Location;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hv::hypervisor::host::Guest;
 use hv::SharedHostData;
+use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -46,9 +46,9 @@ use wdk_sys::ntddk::{
     CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwClose,
 };
 use wdk_sys::{
-    ntddk::ExAllocatePool2, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING,
-    PDRIVER_OBJECT, POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
-    STATUS_TOO_LATE, THREAD_ALL_ACCESS,
+    DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT,
+    POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
+    THREAD_ALL_ACCESS, ntddk::ExAllocatePool2,
 };
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
@@ -223,7 +223,11 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::SetProcessField => {
             services::handle_process_services(guest, &request, plugin, async_info);
         }
-        ServiceFunction::ProcessVMOperation | ServiceFunction::ProtectProcessMemory => {
+        ServiceFunction::ProcessVMOperation
+        | ServiceFunction::ProtectProcessMemory
+        | ServiceFunction::AllocateMemory
+        | ServiceFunction::MapMemory
+        | ServiceFunction::FreeMemory=> {
             services::handle_memory_services(guest, &request, plugin, async_info);
         }
         _ => {
