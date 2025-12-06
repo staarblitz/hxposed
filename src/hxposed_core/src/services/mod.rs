@@ -4,3 +4,5 @@ pub mod process;
 pub mod memory;
 pub mod async_service;
 pub mod types;
+#[cfg(feature = "usermode")]
+pub mod memory_map;
