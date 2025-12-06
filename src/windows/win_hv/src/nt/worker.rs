@@ -57,6 +57,12 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .downcast_ref::<SetProcessFieldAsyncCommand>()
                         .unwrap(),
                 ),
+                ServiceFunction::GetProcessThreads => get_process_threads_sync(
+                    command
+                        .as_any()
+                        .downcast_ref::<GetProcessThreadsAsyncCommand>()
+                        .unwrap(),
+                ),
                 ServiceFunction::ProcessVMOperation => process_vm_operation_sync(
                     command
                         .as_any()
@@ -70,9 +76,17 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .unwrap(),
                 ),
                 ServiceFunction::AllocateMemory => allocate_mdl_sync(
-                    command.as_any().downcast_ref::<AllocateMemoryAsyncCommand>().unwrap(),
+                    command
+                        .as_any()
+                        .downcast_ref::<AllocateMemoryAsyncCommand>()
+                        .unwrap(),
                 ),
-                ServiceFunction::MapMemory => map_mdl_sync(command.as_any().downcast_ref::<MapMemoryAsyncCommand>().unwrap()),
+                ServiceFunction::MapMemory => map_mdl_sync(
+                    command
+                        .as_any()
+                        .downcast_ref::<MapMemoryAsyncCommand>()
+                        .unwrap(),
+                ),
                 _ => unreachable!("Forgot to implement this one!"),
             });
 
