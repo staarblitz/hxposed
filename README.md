@@ -33,7 +33,7 @@ This is just a fraction of what HxPosed can offer to you.
 ### The Interface
 This is the way it was supposed to be all along. Here it comes:
 
-Open a process. Easy as it should be.
+#### Open a process. Easy as it should be
 ```rust
 let mut process = match HxProcess::open(id) {
     Ok(x) => x, // Good. Now we own *full* rights to the process.
@@ -44,9 +44,9 @@ let mut process = match HxProcess::open(id) {
     }
 };
 ```
-Change its internals.
+#### Change its internals
 - No offsets.
-- No definitions.
+- No structure definitions.
 - No NT version checks.
 ```rust
 match process
@@ -61,11 +61,29 @@ match process
     Err(x) => println!("Error changing process protection: {:?}", x),
 }
 ```
+#### Allocate from nonpaged pool
+- No IRPs.
+- No manual memory management.
+- No pointer type conversions.
+```rust
+let mut allocation = match HxMemory::alloc::<u64>(MemoryPool::NonPaged).await.unwrap()
 
-It's a bit unsafe at the core, but thats the price you pay for the power. Don't worry, you, as a plugin developer, will never have to worry about those.
+{
+    let mut _guard = allocation.map(None).unwrap(); // now _guard is a "&mut u64" we can safely use.
+    *_guard = u64::MAX;
+} // automatically unmapped "allocation.unmap()"
+
+allocation.free().await;
+```
+
+Hope you got our point. We are trying to make things easier, not harder.
+From now on, you'll never worry about:
+- Memory ownership,
+- Undocumented NT functions,
+- `STATUS_INVALID_PARAMETER`s,
+- Digging out offsets and byte patterns.
 
 It *just works*. Because we know how frustrating it is when it *just doesn't*.
-
 
 ### The Documentation
 We are documenting whatever we are doing. We guarantee you, you will never have questions about what you can expect from HxPosed. (wait for API stabilization to provide docs. Until then, you can read the inline documentation at hxposed_core)
