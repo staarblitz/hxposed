@@ -36,6 +36,18 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
 
+    pub(crate) fn mem_map() -> Self {
+        Self::new().with_func(ServiceFunction::MapMemory)
+    }
+
+    pub(crate) fn free_mem() -> Self {
+        Self::new().with_func(ServiceFunction::FreeMemory)
+    }
+
+    pub(crate) fn mem_alloc() -> Self {
+        Self::new().with_func(ServiceFunction::AllocateMemory)
+    }
+
     pub(crate) fn process_vm_protect() -> Self {
         Self::new().with_func(ServiceFunction::ProtectProcessMemory)
     }
