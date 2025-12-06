@@ -10,6 +10,7 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
@@ -83,6 +84,24 @@ pub fn handle_memory_services(
         ServiceFunction::ProtectProcessMemory => protect_vm_async(
             guest,
             ProtectProcessMemoryRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::AllocateMemory => allocate_mdl_async(
+            guest,
+            AllocateMemoryRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::MapMemory => map_mdl_async(
+            guest,
+            MapMemoryRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::FreeMemory => free_mdl_async(
+            guest,
+            FreeMemoryRequest::from_raw(request),
             plugin,
             async_info,
         ),
