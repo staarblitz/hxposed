@@ -1,9 +1,10 @@
 use crate::plugins::plugin::Plugin;
+use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::write_response;
 use core::ops::BitAnd;
 use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
+use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
@@ -11,10 +12,10 @@ use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::services::async_service::{AsyncInfo, UnsafeAsyncInfo};
-use wdk_sys::HANDLE;
+use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk_sys::ntddk::IoGetCurrentProcess;
 
+pub mod memory_services;
 pub mod process_services;
 
 ///
@@ -54,6 +55,44 @@ pub fn authorize_plugin(
 }
 
 ///
+/// # Handle Memory Services
+///
+/// Dispatches the memory service request to [memory_services].
+///
+pub fn handle_memory_services(
+    guest: &mut dyn Guest,
+    request: &HypervisorRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) {
+    if !request.call.is_async() {
+        write_response(
+            guest,
+            HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
+        );
+        return;
+    }
+
+    let result = match request.call.func() {
+        ServiceFunction::ProcessVMOperation => process_vm_operation_async(
+            guest,
+            RWProcessMemoryRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::ProtectProcessMemory => protect_vm_async(
+            guest,
+            ProtectProcessMemoryRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        _ => unreachable!("forgot to implement this one"),
+    };
+
+    write_response(guest, result)
+}
+
+///
 /// # Handle Process Services
 ///
 /// Dispatches the process service request to [process_services].
@@ -70,18 +109,6 @@ pub fn handle_process_services(
         }
         ServiceFunction::CloseProcess => {
             close_process(guest, CloseProcessRequest::from_raw(request), plugin)
-        }
-        ServiceFunction::ProcessVMOperation => {
-            if !request.call.is_async() {
-                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            } else {
-                process_vm_operation_async(
-                    guest,
-                    RWProcessMemoryRequest::from_raw(request),
-                    plugin,
-                    async_info,
-                )
-            }
         }
         ServiceFunction::GetProcessField => get_process_field_async(
             guest,
