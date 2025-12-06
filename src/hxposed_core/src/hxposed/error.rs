@@ -43,7 +43,9 @@ pub enum NotAllowedReason {
 pub enum NotFoundReason {
     #[default]
     Unknown = 0,
-    Process = 1
+    Process = 1,
+    Plugin = 2,
+    Mdl = 3
 }
 
 impl NotFoundReason {
@@ -52,6 +54,8 @@ impl NotFoundReason {
     pub const fn from_bits(value: u32) -> Self {
         match value {
             1 => Self::Process,
+            2 => Self::Plugin,
+            3 => Self::Mdl,
             _ => Self::Unknown
         }
     }
