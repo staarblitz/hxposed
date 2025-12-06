@@ -6,7 +6,7 @@ use crate::win::{PsGetSetContextThreadInternal, PsLoadedModuleList, PsTerminateP
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use wdk_sys::ntddk::RtlGetVersion;
-use wdk_sys::{PEPROCESS, RTL_OSVERSIONINFOW};
+use wdk_sys::{PEPROCESS, PETHREAD, RTL_OSVERSIONINFOW};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
@@ -84,9 +84,9 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
 }
 
 ///
-/// # Get EPROCESS Field
+/// # Get `EPROCESS` Field
 ///
-/// Gets pointer to field of EPROCESS depending on NT version.
+/// Gets pointer to field of `EPROCESS` depending on NT version.
 ///
 /// ## Arguments
 /// * `field` - Field you want to acquire pointer to. See [`EProcessField`]
@@ -118,7 +118,43 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
                     EProcessField::SignatureLevels => 0x5f8,
                     EProcessField::MitigationFlags1 => 0x750,
                     EProcessField::MitigationFlags2 => 0x754,
-                    EProcessField::MitigationFlags3 => 0x7d8
+                    EProcessField::MitigationFlags3 => 0x7d8,
+                    EProcessField::ThreadListHead => 0x370,
+                    EProcessField::Lock => 0x1c8,
+                }
+            }
+            _ => {
+                panic!("Unknown NT build {}", build)
+            }
+        }) as *mut T
+    }
+}
+
+///
+/// # Get `ETHREAD` Field
+///
+/// Gets pointer to field of `ETHREAD` depending on NT version.
+///
+/// ## Arguments
+/// * `field` - Field you want to acquire pointer to. See [`EThreadField`]
+/// * `thread` - Thread object to get pointer from.
+///
+/// ## Panic
+/// - This function panics if the NT version is not supported.
+///
+/// ## Returns
+/// - Absolute **pointer** to the field, in [`T`].
+pub(crate) unsafe fn get_ethread_field<T: 'static>(
+    field: EThreadField,
+    thread: PETHREAD
+) -> *mut T {
+    let build = NT_BUILD.load(Ordering::Relaxed);
+    unsafe{
+        thread.byte_offset(match build {
+            26200 /* 25H2 */ => {
+                match field {
+                    EThreadField::Lock => 0x590,
+                    EThreadField::OffsetFromListEntry => -0x578, // returns the pointer to actual ETHREAD
                 }
             }
             _ => {
@@ -134,8 +170,14 @@ pub enum NtProcedure {
     PspGetContextThreadInternal,
 }
 
+pub enum EThreadField {
+    Lock,
+    OffsetFromListEntry
+}
+
 /// TODO: Document what those return
 pub enum EProcessField {
+    Lock,
     CreateTime,
     Token,
     SectionObject,
@@ -145,6 +187,7 @@ pub enum EProcessField {
     VadRoot,
     ExitTime,
     Protection,
+    ThreadListHead,
     SignatureLevels,
     MitigationFlags1,
     MitigationFlags2,
