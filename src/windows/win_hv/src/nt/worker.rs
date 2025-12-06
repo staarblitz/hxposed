@@ -69,6 +69,10 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .downcast_ref::<ProtectProcessMemoryAsyncCommand>()
                         .unwrap(),
                 ),
+                ServiceFunction::AllocateMemory => allocate_mdl_sync(
+                    command.as_any().downcast_ref::<AllocateMemoryAsyncCommand>().unwrap(),
+                ),
+                ServiceFunction::MapMemory => map_mdl_sync(command.as_any().downcast_ref::<MapMemoryAsyncCommand>().unwrap()),
                 _ => unreachable!("Forgot to implement this one!"),
             });
 
