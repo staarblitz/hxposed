@@ -2,22 +2,21 @@ use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::{
     CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField, ProcessOpenType, RWProcessMemoryRequest, SetProcessFieldRequest,
+    ProcessField, ProcessOpenType, SetProcessFieldRequest,
 };
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
+use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
 use crate::services::memory::HxMemory;
 use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
 use alloc::boxed::Box;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use core::pin::Pin;
-use core::ptr;
-use core::ptr::{copy_nonoverlapping, null_mut};
-use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use core::ptr::null_mut;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 pub struct HxProcess {
     pub id: u32,
@@ -38,6 +37,14 @@ impl Drop for HxProcess {
 pub type Future<T, X> = Pin<Box<AsyncPromise<T, X>>>;
 
 impl HxProcess {
+    ///
+    /// # Current
+    ///
+    /// Opens the current process for your use.
+    pub fn current() -> Result<Self, HypervisorError> {
+        Self::open(unsafe { GetCurrentProcessId() })
+    }
+
     ///
     /// # Open
     ///
