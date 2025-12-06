@@ -1,8 +1,11 @@
-use crate::nt::{EProcessField, get_eprocess_field};
+use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
+use crate::plugins::Plugin;
 use crate::plugins::commands::process::*;
-use crate::plugins::plugin::Plugin;
 use crate::win::PsTerminateProcess;
+use crate::win::danger::DangerPtr;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::ptr::copy_nonoverlapping;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
@@ -15,8 +18,100 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
-use wdk_sys::ntddk::{ProbeForRead, ProbeForWrite, PsLookupProcessByProcessId};
-use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
+use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::{
+    ExAcquirePushLockExclusiveEx, ExReleasePushLockExclusiveEx, ObOpenObjectByPointer,
+    ProbeForRead, ProbeForWrite, PsGetThreadId, PsLookupProcessByProcessId,
+};
+use wdk_sys::{
+    _KTHREAD, _UNICODE_STRING, HANDLE, LIST_ENTRY, PEPROCESS, PETHREAD, PROCESS_ALL_ACCESS,
+    PsProcessType, STATUS_SUCCESS,
+};
+
+pub(crate) fn get_process_threads_sync(
+    request: &GetProcessThreadsAsyncCommand,
+) -> HypervisorResponse {
+    let lock = unsafe { get_eprocess_field::<u64>(EProcessField::Lock, request.process) };
+
+    // process object is extremely volatile. enumerating threads is no easy job. we have to secure our process.
+    unsafe { ExAcquirePushLockExclusiveEx(lock, 0) }
+
+    let threads = DangerPtr::<LIST_ENTRY> {
+        ptr: unsafe {
+            get_eprocess_field::<LIST_ENTRY>(EProcessField::ThreadListHead, request.process)
+        },
+    };
+    // now it gets tricky. let me explain.
+
+    // the ThreadListHead field of _EPROCESS holds a LIST_ENTRY. what makes it deserve its own comments in this source is that the list header for items are not the first field of the item.
+    // for example, in 25h2, _ETHREAD's ThreadListEntry structure resides on offset 0x578. So we have to go back exactly that many bytes to get the head of _ETHREAD object.
+
+    let first_entry = DangerPtr::<LIST_ENTRY> { ptr: threads.Blink };
+    let mut current_entry = DangerPtr::<LIST_ENTRY> { ptr: threads.Flink };
+
+    let mut thread_numbers = Vec::<u32>::new();
+
+    while current_entry != first_entry {
+        current_entry = DangerPtr::<LIST_ENTRY> {
+            ptr: current_entry.Flink,
+        };
+
+        let thread = unsafe {
+            get_ethread_field::<_KTHREAD>(EThreadField::OffsetFromListEntry, current_entry.ptr as _)
+                as PETHREAD
+        };
+
+        thread_numbers.push(unsafe { PsGetThreadId(thread) as _ });
+    }
+
+    unsafe { ExReleasePushLockExclusiveEx(lock, 0) }
+
+    if !request.command.data.is_null() {
+        match microseh::try_seh(|| unsafe {
+            ProbeForWrite(request.command.data as _, request.command.data_len as _, 1)
+        }) {
+            Ok(_) => {}
+            Err(e) => return HypervisorResponse::nt_error(e.code() as _),
+        }
+
+        unsafe {
+            copy_nonoverlapping::<u32>(
+                thread_numbers.as_ptr(),
+                request.command.data as _,
+                request.command.data_len / 4, // calculate number of items to transfer.
+            )
+        }
+    }
+
+    GetProcessThreadsResponse {
+        number_of_threads: thread_numbers.len() as _,
+    }
+    .into_raw()
+}
+
+pub(crate) fn get_process_threads_async(
+    _guest: &mut dyn Guest,
+    request: GetProcessThreadsRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) -> HypervisorResponse {
+    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
+    }
+
+    let process = match plugin.get_open_process(Some(request.id), None) {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+    };
+
+    plugin.queue_command(Box::new(GetProcessThreadsAsyncCommand {
+        process,
+        command: request,
+        async_info,
+    }));
+
+    EmptyResponse::with_service(ServiceFunction::GetProcessThreads)
+}
 
 ///
 /// # Set Process Field
@@ -349,8 +444,34 @@ pub(crate) fn close_process(
     }
 }
 
+pub(crate) fn open_process_async(
+    _guest: &mut dyn Guest,
+    request: OpenProcessRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) -> HypervisorResponse {
+    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
+    }
+
+    let obj = OpenProcessAsyncCommand {
+        command: request,
+        async_info,
+        uuid: plugin.uuid,
+    };
+
+    match obj.command.open_type {
+        ProcessOpenType::Handle => {
+            plugin.queue_command(Box::new(obj));
+
+            EmptyResponse::with_service(ServiceFunction::OpenProcess)
+        }
+        ProcessOpenType::Hypervisor => open_process_sync(&obj),
+    }
+}
+
 ///
-/// # Open Process
+/// # Open Process (Sync)
 ///
 /// Opens a process in virtual handle table of plugin. For more information, visit "How Plugins Work" in Wiki.
 ///
@@ -363,22 +484,42 @@ pub(crate) fn close_process(
 /// * [`HypervisorResponse::ok`] - Process was opened.
 /// * [`HypervisorResponse::not_allowed_perms`] - Plugin lacks required permissions
 /// * [`HypervisorResponse::nt_error`] - [`PsLookupProcessByProcessId`] returned an NTSTATUS indicating failure.
-pub(crate) fn open_process(
-    _guest: &mut dyn Guest,
-    request: OpenProcessRequest,
-    plugin: &'static mut Plugin,
-) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
-    }
+pub(crate) fn open_process_sync(request: &OpenProcessAsyncCommand) -> HypervisorResponse {
+    let plugin = match Plugin::lookup(request.uuid) {
+        Some(plugin) => plugin,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
     let mut process = PEPROCESS::default();
 
-    match unsafe { PsLookupProcessByProcessId(request.process_id as _, &mut process) } {
+    match unsafe { PsLookupProcessByProcessId(request.command.process_id as _, &mut process) } {
         STATUS_SUCCESS => {}
         err => return HypervisorResponse::nt_error(err as _),
     }
 
-    plugin.open_processes.push(AtomicPtr::new(process));
+    match request.command.open_type {
+        ProcessOpenType::Handle => {
+            let mut handle = HANDLE::default();
 
-    OpenProcessResponse { addr: process as _ }.into_raw()
+            match unsafe {
+                ObOpenObjectByPointer(
+                    process as _,
+                    0,
+                    Default::default(),
+                    PROCESS_ALL_ACCESS,
+                    *PsProcessType,
+                    KernelMode as _,
+                    &mut handle,
+                )
+            } {
+                STATUS_SUCCESS => OpenProcessResponse { addr: handle as _ }.into_raw(),
+                err => return HypervisorResponse::nt_error(err as _),
+            }
+        }
+        ProcessOpenType::Hypervisor => {
+            plugin.open_processes.push(AtomicPtr::new(process));
+
+            OpenProcessResponse { addr: process as _ }.into_raw()
+        }
+    }
 }
