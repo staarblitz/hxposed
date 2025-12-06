@@ -2,10 +2,8 @@ use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use crate::services::types::memory_fields::MemoryProtection;
 
 #[derive(Clone, Default, Debug)]
-#[repr(C)]
 pub struct OpenProcessResponse {
     pub addr: u64,
 }
@@ -20,6 +18,31 @@ pub enum GetProcessFieldResponse {
     Signers(u16) = 3,
 }
 
+#[derive(Clone,Default,Debug)]
+pub struct GetProcessThreadsResponse {
+    pub number_of_threads: u32
+}
+
+impl VmcallResponse for GetProcessThreadsResponse {
+    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
+        if raw.result.is_error() {
+            return Err(HypervisorError::from_response(raw));
+        }
+
+        Ok(Self {
+            number_of_threads: raw.arg1 as _
+        })
+    }
+
+    fn into_raw(self) -> HypervisorResponse {
+       HypervisorResponse {
+           result: HypervisorResult::ok(ServiceFunction::GetProcessThreads),
+           arg1: self.number_of_threads as _,
+
+           ..Default::default()
+       }
+    }
+}
 
 impl VmcallResponse for GetProcessFieldResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
