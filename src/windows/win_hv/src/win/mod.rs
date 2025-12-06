@@ -19,6 +19,8 @@ use wdk_sys::{
 pub(crate) mod alloc;
 pub(crate) mod macros;
 pub(crate) mod timing;
+pub(crate) mod danger;
+
 pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(PEPROCESS, NTSTATUS) -> NTSTATUS;
 pub(crate) type PsGetSetContextThreadInternal = unsafe extern "C" fn(
     PETHREAD,
