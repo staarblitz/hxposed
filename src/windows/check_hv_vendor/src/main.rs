@@ -3,10 +3,13 @@ use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::memory::HxMemory;
-use hxposed_core::services::types::memory_fields::MemoryPool;
+use hxposed_core::services::types::memory_fields::{MemoryPool, MemoryProtection};
 use std::fmt::Display;
 use std::process::exit;
 use std::str::FromStr;
+use async_std::io::stdin;
+use hxposed_core::services::process::HxProcess;
+use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevel, ProcessSignatureLevels, ProtectionSigner, ProtectionType};
 use uuid::Uuid;
 
 async fn async_main() {
@@ -42,117 +45,127 @@ async fn async_main() {
         resp.state, resp.version
     );
 
-    // println!("Process id to open?: ");
-    // let mut input = String::new();
-    // stdin().read_line(&mut input).unwrap();
-    //
-    // let id: u32 = input.trim_end().parse().unwrap();
-    //
-    // println!("Trying to open a process...");
-    // let mut process = match HxProcess::open(id) {
-    //     Ok(x) => x,
-    //     Err(e) => {
-    //         println!("Error opening process: {:?}", e);
-    //         return;
-    //     }
-    // };
-    //
-    // println!("Opened process!");
-    //
-    // let path = match process.get_nt_path().await {
-    //     Ok(x) => x,
-    //     Err(e) => {
-    //         println!("Error getting nt path of process: {:?}", e);
-    //         return;
-    //     }
-    // };
-    //
-    // println!("NT path of the process object: {}", path);
-    //
-    // let protection = match process.get_protection() {
-    //     Ok(x) => x,
-    //     Err(e) => {
-    //         println!("Error getting process protection: {:?}", e);
-    //         return;
-    //     }
-    // };
-    //
-    // println!("Process protection: {:?}", protection);
-    //
-    // let signature_levels = match process.get_signature_levels() {
-    //     Ok(x) => x,
-    //     Err(e) => {
-    //         println!("Error getting process signer levels: {:?}", e);
-    //         return;
-    //     }
-    // };
-    //
-    // println!("Process signature levels: {:?}", signature_levels);
-    //
-    // match process
-    //     .set_protection(
-    //         ProcessProtection::new()
-    //             .with_audit(false)
-    //             .with_protection_type(ProtectionType::None)
-    //             .with_signer(ProtectionSigner::None),
-    //     )
-    //     .await
-    // {
-    //     Ok(_) => println!("Process protection changed!"),
-    //     Err(x) => println!("Error changing process protection: {:?}", x),
-    // }
-    //
-    // match process
-    //     .set_signature_levels(
-    //         ProcessSignatureLevels::new()
-    //             .with_signature_level(ProcessSignatureLevel::AntiMalware)
-    //             .with_section_signature_level(0),
-    //     )
-    //     .await
-    // {
-    //     Ok(_) => println!("Process signature levels changed!"),
-    //     Err(x) => println!("Error changing process signature levels: {:?}", x),
-    // }
-    //
-    // println!("Address to read/write?: ");
-    // let mut input = String::new();
-    // stdin().read_line(&mut input).unwrap();
-    //
-    // let addr = u64::from_str_radix(&input.trim(), 16).unwrap();
-    //
-    // let vec = match process.memory.read::<u8>(addr as *mut u8, 256).await {
-    //     Ok(x) => {
-    //         println!("Read {} bytes from the process", x.len());
-    //         x
-    //     }
-    //     Err(e) => {
-    //         println!("Error reading from process memory: {:?}", e);
-    //         return;
-    //     }
-    // };
-    //
-    // println!("BEGIN {}  ============================", addr);
-    // print_hex_grid(&vec);
-    // println!("END {}  ============================", addr + vec.len() as u64);
-    //
-    // match process.memory.protect(addr as _, MemoryProtection::READWRITE).await {
-    //     Ok(x) => println!("Protected read-only memory. Old protection: {:?}", x),
-    //     Err(e) => println!("Error changing memory protection: {:?}", e),
-    // }
-    //
-    // let mut zeros: [u8; 256] = [0; 256];
-    //
-    // match process.memory.write::<u8>(addr as _, zeros.as_mut_ptr() as _, zeros.len()).await {
-    //     Ok(x) => {
-    //         println!("Written {} bytes to the process", x)
-    //     }
-    //     Err(e) => {
-    //         println!("Error writing to process memory: {:?}", e);
-    //         return;
-    //     }
-    // }
+    println!("Process id to open?: ");
+    let mut input = String::new();
+    stdin().read_line(&mut input).await.unwrap();
 
-    println!("Allocating kernel memory....");
+    let id: u32 = input.trim_end().parse().unwrap();
+
+    println!("Trying to open a process...");
+    let mut process = match HxProcess::open(id) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error opening process: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Opened process!");
+
+    let path = match process.get_nt_path().await {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting nt path of process: {:?}", e);
+            return;
+        }
+    };
+
+    println!("NT path of the process object: {}", path);
+
+    let protection = match process.get_protection() {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting process protection: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Process protection: {:?}", protection);
+
+    let signature_levels = match process.get_signature_levels() {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting process signer levels: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Process signature levels: {:?}", signature_levels);
+
+    match process
+        .set_protection(
+            ProcessProtection::new()
+                .with_audit(false)
+                .with_protection_type(ProtectionType::None)
+                .with_signer(ProtectionSigner::None),
+        )
+        .await
+    {
+        Ok(_) => println!("Process protection changed!"),
+        Err(x) => println!("Error changing process protection: {:?}", x),
+    }
+
+    match process
+        .set_signature_levels(
+            ProcessSignatureLevels::new()
+                .with_signature_level(ProcessSignatureLevel::AntiMalware)
+                .with_section_signature_level(0),
+        )
+        .await
+    {
+        Ok(_) => println!("Process signature levels changed!"),
+        Err(x) => println!("Error changing process signature levels: {:?}", x),
+    }
+
+    let threads = match process.get_threads().await {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Failed to get thread ids: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Threads: {:?}", threads);
+
+    /*println!("Address to read/write?: ");
+    let mut input = String::new();
+    stdin().read_line(&mut input).await.unwrap();
+
+    let addr = u64::from_str_radix(&input.trim(), 16).unwrap();
+
+    let vec = match process.memory.read::<u8>(addr as *mut u8, 256).await {
+        Ok(x) => {
+            println!("Read {} bytes from the process", x.len());
+            x
+        }
+        Err(e) => {
+            println!("Error reading from process memory: {:?}", e);
+            return;
+        }
+    };
+
+    println!("BEGIN {}  ============================", addr);
+    print_hex_grid(&vec);
+    println!("END {}  ============================", addr + vec.len() as u64);
+
+    match process.memory.protect(addr as _, MemoryProtection::READWRITE).await {
+        Ok(x) => println!("Protected read-only memory. Old protection: {:?}", x),
+        Err(e) => println!("Error changing memory protection: {:?}", e),
+    }
+
+    let mut zeros: [u8; 256] = [0; 256];
+
+    match process.memory.write::<u8>(addr as _, zeros.as_mut_ptr() as _, zeros.len()).await {
+        Ok(x) => {
+            println!("Written {} bytes to the process", x)
+        }
+        Err(e) => {
+            println!("Error writing to process memory: {:?}", e);
+            return;
+        }
+    }*/
+
+/*    println!("Allocating kernel memory....");
 
     let mut allocation = match HxMemory::alloc::<u64>(MemoryPool::NonPaged).await {
         Ok(x) => x,
@@ -191,7 +204,7 @@ async fn async_main() {
         assert_eq!(*_guard, 5);
     }
 
-    allocation.free();
+    allocation.free();*/
 
     // println!("Sending command to kill process...");
     //
