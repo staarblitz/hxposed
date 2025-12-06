@@ -1,6 +1,6 @@
 use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
-use crate::hxposed::requests::process::{ProcessMemoryOperation, RWProcessMemoryRequest};
+use crate::hxposed::requests::process::{ProcessMemoryOperation, ProtectProcessMemoryRequest, RWProcessMemoryRequest};
 use crate::plugins::plugin_perms::PluginPermissions;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -29,6 +29,8 @@ impl HxMemory {
     ///
     /// ## Permissions
     /// - [`PluginPermissions::PROCESS_MEMORY`]
+    /// - [`PluginPermissions::MEMORY_VIRTUAL`]
+    /// - [`PluginPermissions::MEMORY_PROTECT`]
     ///
     /// ## Returns
     /// * [`MemoryProtection`] - Returns the old protection.
@@ -36,10 +38,16 @@ impl HxMemory {
     ///
     pub async fn protect(
         &mut self,
-        address: *const u8,
+        address: *mut u8,
         protection: MemoryProtection,
     ) -> Result<MemoryProtection, HypervisorError> {
+        let result = ProtectProcessMemoryRequest {
+            id: self.id,
+            address: address as _,
+            protection,
+        }.send_async().await?;
 
+        Ok(result.old_protection)
     }
 
     ///
@@ -53,6 +61,7 @@ impl HxMemory {
     ///
     /// ## Permissions
     /// - [`PluginPermissions::PROCESS_MEMORY`]
+    /// - [`PluginPermissions::MEMORY_VIRTUAL`]
     ///
     /// ## Returns
     /// * [`Vec<T>`] - Number of items read.
@@ -60,7 +69,7 @@ impl HxMemory {
     ///
     pub async fn read<T>(
         &self,
-        address: *const u8,
+        address: *mut u8,
         count: usize,
     ) -> Result<Vec<T>, HypervisorError> {
         let mut raw = vec![0u8; count * size_of::<T>()];
@@ -76,7 +85,7 @@ impl HxMemory {
         .send_async()
         .await?;
 
-        let ptr = raw.as_ptr() as *const T;
+        let ptr = raw.as_ptr() as *mut T;
         let len = result.bytes_processed / size_of::<T>();
 
         let mut out = Vec::with_capacity(len);
@@ -100,9 +109,10 @@ impl HxMemory {
     ///
     /// ## Permissions
     /// - [`PluginPermissions::PROCESS_MEMORY`]
+    /// - [`PluginPermissions::MEMORY_VIRTUAL`]
     ///
     /// ## Returns
-    /// * [`RWProcessMemoryResponse`] - Contains number of bytes read
+    /// * [`usize`] - Contains number of bytes read.
     /// * [`HypervisorError`] - Any error `ReadProcessMemory` can return.
     ///
     pub async fn write<T>(
@@ -110,14 +120,16 @@ impl HxMemory {
         address: *mut u8,
         data: *const T,
         count: usize,
-    ) -> Result<RWProcessMemoryResponse, HypervisorError> {
-        RWProcessMemoryRequest {
+    ) -> Result<usize, HypervisorError> {
+        let result = RWProcessMemoryRequest {
             id: self.id,
             address: address as _,
             count: count * size_of::<T>(),
             data: data as _,
             data_len: count * size_of::<T>(),
             operation: ProcessMemoryOperation::Write
-        }.send_async().await
+        }.send_async().await?;
+
+        Ok(result.bytes_processed)
     }
 }
