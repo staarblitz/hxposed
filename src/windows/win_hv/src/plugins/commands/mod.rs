@@ -14,6 +14,7 @@ pub trait AsyncCommand: Any {
     fn as_any(&self) -> &dyn Any;
 }
 
+
 fn write_and_set(result: &HypervisorResponse, result_values: *mut u64, handle: HANDLE) {
     match microseh::try_seh(|| unsafe { ProbeForWrite(result_values as _, 16, 1) }) {
         Ok(_) => unsafe {
