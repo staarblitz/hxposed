@@ -1,4 +1,4 @@
-use crate::plugins::plugin::Plugin;
+pub(crate) use crate::plugins::plugin::Plugin;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use crate::{PLUGINS, as_pvoid, panic};
