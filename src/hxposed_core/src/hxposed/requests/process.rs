@@ -1,13 +1,11 @@
-use alloc::boxed::Box;
-use core::mem;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
-use crate::hxposed::responses::process::{
-    GetProcessFieldResponse, OpenProcessResponse, RWProcessMemoryResponse,
-};
-use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
-use core::sync::atomic::{AtomicPtr, Ordering};
+use crate::hxposed::responses::process::*;
+use crate::services::types::memory_fields::MemoryProtection;
+use crate::services::types::process_fields::*;
+use alloc::boxed::Box;
+use core::mem;
 
 #[derive(Clone, Default, Debug)]
 #[repr(C)]
@@ -36,7 +34,7 @@ pub struct GetProcessFieldRequest {
     pub id: u32,
     pub field: ProcessField,
     pub data: *mut u8,
-    pub data_len: usize
+    pub data_len: usize,
 }
 
 #[derive(Default, Debug)]
@@ -57,6 +55,13 @@ pub struct RWProcessMemoryRequest {
     pub data: *mut u8,
     pub data_len: usize,
     pub operation: ProcessMemoryOperation,
+}
+
+#[derive(Default, Debug)]
+pub struct ProtectProcessMemoryRequest {
+    pub id: u32,
+    pub address: *mut u8,
+    pub protection: MemoryProtection,
 }
 
 impl VmcallRequest for OpenProcessRequest {
@@ -136,7 +141,6 @@ impl VmcallRequest for GetProcessFieldRequest {
     type Response = GetProcessFieldResponse;
 
     fn into_raw(self) -> *mut HypervisorRequest {
-
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_process_field(),
             arg1: self.id as _,
@@ -157,7 +161,7 @@ impl VmcallRequest for GetProcessFieldRequest {
             id: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as *mut u8,
-            data_len: request.extended_arg2 as _
+            data_len: request.extended_arg2 as _,
         }
     }
 }
@@ -227,6 +231,33 @@ impl VmcallRequest for RWProcessMemoryRequest {
     }
 }
 
+impl VmcallRequest for ProtectProcessMemoryRequest {
+    type Response = ProtectProcessMemoryResponse;
+
+    fn into_raw(self) -> *mut HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
+            call: HypervisorCall::process_vm_protect(),
+            arg1: self.id as _,
+            arg2: self.address as _,
+            arg3: self.protection.bits() as _,
+
+            ..Default::default()
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self {
+            id: request.arg1 as _,
+            address: request.arg2 as _,
+            protection: MemoryProtection::from_bits(request.arg3 as _).unwrap(),
+        }
+    }
+}
+
 impl SetProcessFieldRequest {
     pub(crate) fn set_protection(id: u32, new_protection: &mut ProcessProtection) -> Self {
         Self {
@@ -251,7 +282,7 @@ impl SetProcessFieldRequest {
 pub enum ProcessMemoryOperation {
     #[default]
     Read,
-    Write
+    Write,
 }
 
 impl ProcessMemoryOperation {
