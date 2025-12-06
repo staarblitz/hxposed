@@ -187,7 +187,8 @@ async fn async_main() {
             }
         };
 
-        println!("Previous value: {}", *_guard); // 5
+        println!("Previous value: {}", *_guard);
+        assert_eq!(*_guard, 5);
     }
 
     allocation.free();
