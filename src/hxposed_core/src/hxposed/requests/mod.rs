@@ -11,6 +11,7 @@ use core::pin::Pin;
 pub mod auth;
 pub mod process;
 pub mod status;
+pub mod memory;
 
 #[derive(Clone, Default, Debug)]
 pub struct HypervisorRequest {
