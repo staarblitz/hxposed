@@ -8,28 +8,24 @@ use alloc::boxed::Box;
 use core::mem;
 
 #[derive(Clone, Default, Debug)]
-#[repr(C)]
 pub struct OpenProcessRequest {
     pub process_id: u32,
     pub open_type: ProcessOpenType,
 }
 
 #[derive(Clone, Default, Debug)]
-#[repr(C)]
 pub struct CloseProcessRequest {
     pub addr: u64,
     pub open_type: ProcessOpenType,
 }
 
 #[derive(Clone, Default, Debug)]
-#[repr(C)]
 pub struct KillProcessRequest {
     pub id: u32,
     pub exit_code: u32,
 }
 
 #[derive(Default, Debug, Clone)]
-#[repr(C)]
 pub struct GetProcessFieldRequest {
     pub id: u32,
     pub field: ProcessField,
@@ -38,7 +34,6 @@ pub struct GetProcessFieldRequest {
 }
 
 #[derive(Default, Debug)]
-#[repr(C)]
 pub struct SetProcessFieldRequest {
     pub id: u32,
     pub field: ProcessField,
@@ -46,7 +41,39 @@ pub struct SetProcessFieldRequest {
     pub data_len: usize,
 }
 
+#[derive(Default, Debug)]
+pub struct GetProcessThreadsRequest {
+    pub id: u32,
+    pub data: *mut u8,
+    pub data_len: usize,
+}
 
+impl VmcallRequest for GetProcessThreadsRequest {
+    type Response = GetProcessThreadsResponse;
+
+    fn into_raw(self) -> *mut HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
+            call: HypervisorCall::get_process_threads(),
+            arg1: self.id as _,
+            arg2: self.data as _,
+            arg3: self.data_len as _,
+
+            ..Default::default()
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self {
+            id: request.arg1 as _,
+            data: request.arg2 as _,
+            data_len: request.arg3 as _,
+        }
+    }
+}
 
 impl VmcallRequest for OpenProcessRequest {
     type Response = OpenProcessResponse;
@@ -180,8 +207,6 @@ impl VmcallRequest for SetProcessFieldRequest {
     }
 }
 
-
-
 impl SetProcessFieldRequest {
     pub(crate) fn set_protection(id: u32, new_protection: &mut ProcessProtection) -> Self {
         Self {
@@ -229,7 +254,6 @@ impl ProcessField {
 #[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
 pub enum ProcessOpenType {
     #[default]
-    #[deprecated(note = "Has no effect.")]
     Handle = 0,
     Hypervisor = 1,
 }
