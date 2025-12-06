@@ -1,6 +1,8 @@
 use crate::PLUGINS;
 use crate::nt::context::ApcProcessContext;
+use crate::plugins::commands::memory::*;
 use crate::plugins::commands::process::*;
+use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::win::timing;
 use core::sync::atomic::Ordering;
@@ -59,6 +61,12 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                     command
                         .as_any()
                         .downcast_ref::<RWProcessMemoryAsyncCommand>()
+                        .unwrap(),
+                ),
+                ServiceFunction::ProtectProcessMemory => protect_vm_sync(
+                    command
+                        .as_any()
+                        .downcast_ref::<ProtectProcessMemoryAsyncCommand>()
                         .unwrap(),
                 ),
                 _ => unreachable!("Forgot to implement this one!"),
