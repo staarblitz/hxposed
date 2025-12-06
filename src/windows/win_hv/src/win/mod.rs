@@ -130,6 +130,15 @@ unsafe extern "C" {
     ) -> NTSTATUS;
 
     #[allow(non_snake_case)]
+    pub fn ZwProtectVirtualMemory(
+        ProcessHandle: HANDLE,
+        BaseAddress: *mut PVOID,
+        RegionSize: PSIZE_T,
+        NewProtection: ULONG,
+        OldProtection: PULONG
+    ) -> NTSTATUS;
+
+    #[allow(non_snake_case)]
     pub fn ZwResumeThread(Thread: HANDLE, PreviousWhateverGarbage: PULONG) -> NTSTATUS;
 
     #[allow(non_snake_case)]
