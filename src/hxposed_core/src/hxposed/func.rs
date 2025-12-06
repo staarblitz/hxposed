@@ -12,6 +12,7 @@ pub enum ServiceFunction {
     GetProcessField = 8,
     SetProcessField = 9,
     ProcessVMOperation = 10,
+    ProtectProcessMemory = 11,
 }
 
 impl ServiceFunction {
@@ -32,6 +33,7 @@ impl ServiceFunction {
             8 => ServiceFunction::GetProcessField,
             9 => ServiceFunction::SetProcessField,
             10 => ServiceFunction::ProcessVMOperation,
+            11 => ServiceFunction::ProtectProcessMemory,
             _ => ServiceFunction::Unknown
         }
     }
