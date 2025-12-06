@@ -19,3 +19,34 @@ bitflags! {
         const INVALID = 0x40000000;
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum MemoryType {
+    Virtual,
+    Physical
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub enum MemoryPool {
+    #[default]
+    NonPaged
+}
+
+impl MemoryPool {
+    pub const fn into_bits(self) -> u8 {
+        self as _
+    }
+
+    pub const fn from_bits(bits: u8) -> Self {
+        match bits {
+            _ => Self::NonPaged,
+        }
+    }
+}
+
+pub enum KernelMemoryState {
+    None,
+    Allocated,
+    Mapped,
+    Freed
+}
