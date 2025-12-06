@@ -13,9 +13,12 @@ use std::arch::asm;
 use std::fmt::Display;
 use std::io::stdin;
 use std::str::FromStr;
+use hxposed_core::services::types::memory_fields::MemoryProtection;
 use uuid::Uuid;
 
 async fn async_main() {
+    let perms = PluginPermissions::all();
+
     let uuid = Uuid::from_str("ca170835-4a59-4c6d-a04b-f5866f592c38").unwrap();
     println!("Authorizing with UUID {}", uuid);
 
@@ -124,7 +127,7 @@ async fn async_main() {
 
     let addr = u64::from_str_radix(&input.trim(), 16).unwrap();
 
-    let vec = match process.memory.read_mem::<u8>(addr as *mut u8, 256).await {
+    let vec = match process.memory.read::<u8>(addr as *mut u8, 256).await {
         Ok(x) => {
             println!("Read {} bytes from the process", x.len());
             x
@@ -139,11 +142,16 @@ async fn async_main() {
     print_hex_grid(&vec);
     println!("END {}  ============================", addr + vec.len() as u64);
 
+    match process.memory.protect(addr as _, MemoryProtection::READWRITE).await {
+        Ok(x) => println!("Protected read-only memory. Old protection: {:?}", x),
+        Err(e) => println!("Error changing memory protection: {:?}", e),
+    }
+
     let mut zeros: [u8; 256] = [0; 256];
 
-    match process.memory.write_mem::<u8>(addr as _, zeros.as_mut_ptr() as _, zeros.len()).await {
+    match process.memory.write::<u8>(addr as _, zeros.as_mut_ptr() as _, zeros.len()).await {
         Ok(x) => {
-            println!("Written {} bytes to the process", x.bytes_processed)
+            println!("Written {} bytes to the process", x)
         }
         Err(e) => {
             println!("Error writing to process memory: {:?}", e);
