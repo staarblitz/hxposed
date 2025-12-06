@@ -1,22 +1,25 @@
-use alloc::boxed::Box;
-use alloc::collections::VecDeque;
+use crate::plugins::commands::AsyncCommand;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use crate::{PLUGINS, as_pvoid, get_data};
+use alloc::boxed::Box;
+use alloc::collections::VecDeque;
 use alloc::format;
 use alloc::vec::Vec;
+use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{IoGetCurrentProcess, PsGetProcessId, ZwClose, ZwOpenKey, ZwQueryValueKey};
-use wdk_sys::{_KPROCESS, PEPROCESS, PVOID};
-use wdk_sys::{
-    HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
-    OBJECT_ATTRIBUTES, STATUS_SUCCESS,
+use wdk_sys::ntddk::{
+    IoAllocateMdl, IoGetCurrentProcess, PsGetProcessId, ZwClose, ZwOpenKey, ZwQueryValueKey,
 };
-use crate::plugins::commands::AsyncCommand;
+use wdk_sys::{_KPROCESS, MDL, PEPROCESS, PVOID};
+use wdk_sys::{
+    FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE,
+    OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PIRP, STATUS_SUCCESS,
+};
 
 #[derive(Default)]
 pub(crate) struct Plugin {
@@ -25,7 +28,8 @@ pub(crate) struct Plugin {
     pub authorized_permissions: PluginPermissions,
     pub process: AtomicPtr<_KPROCESS>,
     pub open_processes: Vec<AtomicPtr<_KPROCESS>>,
-    pub awaiting_commands: VecDeque<Box<dyn AsyncCommand>>
+    pub allocated_mdls: Vec<Box<MDL>>,
+    pub awaiting_commands: VecDeque<Box<dyn AsyncCommand>>,
 }
 impl Plugin {
     ///
@@ -48,6 +52,44 @@ impl Plugin {
     /// - Whatever [`VecDeque::pop_back`] returns.
     pub fn dequeue_command(&mut self) -> Option<Box<dyn AsyncCommand>> {
         self.awaiting_commands.pop_front()
+    }
+
+    pub fn allocate_mdl(&mut self, ptr: PVOID, length: u32) -> &mut Box<MDL> {
+        // uses ExAllocatePool. so it's safe for us to wrap it in our Box.
+        let mdl = unsafe {
+            Box::from_raw(IoAllocateMdl(
+                ptr,
+                length,
+                FALSE as _,
+                FALSE as _,
+                PIRP::default(),
+            ))
+        };
+        self.allocated_mdls.push(mdl);
+
+        self.allocated_mdls.last_mut().unwrap()
+    }
+
+    pub fn get_allocated_mdl(
+        &mut self,
+        mapped_system_va: u64
+    ) -> Option<&mut Box<MDL>> {
+        self.allocated_mdls.iter_mut().find(|m| {
+            m.MappedSystemVa as u64 == mapped_system_va
+        })
+    }
+
+    pub fn pop_allocated_mdl(
+        &mut self,
+        mapped_system_va: u64
+    ) -> Option<Box<MDL>> {
+        if let Some(pos) = self.allocated_mdls.iter().position(|m| {
+            m.MappedSystemVa as u64 == mapped_system_va
+        }) {
+            Some(self.allocated_mdls.remove(pos))
+        } else {
+            None
+        }
     }
 
     ///
@@ -146,6 +188,16 @@ impl Plugin {
     /// # Permission Check
     ///
     /// Quick permission check for [self.authorized_permissions]
+    #[cfg(debug_assertions)]
+    pub fn perm_check(&self, permissions: PluginPermissions) -> bool {
+       true
+    }
+
+    ///
+    /// # Permission Check
+    ///
+    /// Quick permission check for [self.authorized_permissions]
+    #[cfg(not(debug_assertions))]
     pub fn perm_check(&self, permissions: PluginPermissions) -> bool {
         self.authorized_permissions.contains(permissions)
     }
@@ -226,6 +278,7 @@ impl Plugin {
             permissions,
             authorized_permissions: permissions,
             process: AtomicPtr::default(),
+            allocated_mdls: Vec::new(),
             open_processes: Vec::new(),
             awaiting_commands: VecDeque::with_capacity(32),
         })
