@@ -1,21 +1,82 @@
 use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
-use crate::hxposed::requests::process::{ProcessMemoryOperation, ProtectProcessMemoryRequest, RWProcessMemoryRequest};
+use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
+use crate::services::types::memory_fields::{KernelMemoryState, MemoryPool, MemoryProtection};
 use alloc::vec;
 use alloc::vec::Vec;
+use core::marker::PhantomData;
 use core::ptr::copy_nonoverlapping;
-use crate::hxposed::responses::process::RWProcessMemoryResponse;
-use crate::intern::win::GetCurrentProcessId;
-use crate::services::types::memory_fields::MemoryProtection;
+use crate::hxposed::call::ServiceParameter;
+use crate::hxposed::requests::memory::*;
+use crate::hxposed::responses::HypervisorResponse;
+use crate::services::memory_map::HxMemoryDescriptor;
 
 pub struct HxMemory {
     pub id: u32,
 }
 
 impl HxMemory {
-    pub fn current() -> HxMemory{
-        HxMemory { id: unsafe {GetCurrentProcessId()} }
+    ///
+    /// # Current Memory
+    ///
+    /// Opens instance of HxMemory for current process.
+    pub fn current() -> HxMemory {
+        HxMemory {
+            id: unsafe { GetCurrentProcessId() },
+        }
+    }
+
+    ///
+    /// # Allocate<T>
+    ///
+    /// Allocates memory from kernel non-paged pool enough to hold an instance of [`T`].
+    ///
+    /// ## Arguments
+    /// * `pool` - Kind of pool to allocate from. See [`MemoryPool`].
+    ///
+    /// ## Remarks
+    /// - This function allocates from kernel memory. Use with caution!
+    /// - The memory is only ALLOCATED, not MAPPED. Use [`HxMemoryDescriptor::map`] to map memory into a process' address space.
+    /// - The allocation will NOT be freed when process exits. You can access your existing allocations using [`Self::get_allocs`].
+    /// - The align value is discarded, currently.
+    /// - Size of [`T`] must not be bigger than [`u32::MAX`].
+    ///
+    /// ## Permissions
+    /// - [`PluginPermissions::MEMORY_PHYSICAL`]
+    /// - [`PluginPermissions::MEMORY_VIRTUAL`]
+    /// - [`PluginPermissions::MEMORY_ALLOCATION`]
+    ///
+    /// ## Return
+    /// * [`HxMemoryDescriptor<T>`] - An abstract representation of the allocation. See [`HxMemoryDescriptor`].
+    /// * [`HypervisorError`] - Most likely an NT error telling there is not enough memory caused by your blunders using this framework.
+    ///
+    /// ## Example
+    /// ```rust
+    /// let alloc = HxMemory::alloc<u8>(MemoryPool::NonPaged).unwrap();
+    /// {
+    ///     let map = alloc.map().unwrap();
+    ///     *map.as_mut() = 5;
+    /// } // automatically unmaps
+    ///
+    /// ```
+    pub async fn alloc<T>(pool: MemoryPool) -> Result<HxMemoryDescriptor<T>, HypervisorError> {
+        let size = size_of::<T>();
+        if size > u32::MAX as usize {
+            return Err(HypervisorError::from_response(HypervisorResponse::invalid_params(ServiceParameter::Arg2)))
+        }
+
+        let align = align_of::<T>();
+
+        let alloc = AllocateMemoryRequest {
+            size: size as u32,
+            align,
+            pool,
+        }
+        .send_async()
+        .await?;
+
+        Ok(HxMemoryDescriptor::<T>::new(alloc.address, alloc.bytes_allocated, pool, KernelMemoryState::Allocated))
     }
 
     ///
@@ -45,7 +106,9 @@ impl HxMemory {
             id: self.id,
             address: address as _,
             protection,
-        }.send_async().await?;
+        }
+        .send_async()
+        .await?;
 
         Ok(result.old_protection)
     }
@@ -67,11 +130,7 @@ impl HxMemory {
     /// * [`Vec<T>`] - Number of items read.
     /// * [`HypervisorError`] - Any error `ReadProcessMemory` can return.
     ///
-    pub async fn read<T>(
-        &self,
-        address: *mut u8,
-        count: usize,
-    ) -> Result<Vec<T>, HypervisorError> {
+    pub async fn read<T>(&self, address: *mut u8, count: usize) -> Result<Vec<T>, HypervisorError> {
         let mut raw = vec![0u8; count * size_of::<T>()];
 
         let result = RWProcessMemoryRequest {
@@ -80,7 +139,7 @@ impl HxMemory {
             count: count * size_of::<T>(),
             data: raw.as_mut_ptr(),
             data_len: count * size_of::<T>(),
-            operation: ProcessMemoryOperation::Read
+            operation: ProcessMemoryOperation::Read,
         }
         .send_async()
         .await?;
@@ -127,8 +186,10 @@ impl HxMemory {
             count: count * size_of::<T>(),
             data: data as _,
             data_len: count * size_of::<T>(),
-            operation: ProcessMemoryOperation::Write
-        }.send_async().await?;
+            operation: ProcessMemoryOperation::Write,
+        }
+        .send_async()
+        .await?;
 
         Ok(result.bytes_processed)
     }
