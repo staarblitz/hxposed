@@ -8,9 +8,9 @@ use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
+use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
@@ -123,9 +123,12 @@ pub fn handle_process_services(
     async_info: UnsafeAsyncInfo,
 ) {
     let result = match request.call.func() {
-        ServiceFunction::OpenProcess => {
-            open_process(guest, OpenProcessRequest::from_raw(request), plugin)
-        }
+        ServiceFunction::OpenProcess => open_process_async(
+            guest,
+            OpenProcessRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
         ServiceFunction::CloseProcess => {
             close_process(guest, CloseProcessRequest::from_raw(request), plugin)
         }
@@ -141,6 +144,18 @@ pub fn handle_process_services(
             plugin,
             async_info,
         ),
+        ServiceFunction::GetProcessThreads => {
+            if !request.call.is_async() {
+                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+            } else {
+                get_process_threads_async(
+                    guest,
+                    GetProcessThreadsRequest::from_raw(request),
+                    plugin,
+                    async_info,
+                )
+            }
+        }
         ServiceFunction::KillProcess => {
             if !request.call.is_async() {
                 HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
