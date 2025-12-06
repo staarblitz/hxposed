@@ -1,31 +1,22 @@
-use crate::nt::context::ApcProcessContext;
 use crate::nt::{EProcessField, get_eprocess_field};
 use crate::plugins::commands::process::*;
 use crate::plugins::plugin::Plugin;
-use crate::win::{MmCopyVirtualMemory, PsTerminateProcess};
+use crate::win::PsTerminateProcess;
 use alloc::boxed::Box;
-use alloc::vec::Vec;
-use core::ops::BitOr;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::process::{
-    CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField, ProcessMemoryOperation, RWProcessMemoryRequest, SetProcessFieldRequest,
-};
+use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
-use hxposed_core::hxposed::responses::process::{
-    GetProcessFieldResponse, OpenProcessResponse, RWProcessMemoryResponse,
-};
+use hxposed_core::hxposed::responses::process::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
-use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{ProbeForRead, ProbeForWrite, PsLookupProcessByProcessId};
-use wdk_sys::{_UNICODE_STRING, PEPROCESS, SIZE_T, STATUS_SUCCESS};
+use wdk_sys::{_UNICODE_STRING, PEPROCESS, STATUS_SUCCESS};
 
 ///
 /// # Set Process Field
