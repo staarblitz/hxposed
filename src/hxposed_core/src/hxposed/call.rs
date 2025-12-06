@@ -35,6 +35,9 @@ impl HypervisorCall {
     pub(crate) fn kill_process() -> Self {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
+    pub(crate) fn get_process_threads() -> Self {
+        Self::new().with_func(ServiceFunction::GetProcessThreads)
+    }
 
     pub(crate) fn mem_map() -> Self {
         Self::new().with_func(ServiceFunction::MapMemory)
