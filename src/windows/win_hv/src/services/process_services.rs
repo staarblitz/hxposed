@@ -1,13 +1,11 @@
 use crate::nt::context::ApcProcessContext;
 use crate::nt::{EProcessField, get_eprocess_field};
-use crate::plugins::commands::process::{
-    GetProcessFieldAsyncCommand, KillProcessAsyncCommand, RWProcessMemoryAsyncCommand,
-    SetProcessFieldAsyncCommand,
-};
+use crate::plugins::commands::process::*;
 use crate::plugins::plugin::Plugin;
 use crate::win::{MmCopyVirtualMemory, PsTerminateProcess};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use core::ops::BitOr;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
@@ -28,73 +26,6 @@ use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSi
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{ProbeForRead, ProbeForWrite, PsLookupProcessByProcessId};
 use wdk_sys::{_UNICODE_STRING, PEPROCESS, SIZE_T, STATUS_SUCCESS};
-
-pub(crate) fn process_vm_operation_async(
-    _guest: &mut dyn Guest,
-    request: RWProcessMemoryRequest,
-    plugin: &'static mut Plugin,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    // if !plugin.perm_check(PluginPermissions::PROCESS_MEMORY) {
-    //     return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_MEMORY);
-    // }
-
-    let process = match plugin.get_open_process(Some(request.id), None) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
-    };
-
-    plugin.queue_command(Box::new(RWProcessMemoryAsyncCommand {
-        plugin_process: plugin.process.load(Ordering::Relaxed),
-        process,
-        command: request,
-        async_info,
-    }));
-
-    EmptyResponse::with_service(ServiceFunction::ProcessVMOperation)
-}
-
-pub(crate) fn process_vm_operation_sync(
-    request: &RWProcessMemoryAsyncCommand,
-) -> HypervisorResponse {
-    if request.command.data_len > 4096 * 4 {
-        return HypervisorResponse::not_allowed(NotAllowedReason::Unknown);
-    }
-
-    let mut return_size = SIZE_T::default();
-
-    // this is gross but also amazing.
-    match match request.command.operation {
-        ProcessMemoryOperation::Read => unsafe {
-            MmCopyVirtualMemory(
-                request.process,
-                request.command.address as _,
-                request.plugin_process,
-                request.command.data as _,
-                request.command.data_len as _,
-                KernelMode as _,
-                &mut return_size,
-            )
-        },
-        ProcessMemoryOperation::Write => unsafe {
-            MmCopyVirtualMemory(
-                request.plugin_process,
-                request.command.data as _,
-                request.process,
-                request.command.address as _,
-                request.command.data_len as _,
-                KernelMode as _,
-                &mut return_size,
-            )
-        },
-    } {
-        STATUS_SUCCESS => RWProcessMemoryResponse {
-            bytes_processed: return_size as _,
-        }
-        .into_raw(),
-        err => HypervisorResponse::nt_error(err as _),
-    }
-}
 
 ///
 /// # Set Process Field
