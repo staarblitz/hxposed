@@ -1,11 +1,8 @@
 use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
-use crate::hxposed::requests::process::{
-    CloseProcessRequest, GetProcessFieldRequest, KillProcessRequest, OpenProcessRequest,
-    ProcessField, ProcessOpenType, SetProcessFieldRequest,
-};
+use crate::hxposed::requests::process::{CloseProcessRequest, GetProcessFieldRequest, GetProcessThreadsRequest, KillProcessRequest, OpenProcessRequest, ProcessField, ProcessOpenType, SetProcessFieldRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
-use crate::hxposed::responses::process::GetProcessFieldResponse;
+use crate::hxposed::responses::process::{GetProcessFieldResponse, GetProcessThreadsResponse};
 use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
@@ -46,6 +43,61 @@ impl HxProcess {
     }
 
     ///
+    /// # Open Handle
+    ///
+    /// Returns a handle with `PROCESS_ALL_ACCESS`.
+    ///
+    /// Remember that you still might have to remove process protection ([`Self::set_protection`]) to have full access to the process object.
+    ///
+    /// ## Arguments
+    /// * `id` - Process id
+    ///
+    /// ## Returns
+    /// - Handle as an u64.
+    pub async fn open_handle(id: u32) -> Result<u64, HypervisorError> {
+        let result = OpenProcessRequest {
+            process_id: id,
+            open_type: ProcessOpenType::Handle,
+        }.send_async().await?;
+
+        Ok(result.addr)
+    }
+
+    ///
+    /// # Get Threads
+    ///
+    /// Iterates over the threads of the process object.
+    ///
+    /// ## Warning
+    /// This temporarily locks the process object for safe access. (You probably don't care, just saying in case you do.)
+    ///
+    /// ## Returns
+    /// * [`Vec<u32>`] - Vector containing the ids of threads under specified process.
+    pub async fn get_threads(&self) -> Result<Vec<u32>, HypervisorError> {
+        let result = GetProcessThreadsRequest {
+            id: self.id,
+            data: 0 as _,
+            data_len: 0,
+        }.send_async().await?;
+
+        let mut buffer = Vec::<u32>::with_capacity(result.number_of_threads as _);
+
+        let result = GetProcessThreadsRequest {
+            id: self.id,
+            data: buffer.as_mut_ptr() as _,
+            data_len: (buffer.capacity() as i32 * 4) as _,
+        }.send_async().await?;
+
+        assert_eq!(buffer.capacity(), result.number_of_threads as _);
+
+        unsafe {
+            buffer.set_len(result.number_of_threads as _);
+        }
+
+        Ok(buffer)
+    }
+
+    ///
     /// # Open
     ///
     /// Opens a process.
@@ -57,7 +109,7 @@ impl HxProcess {
     /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
-    /// - [Result] containing [NtProcess] or error.
+    /// * [`Result`] containing [`NtProcess`] or error.
     ///
     /// ## Example
     ///
