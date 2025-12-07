@@ -52,6 +52,9 @@ impl HxProcess {
     /// ## Arguments
     /// * `id` - Process id
     ///
+    /// ## Warning
+    /// - The caller holds full ownership to the handle.
+    ///
     /// ## Returns
     /// * Handle as an u64.
     pub async fn open_handle(id: u32) -> Result<u64, HypervisorError> {
