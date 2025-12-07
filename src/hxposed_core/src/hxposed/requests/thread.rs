@@ -2,9 +2,9 @@ use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
+use crate::hxposed::responses::thread::*;
 use alloc::boxed::Box;
 use core::mem;
-use crate::hxposed::responses::thread::*;
 
 #[derive(Clone, Default, Debug)]
 pub struct OpenThreadRequest {
@@ -19,17 +19,86 @@ pub struct CloseThreadRequest {
     pub open_type: ObjectOpenType,
 }
 
-#[derive(Clone,Default,Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct SuspendResumeThreadRequest {
     pub id: u32,
-    pub operation: SuspendResumeThreadOperation
+    pub operation: SuspendResumeThreadOperation,
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct KillThreadRequest {
+    pub id: u32,
+    pub exit_code: u32,
+}
+
+#[derive(Clone,Default,Debug)]
+pub struct GetSetThreadContextRequest {
+    pub id: u32,
+    pub operation: ThreadContextOperation,
+    pub data: *mut u8,
+    pub data_len: usize
+}
+
+impl VmcallRequest for GetSetThreadContextRequest {
+    type Response = EmptyResponse;
+
+    fn into_raw(self) -> *mut HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
+            call: HypervisorCall::get_set_thread_context(),
+            arg1: self.id as _,
+            arg2: self.operation.clone().into_bits() as _,
+
+            extended_arg1: self.data as _,
+            extended_arg2: self.data_len as _,
+
+            ..Default::default()
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self {
+            id: request.arg1 as _,
+            operation: ThreadContextOperation::from_bits(request.arg2 as _),
+            data: request.extended_arg1 as _,
+            data_len: request.extended_arg2 as _,
+        }
+    }
+}
+
+impl VmcallRequest for KillThreadRequest {
+    type Response = EmptyResponse;
+
+    fn into_raw(self) -> *mut HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
+            call: HypervisorCall::kill_thread(),
+            arg1: self.id as _,
+            arg2: self.exit_code as _,
+
+            ..Default::default()
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
+    }
+
+    fn from_raw(raw: &HypervisorRequest) -> Self {
+        Self {
+            id: raw.arg1 as _,
+            exit_code: raw.arg2 as _,
+        }
+    }
 }
 
 impl VmcallRequest for SuspendResumeThreadRequest {
     type Response = SuspendThreadResponse;
 
     fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest{
+        let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::suspend_resume_thread(),
             arg1: self.id as _,
             arg2: self.operation.clone().into_bits() as _,
@@ -45,7 +114,7 @@ impl VmcallRequest for SuspendResumeThreadRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             id: request.arg1 as _,
-            operation: SuspendResumeThreadOperation::from_bits(request.arg2 as _)
+            operation: SuspendResumeThreadOperation::from_bits(request.arg2 as _),
         }
     }
 }
@@ -104,12 +173,32 @@ impl VmcallRequest for OpenThreadRequest {
     }
 }
 
-#[derive(Clone,Default,Debug)]
+#[derive(Clone, Default, Debug)]
+pub enum ThreadContextOperation{
+    #[default]
+    Set,
+    Get
+}
+
+impl ThreadContextOperation {
+    pub const fn into_bits(self) -> u8 {
+        self as _
+    }
+
+    pub const fn from_bits(bits: u8) -> Self {
+        match bits {
+            1 => Self::Get,
+            _ => Self::Set,
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug)]
 pub enum SuspendResumeThreadOperation {
     #[default]
     Suspend,
     Resume,
-    Freeze
+    Freeze,
 }
 
 impl SuspendResumeThreadOperation {
@@ -117,7 +206,7 @@ impl SuspendResumeThreadOperation {
         self as _
     }
 
-    pub const  fn from_bits(bits: u8) -> Self {
+    pub const fn from_bits(bits: u8) -> Self {
         match bits {
             1 => Self::Resume,
             2 => Self::Suspend,
