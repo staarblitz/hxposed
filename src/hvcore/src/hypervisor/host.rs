@@ -83,7 +83,6 @@ fn handle_vmcall<T: Guest>(guest: &mut T, info: &InstructionInfo) {
 fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
     let leaf = guest.regs().rax as u32;
     let sub_leaf = guest.regs().rcx as u32;
-    log::trace!("CPUID {leaf:#x?} {sub_leaf:#x?}");
 
     if sub_leaf == 0x2009 {
         // Our CPUID trap
@@ -126,7 +125,6 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
 /// Handles the `RDMSR` instruction for the range not covered by MSR bitmaps.
 fn handle_rdmsr<T: Guest>(guest: &mut T, info: &InstructionInfo) {
     let msr = guest.regs().rcx as u32;
-    log::trace!("RDMSR {msr:#x?}");
 
     // Passthrough any MSR access. Beware of that VM-exit occurs even for an
     // invalid MSR access which causes #GP(0).
@@ -144,7 +142,6 @@ fn handle_rdmsr<T: Guest>(guest: &mut T, info: &InstructionInfo) {
 fn handle_wrmsr<T: Guest>(guest: &mut T, info: &InstructionInfo) {
     let msr = guest.regs().rcx as u32;
     let value = (guest.regs().rax & 0xffff_ffff) | ((guest.regs().rdx & 0xffff_ffff) << 32);
-    log::trace!("WRMSR {msr:#x?} {value:#x?}");
 
     // See the comment in `handle_rdmsr`.
     wrmsr(msr, value);
@@ -157,7 +154,6 @@ fn handle_xsetbv<T: Guest>(guest: &mut T, info: &InstructionInfo) {
     let xcr: u32 = guest.regs().rcx as u32;
     let value = (guest.regs().rax & 0xffff_ffff) | ((guest.regs().rdx & 0xffff_ffff) << 32);
     let value = Xcr0::from_bits(value).unwrap();
-    log::trace!("XSETBV {xcr:#x?} {value:#x?}");
 
     // The host CR4 might not have this bit, which is required for executing the
     // `XSETBV` instruction. Set this bit and run the instruction.

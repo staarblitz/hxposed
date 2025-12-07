@@ -9,9 +9,7 @@ use super::support::InterruptGuard;
 static LOGGER: Once<SerialLogger> = Once::new();
 
 pub(crate) fn init(level: log::LevelFilter) {
-    let logger = LOGGER.call_once(SerialLogger::new);
-    log::set_logger(logger).unwrap();
-    log::set_max_level(level);
+
 }
 
 #[expect(dead_code)]

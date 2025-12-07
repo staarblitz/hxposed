@@ -97,12 +97,10 @@ impl Guest for VmxGuest {
         vmwrite(vmcs::guest::RFLAGS, self.registers.rflags);
 
         // Execute the guest until VM-exit occurs.
-        log::trace!("Entering the guest");
         let flags = unsafe { run_vmx_guest(&mut self.registers) };
         if let Err(err) = vmx_succeed(RFlags::from_raw(flags)) {
             panic!("{err}");
         }
-        log::trace!("Exited the guest");
 
         self.registers.rip = vmread(vmcs::guest::RIP);
         self.registers.rsp = vmread(vmcs::guest::RSP);
