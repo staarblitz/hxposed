@@ -6,3 +6,5 @@ pub mod async_service;
 pub mod types;
 #[cfg(feature = "usermode")]
 pub mod memory_map;
+#[cfg(feature = "usermode")]
+pub mod thread;
