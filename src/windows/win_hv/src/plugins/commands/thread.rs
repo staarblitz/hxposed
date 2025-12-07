@@ -18,6 +18,30 @@ pub struct SuspendResumeThreadAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
 }
 
+pub struct KillThreadAsyncCommand {
+    pub command: KillThreadRequest,
+    pub uuid: Uuid,
+    pub async_info: UnsafeAsyncInfo,
+}
+
+impl AsyncCommand for KillThreadAsyncCommand {
+    fn get_service_function(&self) -> ServiceFunction {
+        ServiceFunction::KillThread
+    }
+
+    fn complete(&mut self, result: HypervisorResponse) {
+        write_and_set(
+            &result,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
+        )
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 impl AsyncCommand for SuspendResumeThreadAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction { ServiceFunction::SuspendResumeThread }
 
