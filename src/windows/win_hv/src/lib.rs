@@ -227,6 +227,10 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         Some(x) => x,
     };
 
+    // we could actually use a bit mask that defines which category the service belongs to.
+    // so we would spare ourselves from checking the func 2 times.
+    // but rust enums aren't that easy, so we got this.
+    // TODO: do what I said.
     match info.func() {
         ServiceFunction::OpenProcess
         | ServiceFunction::CloseProcess
@@ -238,7 +242,8 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         }
         ServiceFunction::OpenThread
         | ServiceFunction::CloseThread
-        | ServiceFunction::SuspendResumeThread => {
+        | ServiceFunction::SuspendResumeThread
+        | ServiceFunction::KillThread => {
             services::handle_thread_services(guest, &request, plugin, async_info);
         }
         ServiceFunction::ProcessVMOperation
