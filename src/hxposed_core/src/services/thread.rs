@@ -1,7 +1,7 @@
 use crate::error::HypervisorError;
+use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::thread::*;
-use crate::hxposed::requests::Vmcall;
 use crate::intern::win::GetCurrentThreadId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -39,7 +39,50 @@ impl HxThread {
     /// ## Return
     /// * [`u32`] - Previous suspend count
     pub async fn suspend(&mut self) -> Result<u32, HypervisorError> {
-        Ok(0)
+        let result = SuspendResumeThreadRequest {
+            id: self.id,
+            operation: SuspendResumeThreadOperation::Suspend,
+        }
+        .send_async()
+        .await?;
+
+        Ok(result.previous_count)
+    }
+
+    ///
+    /// # Resume
+    ///
+    /// Resumes the specified thread.
+    ///
+    /// ## Return
+    /// * [`u32`] - Previous suspend count
+    pub async fn resume(&mut self) -> Result<u32, HypervisorError> {
+        let result = SuspendResumeThreadRequest {
+            id: self.id,
+            operation: SuspendResumeThreadOperation::Resume,
+        }
+            .send_async()
+            .await?;
+
+        Ok(result.previous_count)
+    }
+
+    ///
+    /// # Freeze
+    ///
+    /// Freezes the specified thread.
+    ///
+    /// ## Return
+    /// * [`u32`] - Previous freeze count
+    async fn freeze(&mut self) -> Result<u32, HypervisorError> {
+        let result = SuspendResumeThreadRequest {
+            id: self.id,
+            operation: SuspendResumeThreadOperation::Freeze,
+        }
+            .send_async()
+            .await?;
+
+        Ok(result.previous_count)
     }
 
     ///
@@ -49,6 +92,9 @@ impl HxThread {
     ///
     /// ## Arguments
     /// * `id` - Thread id
+    ///
+    /// ## Warning
+    /// - The caller holds full ownership to the handle.
     ///
     /// ## Returns
     /// * Handle as an u64.
