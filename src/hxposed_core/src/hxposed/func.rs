@@ -20,6 +20,8 @@ pub enum ServiceFunction {
     OpenThread = 16,
     CloseThread = 17,
     SuspendResumeThread = 18,
+    KillThread = 19,
+    GetSetThreadContext = 20,
 }
 
 impl ServiceFunction {
@@ -48,6 +50,8 @@ impl ServiceFunction {
             16 => ServiceFunction::OpenThread,
             17 => ServiceFunction::CloseThread,
             18 => ServiceFunction::SuspendResumeThread,
+            19 => ServiceFunction::KillThread,
+            20 => ServiceFunction::GetSetThreadContext,
             _ => ServiceFunction::Unknown
         }
     }
