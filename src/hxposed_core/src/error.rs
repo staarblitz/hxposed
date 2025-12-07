@@ -4,16 +4,13 @@ use crate::hxposed::responses::HypervisorResponse;
 use alloc::format;
 use alloc::string::ToString;
 use core::fmt::{Debug, Display, Error, Formatter, Write};
-use static_assertions::assert_eq_size;
 
 #[derive(PartialEq, Eq, Clone, Copy, Default)]
-#[repr(C)]
 pub struct HypervisorError {
     pub error_source: ErrorSource,
     pub error_code: u16,
     pub error_reason: u16,
 }
-assert_eq_size!(HypervisorError, u64);
 
 impl Debug for HypervisorError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
@@ -82,7 +79,7 @@ impl HypervisorError {
                 InternalErrorCode::NotFound => format!("Object {:?} not found", NotAllowedReason::from_bits(self.error_reason as _)),
                 _ => "None".to_string(),
             },
-            _ => format!("Unknown reason {:?}", self.error_reason),
+            _ => format!("Error reason {:?}", self.error_reason),
         };
 
         writeln!(f, "Error reason: {reason_string}")?;
