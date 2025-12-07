@@ -4,6 +4,8 @@ use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::thread::*;
 use crate::intern::win::GetCurrentThreadId;
 use crate::plugins::plugin_perms::PluginPermissions;
+use crate::services::types::thread_fields::Amd64Context;
+use alloc::boxed::Box;
 use core::sync::atomic::{AtomicU64, Ordering};
 
 pub struct HxThread {
@@ -61,16 +63,114 @@ impl HxThread {
             id: self.id,
             operation: SuspendResumeThreadOperation::Resume,
         }
-            .send_async()
-            .await?;
+        .send_async()
+        .await?;
 
         Ok(result.previous_count)
     }
 
     ///
+    /// # Get Context (New)
+    ///
+    /// - Gets the thread context.
+    /// - [`Amd64Context`] is allocated by callee.
+    ///
+    /// ## Warning
+    /// - Make sure you have `await`ed the call to [`Self::suspend`] before calling this function.
+    /// - Unlike any other function which returns number of bytes required when given a null pointer,
+    /// this function does **not**. The `CONTEXT` structure has a fixed size.
+    ///
+    /// ## Return
+    /// * [`Amd64Context`] - Thread context.
+    /// * Or error
+    pub async fn get_context_new(&mut self) -> Result<Box<Amd64Context>, HypervisorError> {
+        // total heap allocation. using Box::new allocates on stack first, then moves to heap.
+        let mut boxed = unsafe { Box::<Amd64Context>::new_zeroed().assume_init() };
+
+        self.get_context(&mut boxed).await?;
+
+        Ok(boxed)
+    }
+
+    ///
+    /// # Get Context
+    ///
+    /// - Gets the thread context.
+    /// - [`Amd64Context`] is allocated by caller.
+    ///
+    /// ## Warning
+    /// - Make sure you have `await`ed the call to [`Self::suspend`] before calling this function.
+    /// - Unlike any other function which returns number of bytes required when given a null pointer,
+    /// this function does **not**. The `CONTEXT` structure has a fixed size.
+    ///
+    /// ## Return
+    /// * [`Amd64Context`] - Thread context.
+    /// * Or error
+    pub async fn get_context(
+        &mut self,
+        ctx: &mut Box<Amd64Context>,
+    ) -> Result<(), HypervisorError> {
+        GetSetThreadContextRequest {
+            id: self.id,
+            operation: ThreadContextOperation::Get,
+            data: ctx.as_mut() as *mut _ as _,
+            data_len: size_of::<Amd64Context>(),
+        }
+        .send_async()
+        .await?;
+
+        Ok(())
+    }
+
+    ///
+    /// # Get Context
+    ///
+    /// Sets the thread context.
+    ///
+    /// ## Arguments
+    ///
+    /// ## Warning
+    /// - Make sure you have `await`ed the call to [`Self::suspend`] before calling this function.
+    /// - Unlike any other function which returns number of bytes required when given a null pointer,
+    /// this function does **not**. The `CONTEXT` structure has a fixed size.
+    ///
+    /// ## Return
+    /// * Error or ().
+    pub async fn set_context(&mut self, mut ctx: Box<Amd64Context>) -> Result<(), HypervisorError> {
+        GetSetThreadContextRequest {
+            id: self.id,
+            operation: ThreadContextOperation::Set,
+            data: ctx.as_mut() as *mut _ as _,
+            data_len: size_of::<Amd64Context>(),
+        }
+        .send_async()
+        .await?;
+
+        Ok(())
+    }
+
+    ///
+    /// # Kill
+    ///
+    /// Terminates current thread.
+    ///
+    /// ## Warning
+    /// Note that this is not an OP command. The thread will get stuck if it's waiting for an I/O operation.
+    pub async fn kill(&mut self, exit_code: u32) -> Result<(), HypervisorError> {
+        KillThreadRequest {
+            id: self.id,
+            exit_code,
+        }
+        .send_async()
+        .await?;
+
+        Ok(())
+    }
+
+    ///
     /// # Freeze
     ///
-    /// Freezes the specified thread.
+    /// Freezes the specified thread. Not Implemented
     ///
     /// ## Return
     /// * [`u32`] - Previous freeze count
@@ -79,8 +179,8 @@ impl HxThread {
             id: self.id,
             operation: SuspendResumeThreadOperation::Freeze,
         }
-            .send_async()
-            .await?;
+        .send_async()
+        .await?;
 
         Ok(result.previous_count)
     }
