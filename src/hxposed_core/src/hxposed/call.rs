@@ -35,6 +35,15 @@ impl HypervisorCall {
     pub(crate) fn kill_process() -> Self {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
+
+    pub(crate) fn close_thread() -> Self {
+        Self::new().with_func(ServiceFunction::CloseThread)
+    }
+
+    pub(crate) fn open_thread() -> Self {
+        Self::new().with_func(ServiceFunction::OpenThread)
+    }
+
     pub(crate) fn get_process_threads() -> Self {
         Self::new().with_func(ServiceFunction::GetProcessThreads)
     }
