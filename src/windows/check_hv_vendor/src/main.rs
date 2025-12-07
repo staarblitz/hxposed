@@ -9,6 +9,7 @@ use std::process::exit;
 use std::str::FromStr;
 use async_std::io::stdin;
 use hxposed_core::services::process::HxProcess;
+use hxposed_core::services::thread::HxThread;
 use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevel, ProcessSignatureLevels, ProtectionSigner, ProtectionType};
 use uuid::Uuid;
 
@@ -126,6 +127,16 @@ async fn async_main() {
     };
 
     println!("Threads: {:?}", threads);
+
+    let mut thread = match HxThread::open(threads[0]) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Failed to get open thread: {:?}", e);
+            return;
+        }
+    };
+
+    thread.suspend().await;
 
     /*println!("Address to read/write?: ");
     let mut input = String::new();
