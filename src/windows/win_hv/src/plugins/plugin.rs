@@ -10,7 +10,7 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{IoAllocateMdl, PsGetProcessId, ZwClose, ZwOpenKey, ZwQueryValueKey};
+use wdk_sys::ntddk::{IoAllocateMdl, PsGetProcessId, PsGetThreadId, ZwClose, ZwOpenKey, ZwQueryValueKey};
 use wdk_sys::{_KPROCESS, MDL, PEPROCESS, PVOID};
 use wdk_sys::{
     FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE,
@@ -90,6 +90,32 @@ impl PluginObjectTable {
             Some(self.open_processes.remove(pos))
         } else {
             None
+        }
+    }
+
+    pub fn get_open_thread(
+        &self,
+        id: Option<u32>,
+        addr: Option<PETHREAD>,
+    ) -> Option<PETHREAD> {
+        let ptr = self.open_threads.iter().find(|p| {
+            if let Some(id) = id {
+                if unsafe { PsGetThreadId(**p) as u32 == id } {
+                    return true;
+                }
+            }
+            if let Some(addr) = addr {
+                if (**p).addr() == addr as u64 as usize {
+                    return true;
+                }
+            }
+
+            false
+        });
+
+        match ptr {
+            None => None,
+            Some(x) => Some(*x),
         }
     }
 
