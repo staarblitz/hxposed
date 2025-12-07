@@ -8,15 +8,15 @@ use uuid::Uuid;
 use wdk_sys::PEPROCESS;
 
 pub struct RWProcessMemoryAsyncCommand {
-    pub plugin_process: PEPROCESS,
     pub process: PEPROCESS,
+    pub uuid: Uuid,
     pub command: RWProcessMemoryRequest,
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct ProtectProcessMemoryAsyncCommand {
-    pub plugin_process: PEPROCESS,
     pub process: PEPROCESS,
+    pub uuid: Uuid,
     pub command: ProtectProcessMemoryRequest,
     pub async_info: UnsafeAsyncInfo,
 }
