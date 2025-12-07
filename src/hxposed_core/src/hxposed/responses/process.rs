@@ -3,10 +3,7 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
-#[derive(Clone, Default, Debug)]
-pub struct OpenProcessResponse {
-    pub addr: u64,
-}
+
 
 #[derive(Clone, Default, Debug)]
 #[repr(u16)]
@@ -71,23 +68,6 @@ impl VmcallResponse for GetProcessFieldResponse {
             arg1,
             arg2,
             arg3,
-        }
-    }
-}
-
-impl VmcallResponse for OpenProcessResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            return Err(HypervisorError::from_response(raw));
-        }
-        Ok(Self { addr: raw.arg1 })
-    }
-
-    fn into_raw(self) -> HypervisorResponse {
-        HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::OpenProcess),
-            arg1: self.addr,
-            ..Default::default()
         }
     }
 }
