@@ -36,9 +36,11 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                 Some(x) => x,
             };
 
-            let ctx = ApcProcessContext::begin(plugin.process.load(Ordering::Relaxed));
+            let ctx = ApcProcessContext::begin(plugin.process);
 
-            command.complete(match command.get_service_function() {
+            log::trace!("Found work on queue. Processing....");
+
+            let result = match command.get_service_function() {
                 ServiceFunction::KillProcess => kill_process_sync(
                     command
                         .as_any()
@@ -88,7 +90,11 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .unwrap(),
                 ),
                 _ => unreachable!("Forgot to implement this one!"),
-            });
+            };
+
+            log::trace!("Work completed: {:?}", result);
+            log::trace!("Signaling completion");
+            command.complete(result);
 
             drop(ctx);
         }
