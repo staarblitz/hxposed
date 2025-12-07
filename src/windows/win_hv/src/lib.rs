@@ -237,7 +237,8 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             services::handle_process_services(guest, &request, plugin, async_info);
         }
         ServiceFunction::OpenThread
-        | ServiceFunction::CloseThread => {
+        | ServiceFunction::CloseThread
+        | ServiceFunction::SuspendResumeThread => {
             services::handle_thread_services(guest, &request, plugin, async_info);
         }
         ServiceFunction::ProcessVMOperation
