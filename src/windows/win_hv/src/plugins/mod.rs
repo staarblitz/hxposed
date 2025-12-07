@@ -9,7 +9,7 @@ use core::sync::atomic::Ordering;
 use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_INFORMATION_CLASS::KeyBasicInformation;
-use wdk_sys::ntddk::{RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
+use wdk_sys::ntddk::{IoGetCurrentProcess, RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
 use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, PVOID, STATUS_NO_MORE_ENTRIES, STATUS_SUCCESS,
@@ -18,8 +18,62 @@ use wdk_sys::{
 pub(crate) mod plugin;
 pub(crate) mod commands;
 
+
+// TODO: Fix ownership semantics
 pub(crate) struct PluginTable {
     pub plugins: &'static mut [&'static mut Plugin],
+}
+
+impl PluginTable {
+    ///
+    /// # Get
+    ///
+    /// Gets the plugin from PLUGINS global variable.
+    ///
+    /// ## Arguments
+    /// * `uuid` - [`Uuid`] the plugin was saved to system with.
+    ///
+    /// ## Return
+    /// * [`None`] - Plugin not found.
+    /// * [`Some`] - Plugin.
+    pub fn lookup(uuid: Uuid) -> Option<&'static mut Plugin> {
+        let ptr = PLUGINS.load(Ordering::Acquire);
+        if ptr.is_null() {
+            return None;
+        }
+        let slice = unsafe { &mut *ptr };
+
+        match slice.plugins.iter_mut().find(|p| p.uuid == uuid) {
+            Some(p) => Some(*p),
+            None => None,
+        }
+    }
+
+    ///
+    /// # Current
+    ///
+    /// Gets the current plugin from current process context
+    ///
+    /// ## Return
+    /// * [`None`] - No plugin associated with current process context.
+    /// * [`Some`] - Plugin.
+    pub fn current() -> Option<&'static mut Plugin> {
+        let ptr = PLUGINS.load(Ordering::Acquire);
+        if ptr.is_null() {
+            return None;
+        }
+
+        let slice = unsafe { &mut *ptr };
+
+        match slice
+            .plugins
+            .iter_mut()
+            .find(|p| p.process == unsafe { IoGetCurrentProcess() })
+        {
+            Some(p) => Some(*p),
+            None => None,
+        }
+    }
 }
 
 ///
@@ -33,6 +87,7 @@ pub(crate) struct PluginTable {
 /// In case of a corrupted installation of HxPosed, where the registry keys are missing, this function will fail but driver will be loaded.
 ///
 pub(crate) fn load_plugins() {
+    log::trace!("Loading plugins");
     let mut list = Vec::<&mut Plugin>::new();
     list.clear();
 
@@ -51,8 +106,8 @@ pub(crate) fn load_plugins() {
     let mut key = HANDLE::default();
     let status = unsafe { ZwOpenKey(&mut key, KEY_ALL_ACCESS, &mut attributes) };
     if status != STATUS_SUCCESS {
-        println!("Error while opening key: {:x}", status);
-        println!("No plugins loaded!");
+        log::error!("Error opening registry key: {:?}", status);
+        log::warn!("No plugins loaded.");
         return;
     }
 
@@ -122,7 +177,8 @@ pub(crate) fn load_plugins() {
                 name.set_len(actual_bytes as usize);
             },
             _ => {
-                println!("RtlUnicodeToUTF8 failed with status {}", status);
+                log::warn!("Failed to convert Unicode to UTF8.");
+                log::warn!("Plugin skipped.");
                 continue;
             }
         }
@@ -130,7 +186,8 @@ pub(crate) fn load_plugins() {
         let uuid = match Uuid::parse_str(str::from_utf8(name.as_slice()).unwrap()) {
             Ok(uuid) => uuid,
             Err(err) => {
-                println!("Error parsing uuid: {:?}", err);
+                log::warn!("Error parsing plugin GUID: {:?}", err);
+                log::warn!("Plugin skipped.");
                 continue;
             }
         };
@@ -143,6 +200,9 @@ pub(crate) fn load_plugins() {
 
     // dark shady Rust evasion stuff
     let plugin_slice: &'static mut [&mut Plugin] = Box::leak(list.into_boxed_slice());
+
+    log::trace!("Total of {} plugins loaded.", plugin_slice.len());
+
     let table = Box::leak(Box::new(PluginTable {
         plugins: plugin_slice,
     }));
