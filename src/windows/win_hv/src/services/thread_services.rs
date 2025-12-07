@@ -1,8 +1,10 @@
 use crate::nt::blanket::OpenHandle;
 use crate::plugins::commands::thread::*;
 use crate::plugins::{Plugin, PluginTable};
-use crate::win::{ZwResumeThread, ZwSuspendThread};
+use crate::win::{PspTerminateThread, ZwResumeThread, ZwSuspendThread};
 use alloc::boxed::Box;
+use core::arch::asm;
+use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
@@ -16,6 +18,48 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk_sys::ntddk::PsLookupThreadByThreadId;
 use wdk_sys::{PETHREAD, STATUS_SUCCESS, ULONG};
+
+pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorResponse {
+    let plugin = match PluginTable::lookup(request.uuid) {
+        Some(plugin) => plugin,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
+    let thread = match plugin
+        .object_table
+        .get_open_thread(Some(request.command.id), None)
+    {
+        Some(thread) => thread,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+    };
+
+    unsafe {
+        asm!("mov r15, r14", in("r14") crate::win::NT_PS_TERMINATE_THREAD.load(Ordering::Relaxed));
+    }
+    match unsafe { PspTerminateThread(thread, request.command.exit_code as _, 1) } {
+        STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillThread),
+        err => HypervisorResponse::nt_error(err as _),
+    }
+}
+
+pub(crate) fn kill_thread_async(
+    _guest: &mut dyn Guest,
+    request: KillThreadRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) -> HypervisorResponse {
+    if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
+    }
+
+    plugin.queue_command(Box::new(KillThreadAsyncCommand {
+        command: request,
+        uuid: plugin.uuid,
+        async_info,
+    }));
+
+    EmptyResponse::with_service(ServiceFunction::KillThread)
+}
 
 pub(crate) fn suspend_resume_thread_sync(
     request: &SuspendResumeThreadAsyncCommand,
