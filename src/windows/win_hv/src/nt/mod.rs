@@ -5,7 +5,7 @@ pub(crate) mod logger;
 pub(crate) mod blanket;
 pub(crate) mod handlebox;
 
-use crate::win::{PsGetSetContextThreadInternal, PsLoadedModuleList, PsTerminateProcessType, NT_PS_GET_CONTEXT_THREAD_INTERNAL, NT_PS_SET_CONTEXT_THREAD_INTERNAL, NT_PS_TERMINATE_PROCESS, _LDR_DATA_TABLE_ENTRY};
+use crate::win::{PsGetSetContextThreadInternal, PsLoadedModuleList, PsTerminateProcessType, PsTerminateThreadType, NT_PS_GET_CONTEXT_THREAD_INTERNAL, NT_PS_SET_CONTEXT_THREAD_INTERNAL, NT_PS_TERMINATE_PROCESS, NT_PS_TERMINATE_THREAD, _LDR_DATA_TABLE_ENTRY};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use wdk_sys::ntddk::RtlGetVersion;
@@ -52,6 +52,11 @@ pub(crate) fn get_nt_info() {
             get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspGetContextThreadInternal),
             Ordering::Relaxed,
         );
+
+        NT_PS_TERMINATE_THREAD.store(
+            get_nt_proc::<PsTerminateThreadType>(NtProcedure::PspTerminateThreadByPointer),
+            Ordering::Relaxed,
+        )
     }
 }
 
@@ -77,8 +82,9 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
         26200 /* 25H2 */ => {
             match proc {
                 NtProcedure::PsTerminateProcessProc => 0x91f3d4,
-                NtProcedure::PspGetContextThreadInternal => 0x00909940,
-                NtProcedure::PspSetContextThreadInternal => 0x009095f0,
+                NtProcedure::PspGetContextThreadInternal => 0x909940,
+                NtProcedure::PspSetContextThreadInternal => 0x9095f0,
+                NtProcedure::PspTerminateThreadByPointer => 0x8f48f0,
             }
         }
         _ => panic!("Unknown NT build {}", build)
@@ -172,6 +178,7 @@ pub enum NtProcedure {
     PsTerminateProcessProc,
     PspSetContextThreadInternal,
     PspGetContextThreadInternal,
+    PspTerminateThreadByPointer,
 }
 
 pub enum EThreadField {
