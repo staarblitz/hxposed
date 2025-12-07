@@ -27,7 +27,7 @@ use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::call::HypervisorCall;
+use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
 use hxposed_core::hxposed::error::NotAllowedReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::func::ServiceFunction::Authorize;
@@ -37,6 +37,7 @@ use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
+use log::LevelFilter;
 use wdk::println;
 
 use crate::nt::worker::async_worker_thread;
@@ -50,9 +51,11 @@ use wdk_sys::{
     POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
     THREAD_ALL_ACCESS, ntddk::ExAllocatePool2,
 };
+use crate::nt::logger::NtLogger;
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 static PLUGINS: AtomicPtr<PluginTable> = AtomicPtr::new(null_mut());
+static LOGGER: NtLogger = NtLogger;
 
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
@@ -60,14 +63,16 @@ extern "C" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
+    log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(LevelFilter::Trace);
+    log::info!("Welcome to HxPosed!");
+
     get_nt_info();
 
     if nt::NT_BUILD.load(Ordering::Relaxed) != 26200 {
-        println!("Unsupported version");
+        log::error!("Unsupported version");
         return STATUS_TOO_LATE;
     }
-
-    println!("Loading win_hv.sys");
 
     // Initialize the global allocator with allocated buffer.
     let ptr = unsafe {
@@ -95,8 +100,6 @@ extern "C" fn driver_entry(
 
     driver.DriverUnload = Some(driver_unload);
 
-    println!("Loaded win_hv.sys");
-
     let mut cookie = LARGE_INTEGER::default();
     match unsafe {
         CmRegisterCallback(
@@ -107,7 +110,8 @@ extern "C" fn driver_entry(
     } {
         STATUS_SUCCESS => unsafe { CM_COOKIE.store(cookie.QuadPart as _, Ordering::Relaxed) },
         err => {
-            panic!("Error registering registry callbacks: {:x}", err);
+            log::error!("Error registering registry callbacks: {:?}", err);
+            panic!("Panicking for your own good");
         }
     }
 
@@ -124,10 +128,11 @@ extern "C" fn driver_entry(
         )
     } {
         STATUS_SUCCESS => unsafe {
-            ZwClose(handle);
+            let _ = ZwClose(handle);
         },
         err => {
-            panic!("Error creating system thread: {:x}", err);
+            log::error!("Error creating worker thread: {:?}", err);
+            panic!("Panicking for your own good");
         }
     }
 
@@ -159,7 +164,7 @@ extern "C" fn driver_entry(
 /// Don't you dare to "take your time". This interrupts the whole CPU and making the kernel scheduler forget its purpose.
 ///
 fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
-    println!("Handling vmcall function: {:?}", info.func());
+    log::trace!("Handling vmcall function: {:?}", info.func());
 
     if info.func() == ServiceFunction::GetState {
         write_response(
@@ -196,16 +201,23 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                     result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
                 };
             }
-            Err(_) => {}
+            Err(_) => {
+                log::warn!("Invalid async buffer provided by user.");
+                write_response(guest, HypervisorResponse::invalid_params(ServiceParameter::BufferByUser));
+                return;
+            }
         }
     }
 
-    let plugin = match Plugin::current() {
+    let plugin = match PluginTable::current() {
         None => {
+            log::trace!("Plugin is not authorized.");
             if info.func() == Authorize {
+                log::trace!("Authorizing...");
                 authorize_plugin(guest, AuthorizationRequest::from_raw(&request));
                 return;
             }
+            log::warn!("Plugin tried to use HxPosed without authorizing first.");
             write_response(
                 guest,
                 HypervisorResponse::not_allowed(NotAllowedReason::PluginNotLoaded),
@@ -224,6 +236,10 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::GetProcessThreads => {
             services::handle_process_services(guest, &request, plugin, async_info);
         }
+        ServiceFunction::OpenThread
+        | ServiceFunction::CloseThread => {
+            services::handle_thread_services(guest, &request, plugin, async_info);
+        }
         ServiceFunction::ProcessVMOperation
         | ServiceFunction::ProtectProcessMemory
         | ServiceFunction::AllocateMemory
@@ -232,7 +248,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             services::handle_memory_services(guest, &request, plugin, async_info);
         }
         _ => {
-            println!("Unsupported vmcall function: {:?}", info.func());
+            log::warn!("Unsupported vmcall");
             write_response(guest, HypervisorResponse::not_found())
         }
     }
