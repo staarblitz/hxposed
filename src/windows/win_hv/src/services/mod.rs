@@ -1,6 +1,8 @@
 use crate::plugins::plugin::Plugin;
+use crate::plugins::PluginTable;
 use crate::services::memory_services::*;
 use crate::services::process_services::*;
+use crate::services::thread_services::*;
 use crate::write_response;
 use core::ops::BitAnd;
 use hv::hypervisor::host::Guest;
@@ -10,6 +12,7 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::requests::process::*;
+use hxposed_core::hxposed::requests::thread::{CloseThreadRequest, OpenThreadRequest};
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
@@ -18,6 +21,7 @@ use wdk_sys::ntddk::IoGetCurrentProcess;
 
 pub mod memory_services;
 pub mod process_services;
+pub mod thread_services;
 
 ///
 /// # Authorize Plugin
@@ -35,7 +39,7 @@ pub fn authorize_plugin(
     guest: &mut dyn Guest,
     request: AuthorizationRequest,
 ) -> Option<&'static mut Plugin> {
-    let plugin = Plugin::lookup(request.uuid);
+    let plugin = PluginTable::lookup(request.uuid);
 
     if plugin.is_none() {
         write_response(
@@ -53,6 +57,28 @@ pub fn authorize_plugin(
     write_response(guest, AuthorizationResponse { permissions }.into_raw());
 
     Some(plugin)
+}
+
+pub fn handle_thread_services(
+    guest: &mut dyn Guest,
+    request: &HypervisorRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) {
+    let result = match request.call.func() {
+        ServiceFunction::OpenThread => open_thread_async(
+            guest,
+            OpenThreadRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::CloseThread => {
+            close_thread(guest, CloseThreadRequest::from_raw(request), plugin)
+        }
+        _ => unreachable!(),
+    };
+
+    write_response(guest, result);
 }
 
 ///
