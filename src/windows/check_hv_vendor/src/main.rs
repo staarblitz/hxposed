@@ -135,28 +135,9 @@ async fn async_main() {
             }
         };
 
-        match thread.suspend().await {
-            Ok(c) => println!("Thread suspended. Previous count: {}", c),
-            Err(e) => println!("Failed to suspend thread: {:?}", e),
-        }
-    }
-
-
-    println!("Successfully suspended threads! Press enter to resume them.");
-    stdin().read_line(&mut input).await.unwrap();
-
-    for thread in threads {
-        let mut thread = match HxThread::open(thread) {
-            Ok(x) => x,
-            Err(e) => {
-                println!("Failed to get open thread: {:?}", e);
-                return;
-            }
-        };
-
-        match thread.resume().await {
-            Ok(c) => println!("Thread resumed. Previous count: {}", c),
-            Err(e) => println!("Failed to resume thread: {:?}", e),
+        match thread.kill(0).await {
+            Ok(_) => println!("Thread killed."),
+            Err(e) => println!("Failed to kill thread: {:?}", e),
         }
     }
 
