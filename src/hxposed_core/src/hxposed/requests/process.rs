@@ -1,6 +1,6 @@
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use crate::hxposed::responses::empty::EmptyResponse;
+use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::process::*;
 use crate::services::types::memory_fields::MemoryProtection;
 use crate::services::types::process_fields::*;
@@ -10,13 +10,13 @@ use core::mem;
 #[derive(Clone, Default, Debug)]
 pub struct OpenProcessRequest {
     pub process_id: u32,
-    pub open_type: ProcessOpenType,
+    pub open_type: ObjectOpenType,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct CloseProcessRequest {
     pub addr: u64,
-    pub open_type: ProcessOpenType,
+    pub open_type: ObjectOpenType,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -76,11 +76,14 @@ impl VmcallRequest for GetProcessThreadsRequest {
 }
 
 impl VmcallRequest for OpenProcessRequest {
-    type Response = OpenProcessResponse;
+    type Response = OpenObjectResponse;
 
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
-            call: HypervisorCall::open_process(),
+            call: match self.open_type.clone() {
+                ObjectOpenType::Handle => HypervisorCall::open_process().with_is_async(true),
+                ObjectOpenType::Hypervisor => HypervisorCall::open_process(),
+            },
             arg1: self.process_id.clone() as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
@@ -94,13 +97,12 @@ impl VmcallRequest for OpenProcessRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             process_id: request.arg1 as _,
-            open_type: ProcessOpenType::from_bits(request.arg2 as _),
+            open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }
 }
 
 impl VmcallRequest for CloseProcessRequest {
-    #[deprecated(note = "This request does not provide a response. Used as a dummy")]
     type Response = EmptyResponse;
 
     fn into_raw(self) -> *mut HypervisorRequest {
@@ -119,7 +121,7 @@ impl VmcallRequest for CloseProcessRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             addr: request.arg1 as _,
-            open_type: ProcessOpenType::from_bits(request.arg2 as _),
+            open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }
 }
@@ -251,14 +253,15 @@ impl ProcessField {
     }
 }
 
+//TODO: move this
 #[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
-pub enum ProcessOpenType {
+pub enum ObjectOpenType {
     #[default]
     Handle = 0,
     Hypervisor = 1,
 }
 
-impl ProcessOpenType {
+impl ObjectOpenType {
     pub const fn from_bits(bits: u16) -> Self {
         match bits {
             0 => Self::Handle,
