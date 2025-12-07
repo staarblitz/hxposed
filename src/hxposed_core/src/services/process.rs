@@ -1,6 +1,6 @@
 use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
-use crate::hxposed::requests::process::{CloseProcessRequest, GetProcessFieldRequest, GetProcessThreadsRequest, KillProcessRequest, OpenProcessRequest, ProcessField, ProcessOpenType, SetProcessFieldRequest};
+use crate::hxposed::requests::process::{CloseProcessRequest, GetProcessFieldRequest, GetProcessThreadsRequest, KillProcessRequest, OpenProcessRequest, ProcessField, ObjectOpenType, SetProcessFieldRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::{GetProcessFieldResponse, GetProcessThreadsResponse};
 use crate::intern::win::GetCurrentProcessId;
@@ -25,7 +25,7 @@ impl Drop for HxProcess {
     fn drop(&mut self) {
         let _ = CloseProcessRequest {
             addr: self.addr.load(Ordering::Relaxed),
-            open_type: ProcessOpenType::Hypervisor,
+            open_type: ObjectOpenType::Hypervisor,
         }
         .send();
     }
@@ -53,11 +53,11 @@ impl HxProcess {
     /// * `id` - Process id
     ///
     /// ## Returns
-    /// - Handle as an u64.
+    /// * Handle as an u64.
     pub async fn open_handle(id: u32) -> Result<u64, HypervisorError> {
         let result = OpenProcessRequest {
             process_id: id,
-            open_type: ProcessOpenType::Handle,
+            open_type: ObjectOpenType::Handle,
         }.send_async().await?;
 
         Ok(result.addr)
@@ -109,7 +109,7 @@ impl HxProcess {
     /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
-    /// * [`Result`] containing [`NtProcess`] or error.
+    /// * [`Result`] containing [`HxProcess`] or error.
     ///
     /// ## Example
     ///
@@ -119,7 +119,7 @@ impl HxProcess {
     pub fn open(id: u32) -> Result<Self, HypervisorError> {
         let call = OpenProcessRequest {
             process_id: id,
-            open_type: ProcessOpenType::Hypervisor,
+            open_type: ObjectOpenType::Hypervisor,
         }
         .send()?;
 
