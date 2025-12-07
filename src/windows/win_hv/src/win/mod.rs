@@ -132,6 +132,12 @@ unsafe extern "C" {
     ) -> NTSTATUS;
 
     #[allow(non_snake_case)]
+    pub fn ZwSuspendThread(
+        ThreadHandle: HANDLE,
+        PreviousSuspendCount: PULONG
+    ) -> NTSTATUS;
+
+    #[allow(non_snake_case)]
     pub fn ZwProtectVirtualMemory(
         ProcessHandle: HANDLE,
         BaseAddress: *mut PVOID,
@@ -141,7 +147,7 @@ unsafe extern "C" {
     ) -> NTSTATUS;
 
     #[allow(non_snake_case)]
-    pub fn ZwResumeThread(Thread: HANDLE, PreviousWhateverGarbage: PULONG) -> NTSTATUS;
+    pub fn ZwResumeThread(Thread: HANDLE, PreviousSuspendCount: PULONG) -> NTSTATUS;
 
     #[allow(non_snake_case)]
     pub fn PsSetContextThread(
