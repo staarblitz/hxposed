@@ -10,6 +10,8 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::KeDelayExecutionThread;
 use wdk_sys::{FALSE, LARGE_INTEGER, PVOID};
+use crate::plugins::commands::thread::SuspendResumeThreadAsyncCommand;
+use crate::services::thread_services::suspend_resume_thread_sync;
 
 ///
 /// # Async Worker Thread
@@ -64,6 +66,9 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .as_any()
                         .downcast_ref::<GetProcessThreadsAsyncCommand>()
                         .unwrap(),
+                ),
+                ServiceFunction::SuspendResumeThread => suspend_resume_thread_sync(
+                    command.as_any().downcast_ref::<SuspendResumeThreadAsyncCommand>().unwrap()
                 ),
                 ServiceFunction::ProcessVMOperation => process_vm_operation_sync(
                     command
