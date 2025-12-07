@@ -16,7 +16,10 @@ pub enum ServiceFunction {
     AllocateMemory = 12,
     MapMemory = 13,
     FreeMemory = 14,
-    GetProcessThreads = 15
+    GetProcessThreads = 15,
+    OpenThread = 16,
+    CloseThread = 17,
+    SuspendThread = 18,
 }
 
 impl ServiceFunction {
@@ -42,6 +45,9 @@ impl ServiceFunction {
             13 => ServiceFunction::MapMemory,
             14 => ServiceFunction::FreeMemory,
             15 => ServiceFunction::GetProcessThreads,
+            16 => ServiceFunction::OpenThread,
+            17 => ServiceFunction::CloseThread,
+            18 => ServiceFunction::SuspendThread,
             _ => ServiceFunction::Unknown
         }
     }
