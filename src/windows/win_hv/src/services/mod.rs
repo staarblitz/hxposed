@@ -1,5 +1,5 @@
-use crate::plugins::plugin::Plugin;
 use crate::plugins::PluginTable;
+use crate::plugins::plugin::Plugin;
 use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::services::thread_services::*;
@@ -12,7 +12,9 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::requests::process::*;
-use hxposed_core::hxposed::requests::thread::{CloseThreadRequest, OpenThreadRequest};
+use hxposed_core::hxposed::requests::thread::{
+    CloseThreadRequest, OpenThreadRequest, SuspendResumeThreadRequest,
+};
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
@@ -72,6 +74,18 @@ pub fn handle_thread_services(
             plugin,
             async_info,
         ),
+        ServiceFunction::SuspendResumeThread => {
+            if !request.call.is_async() {
+                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+            } else {
+                suspend_resume_thread_async(
+                    guest,
+                    SuspendResumeThreadRequest::from_raw(request),
+                    plugin,
+                    async_info,
+                )
+            }
+        }
         ServiceFunction::CloseThread => {
             close_thread(guest, CloseThreadRequest::from_raw(request), plugin)
         }
