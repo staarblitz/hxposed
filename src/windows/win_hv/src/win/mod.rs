@@ -1,6 +1,6 @@
 use ::alloc::boxed::Box;
 use ::alloc::vec::Vec;
-use core::arch::asm;
+use core::arch::{asm, naked_asm};
 use core::ffi::c_void;
 use core::ptr::null_mut;
 use core::str::FromStr;
@@ -10,18 +10,19 @@ use wdk_sys::ntddk::{
     RtlUTF8StringToUnicodeString,
 };
 use wdk_sys::{
-    BOOLEAN, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID,
+    BOOLEAN, CHAR, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID,
     PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
     PSECURITY_DESCRIPTOR, PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T, TRUE, ULONG,
     UNICODE_STRING, USHORT, UTF8_STRING,
 };
 
 pub(crate) mod alloc;
+pub(crate) mod danger;
 pub(crate) mod macros;
 pub(crate) mod timing;
-pub(crate) mod danger;
 
 pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(PEPROCESS, NTSTATUS) -> NTSTATUS;
+pub(crate) type PsTerminateThreadType = unsafe extern "C" fn(PETHREAD, NTSTATUS, CHAR) -> NTSTATUS;
 pub(crate) type PsGetSetContextThreadInternal = unsafe extern "C" fn(
     PETHREAD,
     PCONTEXT,
@@ -35,84 +36,56 @@ pub(crate) static NT_PS_GET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextTh
     AtomicPtr::new(null_mut());
 pub(crate) static NT_PS_SET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextThreadInternal> =
     AtomicPtr::new(null_mut());
+pub(crate) static NT_PS_TERMINATE_THREAD: AtomicPtr<PsTerminateThreadType> =
+    AtomicPtr::new(null_mut());
 
 #[allow(non_snake_case)]
-pub(crate) unsafe fn PsTerminateProcess(Process: PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
-    let mut status = NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed);
-    // the beautiful rust doesn't allow misaligned pointers.
-    // it isn't my fault PsTerminateProcess is 0x8 unaligned. come on dude
-    unsafe {
-        asm!(
-        "call rax",
-        in("rcx") Process,in("rdx") ExitCode, inout("rax") status => status);
-    }
-    status as _
-}
-
-// these are not required since those functions are 0x8 aligned.
-/*#[allow(non_snake_case)]
-pub(crate) unsafe fn PsGetContextThreadInternal(
-    Process: PETHREAD,
+#[unsafe(naked)]
+/// To use, set r15 to your desired address :)
+pub(crate) unsafe extern "C" fn PsTerminateProcess(
+    Process: PEPROCESS,
     ExitCode: NTSTATUS,
-    ProcessorMode: KPROCESSOR_MODE,
-    ProcessorMode2: KPROCESSOR_MODE,
-    ProcessorMode3: KPROCESSOR_MODE,
 ) -> NTSTATUS {
-    let mut status = NT_PS_GET_CONTEXT_THREAD_INTERNAL.load(Ordering::Relaxed);
-
-    /*
-PAGE:0000000140A968B0 48 83 EC 38                       sub     rsp, 38h
-PAGE:0000000140A968B4 45 8A C8                          mov     r9b, r8b
-PAGE:0000000140A968B7 C7 44 24 20 01 00                 mov     [rsp+38h+var_18], 1 ; int
-PAGE:0000000140A968B7 00 00
-PAGE:0000000140A968BF E8 3C 8F DD FF                    call    PspSetContextThreadInternal
-PAGE:0000000140A968C4 48 83 C4 38                       add     rsp, 38h
-PAGE:0000000140A968C8 C3                                retn
-     */
-    unsafe {
-        asm!(
-        "sub rsp, 0x38",
-        "mov [rsp + 20], rsi",
-        "call rax",
-        "add rsp, 0x38",
-        in("rcx") Process, in("rdx") ExitCode, in("r8b") ProcessorMode, in("r9b") ProcessorMode2, in("rsi") ProcessorMode3 as u64, inout("rax") status => status
-        )
-    }
-
-    status as _
+    naked_asm!("jmp r15")
 }
 
 #[allow(non_snake_case)]
-pub(crate) unsafe fn PsSetContextThreadInternal(
-    Process: PETHREAD,
+#[unsafe(naked)]
+/// To use, set r15 to your desired address :)
+pub(crate) unsafe extern "C" fn PspTerminateThread(
+    Thread: PETHREAD,
     ExitCode: NTSTATUS,
-    ProcessorMode: KPROCESSOR_MODE,
-    ProcessorMode2: KPROCESSOR_MODE,
-    ProcessorMode3: KPROCESSOR_MODE,
+    SomethingElse: CHAR,
 ) -> NTSTATUS {
-    let mut status = NT_PS_SET_CONTEXT_THREAD_INTERNAL.load(Ordering::Relaxed);
+    naked_asm!("jmp r15")
+}
 
-    /*
-PAGE:0000000140A968B0 48 83 EC 38                       sub     rsp, 38h
-PAGE:0000000140A968B4 45 8A C8                          mov     r9b, r8b
-PAGE:0000000140A968B7 C7 44 24 20 01 00                 mov     [rsp+38h+var_18], 1 ; int
-PAGE:0000000140A968B7 00 00
-PAGE:0000000140A968BF E8 3C 8F DD FF                    call    PspSetContextThreadInternal
-PAGE:0000000140A968C4 48 83 C4 38                       add     rsp, 38h
-PAGE:0000000140A968C8 C3                                retn
-     */
-    unsafe {
-        asm!(
-        "sub rsp, 0x38",
-        "mov [rsp + 20], rsi",
-        "call rax",
-        "add rsp, 0x38",
-        in("rcx") Process, in("rdx") ExitCode, in("r8b") ProcessorMode, in("r9b") ProcessorMode2, in("rsi") ProcessorMode3 as u64, inout("rax") status => status
-        )
-    }
+#[allow(non_snake_case)]
+#[unsafe(naked)]
+/// To use, set r15 to your desired address :)
+pub(crate) unsafe extern "C" fn PspGetSetContextThreadInternal(
+    Thread: PETHREAD,
+    Context: PCONTEXT,
+    Mode1: KPROCESSOR_MODE,
+    Mode2: KPROCESSOR_MODE,
+    Mode3: KPROCESSOR_MODE,
+) -> NTSTATUS {
+    naked_asm!("jmp r15")
+}
 
-    status as _
-}*/
+#[allow(non_snake_case)]
+#[unsafe(naked)]
+/// To use, set r15 to your desired address :)
+pub(crate) unsafe extern "C" fn PspSetSetContextThreadInternal(
+    Thread: PETHREAD,
+    Context: PCONTEXT,
+    Mode1: KPROCESSOR_MODE,
+    Mode2: KPROCESSOR_MODE,
+    Mode3: KPROCESSOR_MODE,
+) -> NTSTATUS {
+    naked_asm!("jmp r15")
+}
+
 
 pub(crate) const NT_CURRENT_PROCESS: HANDLE = -1 as _;
 
@@ -132,10 +105,7 @@ unsafe extern "C" {
     ) -> NTSTATUS;
 
     #[allow(non_snake_case)]
-    pub fn ZwSuspendThread(
-        ThreadHandle: HANDLE,
-        PreviousSuspendCount: PULONG
-    ) -> NTSTATUS;
+    pub fn ZwSuspendThread(ThreadHandle: HANDLE, PreviousSuspendCount: PULONG) -> NTSTATUS;
 
     #[allow(non_snake_case)]
     pub fn ZwProtectVirtualMemory(
@@ -143,7 +113,7 @@ unsafe extern "C" {
         BaseAddress: *mut PVOID,
         RegionSize: PSIZE_T,
         NewProtection: ULONG,
-        OldProtection: PULONG
+        OldProtection: PULONG,
     ) -> NTSTATUS;
 
     #[allow(non_snake_case)]
