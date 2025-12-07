@@ -8,14 +8,12 @@ use uuid::Uuid;
 use wdk_sys::PEPROCESS;
 
 pub struct GetProcessFieldAsyncCommand {
-    pub process: PEPROCESS,
     pub async_info: UnsafeAsyncInfo,
     pub uuid: Uuid,
     pub command: GetProcessFieldRequest,
 }
 
 pub struct SetProcessFieldAsyncCommand {
-    pub process: PEPROCESS,
     pub uuid: Uuid,
     pub command: SetProcessFieldRequest,
     pub async_info: UnsafeAsyncInfo,
@@ -23,7 +21,6 @@ pub struct SetProcessFieldAsyncCommand {
 
 pub struct KillProcessAsyncCommand {
     pub command: KillProcessRequest,
-    pub process: PEPROCESS,
     pub async_info: UnsafeAsyncInfo,
     pub uuid: Uuid,
 }
@@ -35,7 +32,6 @@ pub struct OpenProcessAsyncCommand {
 }
 
 pub struct GetProcessThreadsAsyncCommand {
-    pub process: PEPROCESS,
     pub command: GetProcessThreadsRequest,
     pub async_info: UnsafeAsyncInfo,
 }
