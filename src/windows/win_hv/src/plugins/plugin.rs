@@ -1,24 +1,20 @@
 use crate::plugins::commands::AsyncCommand;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{PLUGINS, as_pvoid, get_data};
+use crate::{as_pvoid, get_data};
 use alloc::boxed::Box;
 use alloc::collections::VecDeque;
 use alloc::format;
 use alloc::vec::Vec;
-use core::ptr::null_mut;
-use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{
-    IoAllocateMdl, IoGetCurrentProcess, PsGetProcessId, ZwClose, ZwOpenKey, ZwQueryValueKey,
-};
+use wdk_sys::ntddk::{IoAllocateMdl, PsGetProcessId, ZwClose, ZwOpenKey, ZwQueryValueKey};
 use wdk_sys::{_KPROCESS, MDL, PEPROCESS, PVOID};
 use wdk_sys::{
     FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE,
-    OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PIRP, STATUS_SUCCESS,
+    OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PETHREAD, PIRP, STATUS_SUCCESS,
 };
 
 #[derive(Default)]
@@ -26,34 +22,19 @@ pub(crate) struct Plugin {
     pub uuid: Uuid,
     pub permissions: PluginPermissions,
     pub authorized_permissions: PluginPermissions,
-    pub process: AtomicPtr<_KPROCESS>,
-    pub open_processes: Vec<AtomicPtr<_KPROCESS>>,
-    pub allocated_mdls: Vec<Box<MDL>>,
+    pub process: PEPROCESS,
+    pub object_table: PluginObjectTable,
     pub awaiting_commands: VecDeque<Box<dyn AsyncCommand>>,
 }
-impl Plugin {
-    ///
-    /// # Queue Command
-    ///
-    /// Queues a command for later execution by the worker thread on PASSIVE_LEVEL.
-    ///
-    /// ## Arguments
-    /// * `command` - Well... See [`AsyncCommand`]
-    pub fn queue_command(&mut self, command: Box<dyn AsyncCommand>) {
-        self.awaiting_commands.push_back(command);
-    }
 
-    ///
-    /// # Dequeue Command
-    ///
-    /// Pops a command from queue for execution by the worker thread.
-    ///
-    /// ## Returns
-    /// - Whatever [`VecDeque::pop_back`] returns.
-    pub fn dequeue_command(&mut self) -> Option<Box<dyn AsyncCommand>> {
-        self.awaiting_commands.pop_front()
-    }
+#[derive(Default)]
+pub(crate) struct PluginObjectTable {
+    pub open_processes: Vec<PEPROCESS>,
+    pub open_threads: Vec<PETHREAD>,
+    pub allocated_mdls: Vec<Box<MDL>>,
+}
 
+impl PluginObjectTable {
     pub fn allocate_mdl(&mut self, ptr: PVOID, length: u32) -> &mut Box<MDL> {
         // uses ExAllocatePool. so it's safe for us to wrap it in our Box.
         let mdl = unsafe {
@@ -70,23 +51,43 @@ impl Plugin {
         self.allocated_mdls.last_mut().unwrap()
     }
 
-    pub fn get_allocated_mdl(
-        &mut self,
-        mapped_system_va: u64
-    ) -> Option<&mut Box<MDL>> {
-        self.allocated_mdls.iter_mut().find(|m| {
-            m.MappedSystemVa as u64 == mapped_system_va
-        })
+    pub fn get_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<&mut Box<MDL>> {
+        self.allocated_mdls
+            .iter_mut()
+            .find(|m| m.MappedSystemVa as u64 == mapped_system_va)
     }
 
-    pub fn pop_allocated_mdl(
-        &mut self,
-        mapped_system_va: u64
-    ) -> Option<Box<MDL>> {
-        if let Some(pos) = self.allocated_mdls.iter().position(|m| {
-            m.MappedSystemVa as u64 == mapped_system_va
-        }) {
+    pub fn pop_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<Box<MDL>> {
+        if let Some(pos) = self
+            .allocated_mdls
+            .iter()
+            .position(|m| m.MappedSystemVa as u64 == mapped_system_va)
+        {
             Some(self.allocated_mdls.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    pub fn pop_open_thread(&mut self, addr: PETHREAD) -> Option<PETHREAD> {
+        if let Some(pos) = self
+            .open_threads
+            .iter()
+            .position(|m| (m.addr() as u64) == (addr as u64))
+        {
+            Some(self.open_threads.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    pub fn pop_open_process(&mut self, addr: PEPROCESS) -> Option<PEPROCESS> {
+        if let Some(pos) = self
+            .open_processes
+            .iter()
+            .position(|m| (m.addr() as u64) == (addr as u64))
+        {
+            Some(self.open_processes.remove(pos))
         } else {
             None
         }
@@ -113,14 +114,13 @@ impl Plugin {
         addr: Option<PEPROCESS>,
     ) -> Option<*mut _KPROCESS> {
         let ptr = self.open_processes.iter().find(|p| {
-            let eprocess = p.load(Ordering::Relaxed) as PEPROCESS;
             if let Some(id) = id {
-                if unsafe { PsGetProcessId(eprocess) as u32 == id } {
+                if unsafe { PsGetProcessId(**p) as u32 == id } {
                     return true;
                 }
             }
             if let Some(addr) = addr {
-                if eprocess.addr() == addr as u64 as usize {
+                if (**p).addr() == addr as u64 as usize {
                     return true;
                 }
             }
@@ -130,58 +130,32 @@ impl Plugin {
 
         match ptr {
             None => None,
-            Some(x) => Some(x.load(Ordering::Relaxed)),
+            Some(x) => Some(*x),
         }
     }
+}
 
+impl Plugin {
     ///
-    /// # Get
+    /// # Queue Command
     ///
-    /// Gets the plugin from PLUGINS global variable.
+    /// Queues a command for later execution by the worker thread on PASSIVE_LEVEL.
     ///
     /// ## Arguments
-    /// * `uuid` - [`Uuid`] the plugin was saved to system with.
-    ///
-    /// ## Return
-    /// * [`None`] - Plugin not found.
-    /// * [`Some`] - Plugin.
-    pub fn lookup(uuid: Uuid) -> Option<&'static mut Self> {
-        let ptr = PLUGINS.load(Ordering::Acquire);
-        if ptr.is_null() {
-            return None;
-        }
-        let slice = unsafe { &mut *ptr };
-
-        match slice.plugins.iter_mut().find(|p| p.uuid == uuid) {
-            Some(p) => Some(*p),
-            None => None,
-        }
+    /// * `command` - Well... See [`AsyncCommand`]
+    pub fn queue_command(&mut self, command: Box<dyn AsyncCommand>) {
+        self.awaiting_commands.push_back(command);
     }
 
     ///
-    /// # Current
+    /// # Dequeue Command
     ///
-    /// Gets the current plugin from current process context
+    /// Pops a command from queue for execution by the worker thread.
     ///
-    /// ## Return
-    /// * [`None`] - No plugin associated with current process context.
-    /// * [`Some`] - Plugin.
-    pub fn current() -> Option<&'static mut Self> {
-        let ptr = PLUGINS.load(Ordering::Acquire);
-        if ptr.is_null() {
-            return None;
-        }
-
-        let slice = unsafe { &mut *ptr };
-
-        match slice
-            .plugins
-            .iter_mut()
-            .find(|p| p.process.load(Ordering::Relaxed) == unsafe { IoGetCurrentProcess() })
-        {
-            Some(p) => Some(*p),
-            None => None,
-        }
+    /// ## Returns
+    /// - Whatever [`VecDeque::pop_back`] returns.
+    pub fn dequeue_command(&mut self) -> Option<Box<dyn AsyncCommand>> {
+        self.awaiting_commands.pop_front()
     }
 
     ///
@@ -190,7 +164,7 @@ impl Plugin {
     /// Quick permission check for [self.authorized_permissions]
     #[cfg(debug_assertions)]
     pub fn perm_check(&self, permissions: PluginPermissions) -> bool {
-       true
+        true
     }
 
     ///
@@ -211,7 +185,7 @@ impl Plugin {
     /// * `process` - Pointer to NT executive process object.
     /// * `permissions` - Permission mask that plugin will utilize.
     pub fn integrate(&mut self, process: PEPROCESS, permissions: PluginPermissions) {
-        self.process.store(process, Ordering::Relaxed);
+        self.process = process;
         self.permissions = permissions;
     }
 
@@ -277,10 +251,9 @@ impl Plugin {
             uuid,
             permissions,
             authorized_permissions: permissions,
-            process: AtomicPtr::default(),
-            allocated_mdls: Vec::new(),
-            open_processes: Vec::new(),
             awaiting_commands: VecDeque::with_capacity(32),
+
+            ..Default::default()
         })
     }
 }
