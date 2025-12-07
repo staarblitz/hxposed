@@ -8,7 +8,7 @@ use wdk_sys::{PEPROCESS, STATUS_SUCCESS, UNICODE_STRING, _KPROCESS};
 pub struct KernelProcess {
     pub nt_process: AtomicPtr<_KPROCESS>,
     pub nt_path: AtomicPtr<UNICODE_STRING>,
-    pub id: u64,
+    pub id: u32,
 }
 
 impl KernelProcess {
