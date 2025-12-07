@@ -12,9 +12,7 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::requests::process::*;
-use hxposed_core::hxposed::requests::thread::{
-    CloseThreadRequest, OpenThreadRequest, SuspendResumeThreadRequest,
-};
+use hxposed_core::hxposed::requests::thread::{CloseThreadRequest, KillThreadRequest, OpenThreadRequest, SuspendResumeThreadRequest};
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
@@ -81,6 +79,18 @@ pub fn handle_thread_services(
                 suspend_resume_thread_async(
                     guest,
                     SuspendResumeThreadRequest::from_raw(request),
+                    plugin,
+                    async_info,
+                )
+            }
+        },
+        ServiceFunction::KillThread => {
+            if !request.call.is_async() {
+                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+            } else {
+                kill_thread_async(
+                    guest,
+                    KillThreadRequest::from_raw(request),
                     plugin,
                     async_info,
                 )
