@@ -1,6 +1,7 @@
 pub(crate) mod process;
 pub(crate) mod worker;
 pub(crate) mod context;
+pub(crate) mod logger;
 
 use crate::win::{PsGetSetContextThreadInternal, PsLoadedModuleList, PsTerminateProcessType, NT_PS_GET_CONTEXT_THREAD_INTERNAL, NT_PS_SET_CONTEXT_THREAD_INTERNAL, NT_PS_TERMINATE_PROCESS, _LDR_DATA_TABLE_ENTRY};
 use core::ptr::null_mut;
@@ -155,6 +156,7 @@ pub(crate) unsafe fn get_ethread_field<T: 'static>(
                 match field {
                     EThreadField::Lock => 0x590,
                     EThreadField::OffsetFromListEntry => -0x578, // returns the pointer to actual ETHREAD
+                    EThreadField::ClientId => 0x508
                 }
             }
             _ => {
@@ -172,7 +174,8 @@ pub enum NtProcedure {
 
 pub enum EThreadField {
     Lock,
-    OffsetFromListEntry
+    OffsetFromListEntry,
+    ClientId,
 }
 
 /// TODO: Document what those return
