@@ -2,16 +2,16 @@ use crate::PLUGINS;
 use crate::nt::context::ApcProcessContext;
 use crate::plugins::commands::memory::*;
 use crate::plugins::commands::process::*;
+use crate::plugins::commands::thread::*;
 use crate::services::memory_services::*;
 use crate::services::process_services::*;
+use crate::services::thread_services::*;
 use crate::win::timing;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::KeDelayExecutionThread;
 use wdk_sys::{FALSE, LARGE_INTEGER, PVOID};
-use crate::plugins::commands::thread::SuspendResumeThreadAsyncCommand;
-use crate::services::thread_services::suspend_resume_thread_sync;
 
 ///
 /// # Async Worker Thread
@@ -69,6 +69,9 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                 ),
                 ServiceFunction::SuspendResumeThread => suspend_resume_thread_sync(
                     command.as_any().downcast_ref::<SuspendResumeThreadAsyncCommand>().unwrap()
+                ),
+                ServiceFunction::KillThread => kill_thread_sync(
+                    command.as_any().downcast_ref::<KillThreadAsyncCommand>().unwrap()
                 ),
                 ServiceFunction::ProcessVMOperation => process_vm_operation_sync(
                     command
