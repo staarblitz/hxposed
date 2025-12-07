@@ -1,3 +1,4 @@
+use crate::nt::blanket::OpenHandle;
 use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
 use crate::plugins::commands::process::*;
 use crate::plugins::{Plugin, PluginTable};
@@ -5,7 +6,9 @@ use crate::win::PsTerminateProcess;
 use crate::win::danger::DangerPtr;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use core::arch::asm;
 use core::ptr::copy_nonoverlapping;
+use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
@@ -22,7 +25,6 @@ use wdk_sys::ntddk::{
     PsGetThreadId, PsLookupProcessByProcessId,
 };
 use wdk_sys::{_KTHREAD, _UNICODE_STRING, LIST_ENTRY, PEPROCESS, PETHREAD, STATUS_SUCCESS};
-use crate::nt::blanket::OpenHandle;
 
 ///
 /// # Get Process Threads (Sync)
@@ -58,7 +60,7 @@ pub(crate) fn get_process_threads_sync(
     };
 
     let first_entry = DangerPtr::<LIST_ENTRY> { ptr: threads.Blink };
-    let mut current_entry = DangerPtr::<LIST_ENTRY> { ptr: threads.ptr};
+    let mut current_entry = DangerPtr::<LIST_ENTRY> { ptr: threads.ptr };
 
     let mut thread_numbers = Vec::<u32>::new();
 
@@ -435,6 +437,9 @@ pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> Hypervisor
         err => return HypervisorResponse::nt_error(err as _),
     };
 
+    unsafe {
+        asm!("mov r15, r14", in("r14") crate::win::NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed));
+    }
     match unsafe { PsTerminateProcess(process, request.command.exit_code as _) } {
         STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillProcess),
         err => HypervisorResponse::nt_error(err as _),
