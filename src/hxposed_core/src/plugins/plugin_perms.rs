@@ -8,11 +8,11 @@ bitflags! {
         const PROCESS_EXECUTIVE = 1 << 0;
         const PROCESS_MEMORY    = 1 << 1;
         const PROCESS_CONTROL   = 1 << 2;
+        const PROCESS_SECURITY  = 1 << 3;
 
-        const RESERVED          = 1 << 3;
-        const RESERVED2         = 1 << 4;
-        const RESERVED3         = 1 << 5;
-        const RESERVED4         = 1 << 6;
+        const THREAD_EXECUTIVE  = 1 << 4;
+        const THREAD_CONTROL    = 1 << 5;
+        const THREAD_SECURITY   = 1 << 6;
         const RESERVED5         = 1 << 7;
 
         const MEMORY_VIRTUAL    = 1 << 8;
