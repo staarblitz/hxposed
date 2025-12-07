@@ -36,6 +36,14 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
 
+    pub(crate) fn get_set_thread_context() -> Self {
+        Self::new().with_func(ServiceFunction::GetSetThreadContext).with_extended_args_present(true)
+    }
+
+    pub(crate) fn kill_thread() -> Self {
+        Self::new().with_func(ServiceFunction::KillThread)
+    }
+
     pub(crate) fn suspend_resume_thread() -> Self {
         Self::new().with_func(ServiceFunction::SuspendResumeThread)
     }
