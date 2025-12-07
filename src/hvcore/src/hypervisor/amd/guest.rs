@@ -92,12 +92,8 @@ impl Guest for SvmGuest {
         self.vmcb.state_save_area.rsp = self.registers.rsp;
         self.vmcb.state_save_area.rflags = self.registers.rflags;
 
-        log::trace!("Entering the guest");
-
         // Run the guest until the #VMEXIT occurs.
         unsafe { run_svm_guest(&mut self.registers, self.vmcb_pa, self.host_vmcb_pa) };
-
-        log::trace!("Exited the guest");
 
         // #VMEXIT occurred. Copy the guest register values from VMCB so that
         // `self.registers` is complete and up to date.
@@ -166,7 +162,6 @@ impl SvmGuest {
                 == GuestActivityState::Active as u8
         );
 
-        log::debug!("INIT");
 
         // Extension Type
         // Not Write-through
@@ -263,7 +258,6 @@ impl SvmGuest {
     fn handle_sipi(&mut self, vector: u8) {
         assert!(self.id != 0);
         assert!(self.activity_state.load(Ordering::Relaxed) == GuestActivityState::Active as u8);
-        log::debug!("SIPI vector {vector:#x?}");
 
         self.vmcb.state_save_area.cs_selector = (vector as u16) << 8;
         self.vmcb.state_save_area.cs_base = (vector as u64) << 12;
@@ -289,7 +283,6 @@ impl SvmGuest {
 
     fn handle_nested_page_fault(&mut self) {
         if self.id == apic_id::PROCESSOR_COUNT.load(Ordering::Relaxed) - 1 {
-            log::debug!("Stopping APIC write interception");
             self.intercept_apic_write(false);
         }
 
@@ -363,7 +356,7 @@ impl SvmGuest {
         let faulting_gpa = self.vmcb.control_area.exit_info2;
         let apic_register = faulting_gpa & 0xfff;
         if apic_register != 0xb0 && self.id == 0 {
-            log::trace!("APIC reg:{apic_register:#x} <= {value:#x}");
+
         }
 
         // If the faulting access is not because of sending Startup IPI (0b110)
@@ -400,7 +393,7 @@ impl SvmGuest {
         let vector = value.get_bits(0..=7) as u8;
         let apic_id = icr_high_value.get_bits(24..=31) as u8;
         let processor_id = apic_id::processor_id_from(apic_id).unwrap();
-        log::debug!("SIPI to {apic_id} with vector {vector:#x?}");
+
         assert!(vector != GuestActivityState::WaitForSipi as u8);
 
         // Update the activity state of the target processor with the obtained
