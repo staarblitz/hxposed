@@ -214,8 +214,8 @@ impl SetProcessFieldRequest {
         Self {
             id,
             field: ProcessField::Protection,
-            data: new_protection as *mut _ as *mut u8,
-            data_len: size_of::<ProcessProtection>() as _, // 1 byte
+            data: new_protection as *mut _ as _,
+            data_len: size_of::<ProcessProtection>(), // 1 byte
         }
     }
 
@@ -223,8 +223,17 @@ impl SetProcessFieldRequest {
         Self {
             id,
             field: ProcessField::Signers,
-            data: new_levels as *mut _ as *mut u8,
-            data_len: size_of::<ProcessSignatureLevels>() as _,
+            data: new_levels as *mut _ as _,
+            data_len: size_of::<ProcessSignatureLevels>(),
+        }
+    }
+
+    pub(crate) fn set_mitigation_options(id: u32, new_options: &mut MitigationOptions) -> Self {
+        Self {
+            id,
+            field: ProcessField::MitigationFlags,
+            data: new_options as *mut _ as _,
+            data_len: size_of::<MitigationOptions>(),
         }
     }
 }
@@ -236,6 +245,7 @@ pub enum ProcessField {
     NtPath = 1,
     Protection = 2,
     Signers = 3,
+    MitigationFlags = 4,
 }
 
 impl ProcessField {
@@ -244,6 +254,7 @@ impl ProcessField {
             1 => Self::NtPath,
             2 => Self::Protection,
             3 => Self::Signers,
+            4 => Self::MitigationFlags,
             _ => Self::Unknown,
         }
     }
