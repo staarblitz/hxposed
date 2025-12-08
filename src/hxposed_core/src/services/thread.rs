@@ -4,7 +4,6 @@ use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::thread::*;
 use crate::intern::win::GetCurrentThreadId;
 use crate::plugins::plugin_perms::PluginPermissions;
-use crate::services::types::thread_fields::Amd64Context;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -69,7 +68,7 @@ impl HxThread {
         Ok(result.previous_count)
     }
 
-    ///
+   /* ///
     /// # Get Context (New)
     ///
     /// - Gets the thread context.
@@ -83,7 +82,7 @@ impl HxThread {
     /// ## Return
     /// * [`Amd64Context`] - Thread context.
     /// * Or error
-    pub async fn get_context_new(&mut self) -> Result<Box<Amd64Context>, HypervisorError> {
+    async fn get_context_new(&mut self) -> Result<Box<Amd64Context>, HypervisorError> {
         // total heap allocation. using Box::new allocates on stack first, then moves to heap.
         let mut boxed = unsafe { Box::<Amd64Context>::new_zeroed().assume_init() };
 
@@ -106,7 +105,7 @@ impl HxThread {
     /// ## Return
     /// * [`Amd64Context`] - Thread context.
     /// * Or error
-    pub async fn get_context(
+    async fn get_context(
         &mut self,
         ctx: &mut Box<Amd64Context>,
     ) -> Result<(), HypervisorError> {
@@ -136,7 +135,7 @@ impl HxThread {
     ///
     /// ## Return
     /// * Error or ().
-    pub async fn set_context(&mut self, mut ctx: Box<Amd64Context>) -> Result<(), HypervisorError> {
+    async fn set_context(&mut self, mut ctx: Box<Amd64Context>) -> Result<(), HypervisorError> {
         GetSetThreadContextRequest {
             id: self.id,
             operation: ThreadContextOperation::Set,
@@ -147,7 +146,7 @@ impl HxThread {
         .await?;
 
         Ok(())
-    }
+    }*/
 
     ///
     /// # Kill
