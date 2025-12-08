@@ -1,5 +1,5 @@
 use crate::nt::blanket::OpenHandle;
-use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
+use crate::nt::*;
 use crate::plugins::commands::process::*;
 use crate::plugins::{Plugin, PluginTable};
 use crate::win::PsTerminateProcess;
@@ -7,6 +7,7 @@ use crate::win::danger::DangerPtr;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::arch::asm;
+use core::ops::BitAnd;
 use core::ptr::copy_nonoverlapping;
 use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
@@ -19,7 +20,7 @@ use hxposed_core::hxposed::responses::process::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
+use hxposed_core::services::types::process_fields::*;
 use wdk_sys::ntddk::{
     ExAcquirePushLockExclusiveEx, ExReleasePushLockExclusiveEx, ProbeForRead, ProbeForWrite,
     PsGetThreadId, PsLookupProcessByProcessId,
@@ -235,10 +236,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
             }
 
             let field = unsafe {
-                get_eprocess_field::<ProcessSignatureLevels>(
-                    EProcessField::SignatureLevels,
-                    process,
-                )
+                get_eprocess_field::<ProcessSignatureLevel>(EProcessField::SignatureLevels, process)
             };
 
             match microseh::try_seh(|| unsafe {
@@ -246,8 +244,31 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
             }) {
                 Ok(_) => {
                     let new_field =
-                        unsafe { *(request.command.data as *mut ProcessSignatureLevels) };
+                        unsafe { *(request.command.data as *mut ProcessSignatureLevel) };
                     unsafe { field.write(new_field) };
+
+                    EmptyResponse::with_service(ServiceFunction::SetProcessField)
+                }
+                Err(_) => HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
+            }
+        }
+        ProcessField::MitigationFlags => {
+            if request.command.data_len != 8 {
+                return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
+            }
+
+            match microseh::try_seh(|| unsafe {
+                ProbeForRead(request.command.data as _, request.command.data_len as _, 2)
+            }) {
+                Ok(_) => {
+                    let mitigations =
+                        unsafe { *(request.command.data as *mut MitigationOptions) };
+
+                    let flags_field1 = unsafe {
+                        get_eprocess_field::<MitigationOptions>(EProcessField::MitigationFlags1, process)
+                    };
+
+                    unsafe {flags_field1.write(mitigations)};
 
                     EmptyResponse::with_service(ServiceFunction::SetProcessField)
                 }
@@ -287,7 +308,7 @@ pub(crate) fn get_process_field_async(
     }
 
     match request.field {
-        ProcessField::NtPath => {
+        ProcessField::NtPath | ProcessField::MitigationFlags => {
             if !async_info.is_present() {
                 return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
             }
@@ -370,6 +391,9 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
         ),
         ProcessField::Signers => GetProcessFieldResponse::Signers(unsafe {
             *get_eprocess_field::<u16>(EProcessField::SignatureLevels, process)
+        }),
+        ProcessField::MitigationFlags => GetProcessFieldResponse::Mitigation(unsafe {
+            *get_eprocess_field::<u64>(EProcessField::MitigationFlags1, process)
         }),
         _ => GetProcessFieldResponse::Unknown,
     }
