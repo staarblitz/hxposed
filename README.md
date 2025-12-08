@@ -95,6 +95,9 @@ Easy. Powerful. No-nonsense.
 > [!IMPORTANT]
 > Bindings for C# and C are **outdated**! They are not the main concern until core functionality is implemented.
 
+## Technichal Details
+Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
+
 ## Repo structure
 `src` contains the code written in Rust.
 - `hvcore` the hypervisor core.
