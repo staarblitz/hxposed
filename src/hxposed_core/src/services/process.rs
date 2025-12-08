@@ -7,7 +7,7 @@ use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
 use crate::services::memory::HxMemory;
-use crate::services::types::process_fields::{ProcessProtection, ProcessSignatureLevels};
+use crate::services::types::process_fields::{MitigationOptions, ProcessProtection, ProcessSignatureLevels};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -64,6 +64,34 @@ impl HxProcess {
         }.send_async().await?;
 
         Ok(result.addr)
+    }
+
+    ///
+    /// # Set Mitigation Options
+    ///
+    /// Sets the internal `MitigationFlags1` and `MitigationFlags2` fields of `_EPROCESS`.
+    pub async fn set_mitigation_options(&self, options: MitigationOptions) -> Result<EmptyResponse, HypervisorError> {
+        let mut boxed_options = Box::new(options);
+        SetProcessFieldRequest::set_mitigation_options(self.id, boxed_options.as_mut()).send_async().await
+    }
+
+    ///
+    /// # Set Mitigation Options
+    ///
+    /// Gets the internal `MitigationFlags1` and `MitigationFlags2` fields of `_EPROCESS`.
+    pub async fn get_mitigation_options(&self) -> Result<MitigationOptions, HypervisorError> {
+        let result = GetProcessFieldRequest {
+            id: self.id,
+            field: ProcessField::MitigationFlags,
+            ..Default::default()
+        }.send_async().await?;
+
+        match result {
+            GetProcessFieldResponse::Mitigation(x) => {
+                Ok(MitigationOptions::from(x))
+            }
+            _ => unreachable!(),
+        }
     }
 
     ///
@@ -159,9 +187,10 @@ impl HxProcess {
     /// ```
     pub fn set_protection(
         &mut self,
-        mut new_protection: ProcessProtection,
+        new_protection: ProcessProtection,
     ) -> Future<SetProcessFieldRequest, EmptyResponse> {
-        SetProcessFieldRequest::set_protection(self.id, &mut new_protection).send_async()
+        let mut boxed_protection = Box::new(new_protection);
+        SetProcessFieldRequest::set_protection(self.id, boxed_protection.as_mut()).send_async()
     }
 
     ///
@@ -192,9 +221,10 @@ impl HxProcess {
     /// ```
     pub fn set_signature_levels(
         &mut self,
-        mut new_levels: ProcessSignatureLevels,
+        new_levels: ProcessSignatureLevels,
     ) -> Future<SetProcessFieldRequest, EmptyResponse> {
-        SetProcessFieldRequest::set_signature_levels(self.id, &mut new_levels).send_async()
+        let mut boxed_levels = Box::new(new_levels);
+        SetProcessFieldRequest::set_signature_levels(self.id, boxed_levels.as_mut()).send_async()
     }
 
     ///
