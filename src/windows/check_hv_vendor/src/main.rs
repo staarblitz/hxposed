@@ -8,9 +8,11 @@ use std::fmt::Display;
 use std::process::exit;
 use std::str::FromStr;
 use async_std::io::stdin;
+use hxposed_core::error::HypervisorError;
+use hxposed_core::hxposed::requests::process::ProcessField::MitigationFlags;
 use hxposed_core::services::process::HxProcess;
 use hxposed_core::services::thread::HxThread;
-use hxposed_core::services::types::process_fields::{ProcessProtection, ProcessSignatureLevel, ProcessSignatureLevels, ProtectionSigner, ProtectionType};
+use hxposed_core::services::types::process_fields::{MitigationOptions, ProcessProtection, ProcessSignatureLevel, ProcessSignatureLevels, ProtectionSigner, ProtectionType};
 use uuid::Uuid;
 
 async fn async_main() {
@@ -118,27 +120,19 @@ async fn async_main() {
         Err(x) => println!("Error changing process signature levels: {:?}", x),
     }
 
-    let threads = match process.get_threads().await {
+    let options = match process.get_mitigation_options().await {
         Ok(x) => x,
         Err(e) => {
-            println!("Failed to get thread ids: {:?}", e);
+            println!("Error getting process mitigation levels: {:?}", e);
             return;
         }
     };
 
-    for thread in &threads {
-        let mut thread = match HxThread::open(*thread) {
-            Ok(x) => x,
-            Err(e) => {
-                println!("Failed to get open thread: {:?}", e);
-                return;
-            }
-        };
+    println!("mitigation options: {:?}", options);
 
-        match thread.kill(0).await {
-            Ok(_) => println!("Thread killed."),
-            Err(e) => println!("Failed to kill thread: {:?}", e),
-        }
+    match process.set_mitigation_options(MitigationOptions::default()).await {
+        Ok(_) => println!("Process mitigation options changed!"),
+        Err(x) => println!("Error changing process mitigation options: {:?}", x),
     }
 
     /*println!("Address to read/write?: ");
