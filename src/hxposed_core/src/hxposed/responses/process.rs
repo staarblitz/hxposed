@@ -3,8 +3,6 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
-
-
 #[derive(Clone, Default, Debug)]
 #[repr(u16)]
 pub enum GetProcessFieldResponse {
@@ -13,11 +11,12 @@ pub enum GetProcessFieldResponse {
     NtPath(u16) = 1,
     Protection(u32) = 2,
     Signers(u16) = 3,
+    Mitigation(u64) = 4,
 }
 
-#[derive(Clone,Default,Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct GetProcessThreadsResponse {
-    pub number_of_threads: u32
+    pub number_of_threads: u32,
 }
 
 impl VmcallResponse for GetProcessThreadsResponse {
@@ -27,17 +26,17 @@ impl VmcallResponse for GetProcessThreadsResponse {
         }
 
         Ok(Self {
-            number_of_threads: raw.arg1 as _
+            number_of_threads: raw.arg1 as _,
         })
     }
 
     fn into_raw(self) -> HypervisorResponse {
-       HypervisorResponse {
-           result: HypervisorResult::ok(ServiceFunction::GetProcessThreads),
-           arg1: self.number_of_threads as _,
+        HypervisorResponse {
+            result: HypervisorResult::ok(ServiceFunction::GetProcessThreads),
+            arg1: self.number_of_threads as _,
 
-           ..Default::default()
-       }
+            ..Default::default()
+        }
     }
 }
 
@@ -51,6 +50,7 @@ impl VmcallResponse for GetProcessFieldResponse {
             1 => Self::NtPath(raw.arg2 as _),
             2 => Self::Protection(raw.arg2 as _),
             3 => Self::Signers(raw.arg2 as _),
+            4 => Self::Mitigation(raw.arg2 as _),
             _ => unreachable!("Developer forgot to implement this one."),
         })
     }
@@ -60,6 +60,7 @@ impl VmcallResponse for GetProcessFieldResponse {
             Self::NtPath(x) => (1, x as _, 0),
             Self::Protection(x) => (2, x as _, 0),
             Self::Signers(x) => (3, x as _, 0),
+            Self::Mitigation(x) => (4, x, 0),
             GetProcessFieldResponse::Unknown => unreachable!(), // didn't use _ => on purpose, so I never forget implementing new ones
         };
 
