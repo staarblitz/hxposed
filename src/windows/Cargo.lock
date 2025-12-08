@@ -1412,6 +1412,7 @@ name = "win_hv"
 version = "0.0.0"
 dependencies = [
  "bit_field",
+ "bitfield-struct",
  "hv",
  "hxposed_core",
  "log",
