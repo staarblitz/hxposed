@@ -5,9 +5,10 @@ pub(crate) mod logger;
 pub(crate) mod blanket;
 pub(crate) mod handlebox;
 
-use crate::win::{PsGetSetContextThreadInternal, PsLoadedModuleList, PsTerminateProcessType, PsTerminateThreadType, NT_PS_GET_CONTEXT_THREAD_INTERNAL, NT_PS_SET_CONTEXT_THREAD_INTERNAL, NT_PS_TERMINATE_PROCESS, NT_PS_TERMINATE_THREAD, _LDR_DATA_TABLE_ENTRY};
+use crate::win::*;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use bitfield_struct::bitfield;
 use wdk_sys::ntddk::RtlGetVersion;
 use wdk_sys::{PEPROCESS, PETHREAD, RTL_OSVERSIONINFOW};
 
