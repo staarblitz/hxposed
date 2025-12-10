@@ -36,6 +36,18 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
 
+    pub(crate) fn open_token() -> Self {
+        Self::new().with_func(ServiceFunction::OpenToken)
+    }
+
+    pub(crate) fn get_thread_field() -> Self {
+        Self::new().with_func(ServiceFunction::GetThreadField).with_extended_args_present(true)
+    }
+
+    pub(crate) fn set_thread_field() -> Self {
+        Self::new().with_func(ServiceFunction::SetThreadField).with_extended_args_present(true)
+    }
+
     pub(crate) fn get_set_thread_context() -> Self {
         Self::new().with_func(ServiceFunction::GetSetThreadContext).with_extended_args_present(true)
     }
