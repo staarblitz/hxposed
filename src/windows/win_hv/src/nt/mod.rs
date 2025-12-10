@@ -10,7 +10,7 @@ use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use bitfield_struct::bitfield;
 use wdk_sys::ntddk::RtlGetVersion;
-use wdk_sys::{PEPROCESS, PETHREAD, RTL_OSVERSIONINFOW};
+use wdk_sys::{PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
@@ -165,7 +165,9 @@ pub(crate) unsafe fn get_ethread_field<T: 'static>(
                 match field {
                     EThreadField::Lock => 0x590,
                     EThreadField::OffsetFromListEntry => -0x578, // returns the pointer to actual ETHREAD
-                    EThreadField::ClientId => 0x508
+                    EThreadField::ClientId => 0x508,
+                    EThreadField::CrossThreadFlags => 0x5a0,
+                    EThreadField::AdjustedClientToken => 0x648
                 }
             }
             _ => {
@@ -186,6 +188,8 @@ pub enum EThreadField {
     Lock,
     OffsetFromListEntry,
     ClientId,
+    CrossThreadFlags,
+    AdjustedClientToken
 }
 
 /// TODO: Document what those return
@@ -205,4 +209,12 @@ pub enum EProcessField {
     MitigationFlags1,
     MitigationFlags2,
     MitigationFlags3,
+}
+
+#[bitfield(u64)]
+pub struct ExFastRef {
+    #[bits(60)]
+    pub object: PVOID,
+    #[bits(4)]
+    pub reference_count: u64
 }
