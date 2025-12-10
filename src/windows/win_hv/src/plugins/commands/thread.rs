@@ -18,6 +18,12 @@ pub struct SuspendResumeThreadAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
 }
 
+pub struct GetThreadFieldAsyncCommand {
+    pub command: GetThreadFieldRequest,
+    pub uuid: Uuid,
+    pub async_info: UnsafeAsyncInfo,
+}
+
 pub struct KillThreadAsyncCommand {
     pub command: KillThreadRequest,
     pub uuid: Uuid,
