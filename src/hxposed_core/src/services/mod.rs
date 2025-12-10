@@ -8,3 +8,5 @@ pub mod types;
 pub mod memory_map;
 #[cfg(feature = "usermode")]
 pub mod thread;
+#[cfg(feature = "usermode")]
+pub mod security;
