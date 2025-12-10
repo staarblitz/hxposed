@@ -1,5 +1,5 @@
 use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::process::ObjectOpenType;
+use crate::hxposed::requests::process::{ObjectOpenType};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::thread::*;
@@ -37,6 +37,81 @@ pub struct GetSetThreadContextRequest {
     pub operation: ThreadContextOperation,
     pub data: *mut u8,
     pub data_len: usize
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct GetThreadFieldRequest {
+    pub id: u32,
+    pub field: ThreadField,
+    pub data: *mut u8,
+    pub data_len: usize,
+}
+
+#[derive(Default, Debug)]
+pub struct SetThreadFieldRequest {
+    pub id: u32,
+    pub field: ThreadField,
+    pub data: *mut u8,
+    pub data_len: usize,
+}
+
+impl VmcallRequest for GetThreadFieldRequest {
+    type Response = GetThreadFieldResponse;
+
+    fn into_raw(self) -> *mut HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
+            call: HypervisorCall::get_thread_field(),
+            arg1: self.id as _,
+            arg2: self.field.clone() as _,
+
+            extended_arg1: self.data as _,
+            extended_arg2: self.data_len as _,
+            ..Default::default()
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self {
+            id: request.arg1 as _,
+            field: ThreadField::from_bits(request.arg2 as _),
+            data: request.extended_arg1 as *mut u8,
+            data_len: request.extended_arg2 as _,
+        }
+    }
+}
+
+impl VmcallRequest for SetThreadFieldRequest {
+    type Response = EmptyResponse;
+
+    fn into_raw(self) -> *mut HypervisorRequest {
+        let raw = Box::new(HypervisorRequest {
+            call: HypervisorCall::set_thread_field(),
+            arg1: self.id as _,
+            arg2: self.field.clone() as _,
+
+            extended_arg1: self.data as _,
+            extended_arg2: self.data_len as _,
+
+            ..Default::default()
+        });
+
+        mem::forget(self);
+
+        Box::into_raw(raw)
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self {
+            id: request.arg1 as _,
+            field: ThreadField::from_bits(request.arg2 as _),
+            data: request.extended_arg1 as _,
+            data_len: request.extended_arg2 as _,
+        }
+    }
 }
 
 impl VmcallRequest for GetSetThreadContextRequest {
@@ -169,6 +244,29 @@ impl VmcallRequest for OpenThreadRequest {
             pid: request.arg1 as _,
             tid: request.arg2 as _,
             open_type: ObjectOpenType::from_bits(request.arg3 as _),
+        }
+    }
+}
+
+#[derive(Clone,Default,Debug)]
+pub enum ThreadField {
+    #[default]
+    Unknown = 0,
+    ActiveImpersonationInfo = 1,
+    AdjustedClientToken = 2,
+}
+
+impl ThreadField {
+    pub const fn into_bits(self) -> u8 {
+        self as _
+    }
+
+    pub const fn from_bits(bits: u8) -> Self {
+        match bits {
+            0 => ThreadField::Unknown,
+            1 => ThreadField::ActiveImpersonationInfo,
+            2 => ThreadField::AdjustedClientToken,
+            _ => unreachable!("Forgot to implement this one")
         }
     }
 }
