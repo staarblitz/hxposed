@@ -246,6 +246,7 @@ pub enum ProcessField {
     Protection = 2,
     Signers = 3,
     MitigationFlags = 4,
+    Token = 5,
 }
 
 impl ProcessField {
@@ -255,6 +256,7 @@ impl ProcessField {
             2 => Self::Protection,
             3 => Self::Signers,
             4 => Self::MitigationFlags,
+            5 => Self::Token,
             _ => Self::Unknown,
         }
     }
