@@ -95,6 +95,16 @@ async fn async_main() {
 
     println!("Process signature levels: {:?}", signature_levels);
 
+    let options = match process.get_mitigation_options().await {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting process mitigation levels: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Process mitigation options: {:?}", options);
+
     match process
         .set_protection(
             ProcessProtection::new()
@@ -119,16 +129,6 @@ async fn async_main() {
         Ok(_) => println!("Process signature levels changed!"),
         Err(x) => println!("Error changing process signature levels: {:?}", x),
     }
-
-    let options = match process.get_mitigation_options().await {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error getting process mitigation levels: {:?}", e);
-            return;
-        }
-    };
-
-    println!("mitigation options: {:?}", options);
 
     match process.set_mitigation_options(MitigationOptions::default()).await {
         Ok(_) => println!("Process mitigation options changed!"),
