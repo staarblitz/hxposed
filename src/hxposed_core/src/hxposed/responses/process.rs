@@ -12,6 +12,7 @@ pub enum GetProcessFieldResponse {
     Protection(u32) = 2,
     Signers(u16) = 3,
     Mitigation(u64) = 4,
+    Token(u64) = 5,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -51,6 +52,7 @@ impl VmcallResponse for GetProcessFieldResponse {
             2 => Self::Protection(raw.arg2 as _),
             3 => Self::Signers(raw.arg2 as _),
             4 => Self::Mitigation(raw.arg2 as _),
+            5 => Self::Token(raw.arg2 as _),
             _ => unreachable!("Developer forgot to implement this one."),
         })
     }
@@ -61,7 +63,8 @@ impl VmcallResponse for GetProcessFieldResponse {
             Self::Protection(x) => (2, x as _, 0),
             Self::Signers(x) => (3, x as _, 0),
             Self::Mitigation(x) => (4, x, 0),
-            GetProcessFieldResponse::Unknown => unreachable!(), // didn't use _ => on purpose, so I never forget implementing new ones
+            Self::Token(x) => (5, x, 0),
+            Self::Unknown => unreachable!(), // didn't use _ => on purpose, so I never forget implementing new ones
         };
 
         HypervisorResponse {
