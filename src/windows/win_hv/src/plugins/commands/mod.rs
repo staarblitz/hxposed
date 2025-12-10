@@ -10,6 +10,7 @@ use wdk_sys::ntddk::{ProbeForWrite, ZwSetEvent};
 pub mod process;
 pub mod memory;
 pub mod thread;
+pub mod security;
 
 pub trait AsyncCommand: Any {
     fn get_service_function(&self) -> ServiceFunction;
