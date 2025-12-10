@@ -1,19 +1,20 @@
 use crate::error::HypervisorError;
+use crate::hxposed::requests::process::*;
 use crate::hxposed::requests::Vmcall;
-use crate::hxposed::requests::process::{CloseProcessRequest, GetProcessFieldRequest, GetProcessThreadsRequest, KillProcessRequest, OpenProcessRequest, ProcessField, ObjectOpenType, SetProcessFieldRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
-use crate::hxposed::responses::process::{GetProcessFieldResponse, GetProcessThreadsResponse};
+use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
 use crate::services::memory::HxMemory;
-use crate::services::types::process_fields::{MitigationOptions, ProcessProtection, ProcessSignatureLevels};
+use crate::services::types::process_fields::*;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::pin::Pin;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicU64, Ordering};
+use crate::services::security::HxToken;
 
 pub struct HxProcess {
     pub id: u32,
@@ -61,18 +62,49 @@ impl HxProcess {
         let result = OpenProcessRequest {
             process_id: id,
             open_type: ObjectOpenType::Handle,
-        }.send_async().await?;
+        }
+        .send_async()
+        .await?;
 
         Ok(result.addr)
+    }
+
+    ///
+    /// # Get Primary Token
+    ///
+    /// Gets `Token` field of `_EPROCESS` structure.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::PROCESS_SECURITY`]
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
+    ///
+    /// ## Returns
+    /// * [`HxToken`]
+    pub async fn get_primary_token(&self) -> Result<HxToken, HypervisorError> {
+        match (GetProcessFieldRequest {
+            id: self.id,
+            field: ProcessField::Token,
+            ..Default::default()
+        }.send_async().await?) {
+            GetProcessFieldResponse::Token(addr) => {
+                Ok(HxToken::from_raw_object(addr)?)
+            },
+            _ => unreachable!(),
+        }
     }
 
     ///
     /// # Set Mitigation Options
     ///
     /// Sets the internal `MitigationFlags1` and `MitigationFlags2` fields of `_EPROCESS`.
-    pub async fn set_mitigation_options(&self, options: MitigationOptions) -> Result<EmptyResponse, HypervisorError> {
+    pub async fn set_mitigation_options(
+        &self,
+        options: MitigationOptions,
+    ) -> Result<EmptyResponse, HypervisorError> {
         let mut boxed_options = Box::new(options);
-        SetProcessFieldRequest::set_mitigation_options(self.id, boxed_options.as_mut()).send_async().await
+        SetProcessFieldRequest::set_mitigation_options(self.id, boxed_options.as_mut())
+            .send_async()
+            .await
     }
 
     ///
@@ -84,12 +116,12 @@ impl HxProcess {
             id: self.id,
             field: ProcessField::MitigationFlags,
             ..Default::default()
-        }.send_async().await?;
+        }
+        .send_async()
+        .await?;
 
         match result {
-            GetProcessFieldResponse::Mitigation(x) => {
-                Ok(MitigationOptions::from(x))
-            }
+            GetProcessFieldResponse::Mitigation(x) => Ok(MitigationOptions::from(x)),
             _ => unreachable!(),
         }
     }
@@ -109,7 +141,9 @@ impl HxProcess {
             id: self.id,
             data: 0 as _,
             data_len: 0,
-        }.send_async().await?;
+        }
+        .send_async()
+        .await?;
 
         let mut buffer = Vec::<u32>::with_capacity(result.number_of_threads as _);
 
@@ -117,7 +151,9 @@ impl HxProcess {
             id: self.id,
             data: buffer.as_mut_ptr() as _,
             data_len: (buffer.capacity() as i32 * 4) as _,
-        }.send_async().await?;
+        }
+        .send_async()
+        .await?;
 
         assert_eq!(buffer.capacity(), result.number_of_threads as _);
 
