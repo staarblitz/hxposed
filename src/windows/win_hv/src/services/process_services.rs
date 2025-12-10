@@ -10,6 +10,7 @@ use core::arch::asm;
 use core::ops::BitAnd;
 use core::ptr::copy_nonoverlapping;
 use core::sync::atomic::Ordering;
+use bit_field::BitField;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
@@ -321,7 +322,7 @@ pub(crate) fn get_process_field_async(
             EmptyResponse::with_service(ServiceFunction::KillProcess)
         }
         // directly call the sync counterpart.
-        ProcessField::Protection | ProcessField::Signers => {
+        ProcessField::Protection | ProcessField::Signers | ProcessField::Token => {
             get_process_field_sync(&GetProcessFieldAsyncCommand {
                 uuid: plugin.uuid,
                 command: request,
@@ -349,10 +350,17 @@ pub(crate) fn get_process_field_async(
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 ///
 pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> HypervisorResponse {
-    let mut process = PEPROCESS::default();
-    match unsafe { PsLookupProcessByProcessId(request.command.id as _, &mut process) } {
-        STATUS_SUCCESS => {}
-        err => return HypervisorResponse::nt_error(err as _),
+    let plugin = match PluginTable::lookup(request.uuid) {
+        Some(plugin) => plugin,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
+    let process = match plugin
+        .object_table
+        .get_open_process(Some(request.command.id), None)
+    {
+        Some(thread) => thread,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.command.field {
@@ -395,6 +403,17 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
         ProcessField::MitigationFlags => GetProcessFieldResponse::Mitigation(unsafe {
             *get_eprocess_field::<u64>(EProcessField::MitigationFlags1, process)
         }),
+        ProcessField::Token => {
+            if !plugin.perm_check(PluginPermissions::PROCESS_SECURITY) {
+                return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_SECURITY);
+            }
+
+            let field = unsafe {
+                &*get_eprocess_field::<ExFastRef>(EProcessField::Token, process)
+            };
+
+            GetProcessFieldResponse::Token(field.object() as _)
+        }
         _ => GetProcessFieldResponse::Unknown,
     }
     .into_raw()
