@@ -2,24 +2,29 @@ use crate::PLUGINS;
 use crate::nt::context::ApcProcessContext;
 use crate::plugins::commands::memory::*;
 use crate::plugins::commands::process::*;
+use crate::plugins::commands::security::*;
 use crate::plugins::commands::thread::*;
 use crate::services::memory_services::*;
 use crate::services::process_services::*;
+use crate::services::security_services::*;
 use crate::services::thread_services::*;
 use crate::win::timing;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::KeDelayExecutionThread;
-use wdk_sys::{FALSE, LARGE_INTEGER, PVOID};
+use wdk_sys::ntddk::{__readgsqword, KeDelayExecutionThread, KeSetPriorityThread};
+use wdk_sys::{FALSE, LARGE_INTEGER, LOW_REALTIME_PRIORITY, PVOID};
 
 ///
 /// # Async Worker Thread
 ///
 /// Dequeues commands from each plugin's async command queue, "works" them, fires the result callback.
 pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
-    let mut interval = timing::relative(timing::milliseconds(100));
+    let mut interval = timing::relative(timing::milliseconds(20));
     let plugins = unsafe { &mut *PLUGINS.load(Ordering::Relaxed) };
+
+    // KeGetCurrentThread is not export by bindgen. lmao
+    unsafe { KeSetPriorityThread(__readgsqword(0x188) as _, LOW_REALTIME_PRIORITY as _) }
 
     loop {
         // this labeled loops are fire 🔥🔥🔥
@@ -68,10 +73,22 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .unwrap(),
                 ),
                 ServiceFunction::SuspendResumeThread => suspend_resume_thread_sync(
-                    command.as_any().downcast_ref::<SuspendResumeThreadAsyncCommand>().unwrap()
+                    command
+                        .as_any()
+                        .downcast_ref::<SuspendResumeThreadAsyncCommand>()
+                        .unwrap(),
                 ),
                 ServiceFunction::KillThread => kill_thread_sync(
-                    command.as_any().downcast_ref::<KillThreadAsyncCommand>().unwrap()
+                    command
+                        .as_any()
+                        .downcast_ref::<KillThreadAsyncCommand>()
+                        .unwrap(),
+                ),
+                ServiceFunction::OpenToken => open_token_sync(
+                    command
+                        .as_any()
+                        .downcast_ref::<OpenTokenAsyncCommand>()
+                        .unwrap(),
                 ),
                 ServiceFunction::ProcessVMOperation => process_vm_operation_sync(
                     command
