@@ -31,8 +31,8 @@ bitflags! {
         const CPU_MSR_WRITE     = 1 << 19;
         const CPU_SEGMENTATION  = 1 << 20;
         const CPU_CONTROL       = 1 << 21;
+        const CPU_IO            = 1 << 22;
 
-        const RESERVED11        = 1 << 22;
         const RESERVED12        = 1 << 23;
         const RESERVED13        = 1 << 24;
         const RESERVED14        = 1 << 25;
