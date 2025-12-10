@@ -6,6 +6,8 @@ use crate::intern::win::GetCurrentThreadId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicU64, Ordering};
+use crate::hxposed::responses::thread::GetThreadFieldResponse;
+use crate::services::security::HxToken;
 
 pub struct HxThread {
     pub id: u32,
@@ -27,6 +29,9 @@ impl HxThread {
     ///
     /// # Current
     ///
+    /// ## Permissions
+    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
+    ///
     /// Opens the current thread for your use.
     pub fn current() -> Result<Self, HypervisorError> {
         Self::open(unsafe { GetCurrentThreadId() })
@@ -36,6 +41,9 @@ impl HxThread {
     /// # Suspend
     ///
     /// Suspends the specified thread.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
     ///
     /// ## Return
     /// * [`u32`] - Previous suspend count
@@ -55,6 +63,9 @@ impl HxThread {
     ///
     /// Resumes the specified thread.
     ///
+    /// ## Permissions
+    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
+    ///
     /// ## Return
     /// * [`u32`] - Previous suspend count
     pub async fn resume(&mut self) -> Result<u32, HypervisorError> {
@@ -66,6 +77,52 @@ impl HxThread {
         .await?;
 
         Ok(result.previous_count)
+    }
+
+    /// # Get Impersonation Token
+    ///
+    /// Gets the `AdjustedClientToken` field from `_ETHREAD` structure.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
+    /// * [`PluginPermissions::THREAD_SECURITY`]
+    ///
+    /// ## Return
+    /// * [`HxToken`] - Impersonation token.
+    /// * [`HypervisorError`] - Most likely thread is not impersonating.
+    pub fn get_impersonation_token(&self) -> Result<HxToken, HypervisorError> {
+        match (GetThreadFieldRequest {
+            id:self.id,
+            field: ThreadField::AdjustedClientToken,
+
+            ..Default::default()
+        }).send()? {
+            GetThreadFieldResponse::AdjustedClientToken(x) => Ok(HxToken::from_raw_object(x)?),
+            _ => unreachable!(),
+        }
+    }
+
+    ///
+    /// # Is Impersonating
+    ///
+    /// Checks the `ActiveImpersonationInfo` from `CrossThreadFlags` in `_ETHREAD` structure.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
+    /// * [`PluginPermissions::THREAD_SECURITY`]
+    ///
+    /// ## Return
+    /// * [`bool`]
+    pub fn is_impersonating(&self) -> Result<bool, HypervisorError> {
+        match (GetThreadFieldRequest {
+            id: self.id,
+            field: ThreadField::ActiveImpersonationInfo,
+
+            ..Default::default()
+        }.send()?) {
+            GetThreadFieldResponse::ActiveImpersonationInfo(x) => Ok(x),
+            _ => unreachable!(),
+        }
     }
 
    /* ///
@@ -152,6 +209,9 @@ impl HxThread {
     /// # Kill
     ///
     /// Terminates current thread.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
     ///
     /// ## Warning
     /// Note that this is not an OP command. The thread will get stuck if it's waiting for an I/O operation.
