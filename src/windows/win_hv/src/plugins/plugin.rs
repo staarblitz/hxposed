@@ -11,7 +11,7 @@ use uuid::Uuid;
 use wdk::println;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{IoAllocateMdl, PsGetProcessId, PsGetThreadId, ZwClose, ZwOpenKey, ZwQueryValueKey};
-use wdk_sys::{_KPROCESS, MDL, PEPROCESS, PVOID};
+use wdk_sys::{_KPROCESS, MDL, PEPROCESS, PVOID, PACCESS_TOKEN};
 use wdk_sys::{
     FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE,
     OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PETHREAD, PIRP, STATUS_SUCCESS,
@@ -31,6 +31,7 @@ pub(crate) struct Plugin {
 pub(crate) struct PluginObjectTable {
     pub open_processes: Vec<PEPROCESS>,
     pub open_threads: Vec<PETHREAD>,
+    pub open_tokens: Vec<PACCESS_TOKEN>,
     pub allocated_mdls: Vec<Box<MDL>>,
 }
 
