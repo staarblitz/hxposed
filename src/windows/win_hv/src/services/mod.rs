@@ -1,8 +1,9 @@
-use crate::plugins::PluginTable;
 use crate::plugins::plugin::Plugin;
+use crate::plugins::PluginTable;
 use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::services::thread_services::*;
+use crate::services::security_services::*;
 use crate::write_response;
 use core::ops::BitAnd;
 use hv::hypervisor::host::Guest;
@@ -12,16 +13,19 @@ use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::requests::process::*;
-use hxposed_core::hxposed::requests::thread::{CloseThreadRequest, KillThreadRequest, OpenThreadRequest, SuspendResumeThreadRequest};
+use hxposed_core::hxposed::requests::security::*;
+use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk_sys::ntddk::IoGetCurrentProcess;
 
 pub mod memory_services;
 pub mod process_services;
 pub mod thread_services;
+pub mod security_services;
 
 ///
 /// # Authorize Plugin
@@ -83,7 +87,7 @@ pub fn handle_thread_services(
                     async_info,
                 )
             }
-        },
+        }
         ServiceFunction::KillThread => {
             if !request.call.is_async() {
                 HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
@@ -96,10 +100,37 @@ pub fn handle_thread_services(
                 )
             }
         }
+        ServiceFunction::GetThreadField => get_thread_field_async(
+            guest,
+            GetThreadFieldRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
         ServiceFunction::CloseThread => {
             close_thread(guest, CloseThreadRequest::from_raw(request), plugin)
         }
         _ => unreachable!(),
+    };
+
+    write_response(guest, result);
+}
+
+pub fn handle_security_services(
+    guest: &mut dyn Guest,
+    request: &HypervisorRequest,
+    plugin: &'static mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) {
+    if !plugin.perm_check(PluginPermissions::SECURITY_MANAGE) {
+        write_response(guest,HypervisorResponse::not_allowed_perms(PluginPermissions::SECURITY_MANAGE));
+        return;
+    }
+
+    let result = match request.call.func() {
+        // just learned about this
+        ServiceFunction::OpenToken if request.call.is_async() => open_token_async(guest, OpenTokenRequest::from_raw(request), plugin, async_info),
+        ServiceFunction::OpenToken if !request.call.is_async() => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
+        _ => unreachable!("forgot to implement this one"),
     };
 
     write_response(guest, result);
