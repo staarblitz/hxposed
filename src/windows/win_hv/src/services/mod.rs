@@ -2,8 +2,8 @@ use crate::plugins::plugin::Plugin;
 use crate::plugins::PluginTable;
 use crate::services::memory_services::*;
 use crate::services::process_services::*;
-use crate::services::thread_services::*;
 use crate::services::security_services::*;
+use crate::services::thread_services::*;
 use crate::write_response;
 use core::ops::BitAnd;
 use hv::hypervisor::host::Guest;
@@ -24,8 +24,8 @@ use wdk_sys::ntddk::IoGetCurrentProcess;
 
 pub mod memory_services;
 pub mod process_services;
-pub mod thread_services;
 pub mod security_services;
+pub mod thread_services;
 
 ///
 /// # Authorize Plugin
@@ -76,29 +76,25 @@ pub fn handle_thread_services(
             plugin,
             async_info,
         ),
-        ServiceFunction::SuspendResumeThread => {
-            if !request.call.is_async() {
-                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            } else {
-                suspend_resume_thread_async(
-                    guest,
-                    SuspendResumeThreadRequest::from_raw(request),
-                    plugin,
-                    async_info,
-                )
-            }
+        ServiceFunction::SuspendResumeThread if request.call.is_async() => {
+            suspend_resume_thread_async(
+                guest,
+                SuspendResumeThreadRequest::from_raw(request),
+                plugin,
+                async_info,
+            )
         }
-        ServiceFunction::KillThread => {
-            if !request.call.is_async() {
-                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            } else {
-                kill_thread_async(
-                    guest,
-                    KillThreadRequest::from_raw(request),
-                    plugin,
-                    async_info,
-                )
-            }
+        ServiceFunction::SuspendResumeThread if !request.call.is_async() => {
+            HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+        }
+        ServiceFunction::KillThread if request.call.is_async() => kill_thread_async(
+            guest,
+            KillThreadRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::KillThread if !request.call.is_async() => {
+            HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
         }
         ServiceFunction::GetThreadField => get_thread_field_async(
             guest,
@@ -122,14 +118,23 @@ pub fn handle_security_services(
     async_info: UnsafeAsyncInfo,
 ) {
     if !plugin.perm_check(PluginPermissions::SECURITY_MANAGE) {
-        write_response(guest,HypervisorResponse::not_allowed_perms(PluginPermissions::SECURITY_MANAGE));
+        write_response(
+            guest,
+            HypervisorResponse::not_allowed_perms(PluginPermissions::SECURITY_MANAGE),
+        );
         return;
     }
 
     let result = match request.call.func() {
-        // just learned about this
-        ServiceFunction::OpenToken if request.call.is_async() => open_token_async(guest, OpenTokenRequest::from_raw(request), plugin, async_info),
-        ServiceFunction::OpenToken if !request.call.is_async() => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
+        ServiceFunction::OpenToken if request.call.is_async() => open_token_async(
+            guest,
+            OpenTokenRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::OpenToken if !request.call.is_async() => {
+            HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
+        }
         _ => unreachable!("forgot to implement this one"),
     };
 
@@ -225,29 +230,23 @@ pub fn handle_process_services(
             plugin,
             async_info,
         ),
-        ServiceFunction::GetProcessThreads => {
-            if !request.call.is_async() {
-                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            } else {
-                get_process_threads_async(
-                    guest,
-                    GetProcessThreadsRequest::from_raw(request),
-                    plugin,
-                    async_info,
-                )
-            }
+        ServiceFunction::GetProcessThreads if request.call.is_async() => get_process_threads_async(
+            guest,
+            GetProcessThreadsRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::GetProcessThreads if !request.call.is_async() => {
+            HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
         }
-        ServiceFunction::KillProcess => {
-            if !request.call.is_async() {
-                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            } else {
-                kill_process_async(
-                    guest,
-                    KillProcessRequest::from_raw(request),
-                    plugin,
-                    async_info,
-                )
-            }
+        ServiceFunction::KillProcess if request.call.is_async() => kill_process_async(
+            guest,
+            KillProcessRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::KillProcess if !request.call.is_async() => {
+            HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
         }
         _ => unreachable!(),
     };
