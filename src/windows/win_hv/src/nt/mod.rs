@@ -210,11 +210,3 @@ pub enum EProcessField {
     MitigationFlags2,
     MitigationFlags3,
 }
-
-#[bitfield(u64)]
-pub struct ExFastRef {
-    #[bits(60)]
-    pub object: PVOID,
-    #[bits(4)]
-    pub reference_count: u64
-}
