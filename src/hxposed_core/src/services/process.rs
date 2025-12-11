@@ -87,7 +87,7 @@ impl HxProcess {
             ..Default::default()
         }.send_async().await?) {
             GetProcessFieldResponse::Token(addr) => {
-                Ok(HxToken::from_raw_object(addr)?)
+                Ok(HxToken::from_raw_object(addr).await?)
             },
             _ => unreachable!(),
         }
@@ -97,6 +97,11 @@ impl HxProcess {
     /// # Set Mitigation Options
     ///
     /// Sets the internal `MitigationFlags1` and `MitigationFlags2` fields of `_EPROCESS`.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::PROCESS_EXECUTIVE`]
+    ///
+
     pub async fn set_mitigation_options(
         &self,
         options: MitigationOptions,
@@ -108,17 +113,22 @@ impl HxProcess {
     }
 
     ///
-    /// # Set Mitigation Options
+    /// # Get Mitigation Options
     ///
     /// Gets the internal `MitigationFlags1` and `MitigationFlags2` fields of `_EPROCESS`.
-    pub async fn get_mitigation_options(&self) -> Result<MitigationOptions, HypervisorError> {
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::PROCESS_EXECUTIVE`]
+    ///
+    /// ## Return
+    /// * [`MitigationOptions`] - Contains the mitigation flags.
+    pub fn get_mitigation_options(&self) -> Result<MitigationOptions, HypervisorError> {
         let result = GetProcessFieldRequest {
             id: self.id,
             field: ProcessField::MitigationFlags,
             ..Default::default()
         }
-        .send_async()
-        .await?;
+        .send()?;
 
         match result {
             GetProcessFieldResponse::Mitigation(x) => Ok(MitigationOptions::from(x)),
@@ -130,6 +140,9 @@ impl HxProcess {
     /// # Get Threads
     ///
     /// Iterates over the threads of the process object.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Warning
     /// This temporarily locks the process object for safe access. (You probably don't care, just saying in case you do.)
