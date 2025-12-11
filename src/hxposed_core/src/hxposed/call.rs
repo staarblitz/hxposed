@@ -36,6 +36,10 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
 
+    pub(crate) fn get_token_field() -> Self {
+        Self::new().with_func(ServiceFunction::GetTokenField).with_extended_args_present(true)
+    }
+
     pub(crate) fn open_token() -> Self {
         Self::new().with_func(ServiceFunction::OpenToken)
     }
