@@ -7,7 +7,7 @@ use crate::win::danger::DangerPtr;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::arch::asm;
-use core::ops::BitAnd;
+use core::ops::{BitAnd, BitXor};
 use core::ptr::copy_nonoverlapping;
 use core::sync::atomic::Ordering;
 use bit_field::BitField;
@@ -22,10 +22,7 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::*;
-use wdk_sys::ntddk::{
-    ExAcquirePushLockExclusiveEx, ExReleasePushLockExclusiveEx, ProbeForRead, ProbeForWrite,
-    PsGetThreadId, PsLookupProcessByProcessId,
-};
+use wdk_sys::ntddk::{ExAcquirePushLockExclusiveEx, ExReleasePushLockExclusiveEx, ProbeForRead, ProbeForWrite, PsGetThreadId, PsLookupProcessByProcessId, PsReferencePrimaryToken};
 use wdk_sys::{_KTHREAD, _UNICODE_STRING, LIST_ENTRY, PEPROCESS, PETHREAD, STATUS_SUCCESS};
 
 ///
@@ -309,7 +306,7 @@ pub(crate) fn get_process_field_async(
     }
 
     match request.field {
-        ProcessField::NtPath | ProcessField::MitigationFlags => {
+        ProcessField::NtPath | ProcessField::Token => {
             if !async_info.is_present() {
                 return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
             }
@@ -322,7 +319,7 @@ pub(crate) fn get_process_field_async(
             EmptyResponse::with_service(ServiceFunction::KillProcess)
         }
         // directly call the sync counterpart.
-        ProcessField::Protection | ProcessField::Signers | ProcessField::Token => {
+        ProcessField::Protection | ProcessField::MitigationFlags  | ProcessField::Signers  => {
             get_process_field_sync(&GetProcessFieldAsyncCommand {
                 uuid: plugin.uuid,
                 command: request,
@@ -408,11 +405,9 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_SECURITY);
             }
 
-            let field = unsafe {
-                &*get_eprocess_field::<ExFastRef>(EProcessField::Token, process)
-            };
+            let token = unsafe {PsReferencePrimaryToken(process)};
 
-            GetProcessFieldResponse::Token(field.object() as _)
+            GetProcessFieldResponse::Token(token as _)
         }
         _ => GetProcessFieldResponse::Unknown,
     }
