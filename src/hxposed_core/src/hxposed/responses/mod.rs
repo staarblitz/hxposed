@@ -9,6 +9,7 @@ pub mod process;
 pub mod status;
 pub mod memory;
 pub mod thread;
+pub mod security;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct HypervisorResponse {
