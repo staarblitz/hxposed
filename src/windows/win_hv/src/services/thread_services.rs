@@ -1,5 +1,5 @@
 use crate::nt::blanket::OpenHandle;
-use crate::nt::{get_ethread_field, EThreadField};
+use crate::nt::{EThreadField, get_ethread_field};
 use crate::plugins::commands::thread::*;
 use crate::plugins::{Plugin, PluginTable};
 use crate::win::{PspTerminateThread, ZwResumeThread, ZwSuspendThread};
@@ -18,8 +18,13 @@ use hxposed_core::hxposed::responses::thread::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use wdk_sys::ntddk::PsLookupThreadByThreadId;
-use wdk_sys::{PETHREAD, STATUS_SUCCESS, ULONG};
+use wdk_sys::ntddk::{
+    PsLookupThreadByThreadId, PsReferenceImpersonationToken, PsReferencePrimaryToken,
+};
+use wdk_sys::{
+    BOOLEAN, PBOOLEAN, PETHREAD, PSECURITY_IMPERSONATION_LEVEL, SECURITY_IMPERSONATION_LEVEL,
+    STATUS_SUCCESS, ULONG,
+};
 
 pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorResponse {
     let plugin = match PluginTable::lookup(request.uuid) {
@@ -148,20 +153,33 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
                 unsafe { *get_ethread_field::<u32>(EThreadField::CrossThreadFlags, thread) }
                     .get_bit(3);
 
-            GetThreadFieldResponse::ActiveImpersonationInfo(field).into_raw()
+            GetThreadFieldResponse::ActiveImpersonationInfo(field)
         }
         ThreadField::AdjustedClientToken => {
             if !plugin.perm_check(PluginPermissions::THREAD_SECURITY) {
                 return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
             }
 
-            let field =
-                unsafe { *get_ethread_field::<u64>(EThreadField::AdjustedClientToken, thread) };
+            let mut copy_on_open = BOOLEAN::default();
+            let mut effective_only = BOOLEAN::default();
+            let mut impersonation_level = SECURITY_IMPERSONATION_LEVEL::default();
 
-            GetThreadFieldResponse::AdjustedClientToken(field).into_raw()
+            let field = unsafe {
+                PsReferenceImpersonationToken(
+                    thread,
+                    &mut copy_on_open,
+                    &mut effective_only,
+                    &mut impersonation_level,
+                )
+            };
+
+            log::warn!("PsReferenceImpersonationToken: copy_on_open: {:?}, effective_only: {:?}, impersonation_level: {:?}", copy_on_open, effective_only, impersonation_level);
+
+            GetThreadFieldResponse::AdjustedClientToken(field as _)
         }
-        _ => HypervisorResponse::not_found(),
+        _ => GetThreadFieldResponse::Unknown,
     }
+    .into_raw()
 }
 
 pub(crate) fn get_thread_field_async(
