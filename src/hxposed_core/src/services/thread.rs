@@ -90,14 +90,14 @@ impl HxThread {
     /// ## Return
     /// * [`HxToken`] - Impersonation token.
     /// * [`HypervisorError`] - Most likely thread is not impersonating.
-    pub fn get_impersonation_token(&self) -> Result<HxToken, HypervisorError> {
+    pub async fn get_impersonation_token(&self) -> Result<HxToken, HypervisorError> {
         match (GetThreadFieldRequest {
             id:self.id,
             field: ThreadField::AdjustedClientToken,
 
             ..Default::default()
-        }).send()? {
-            GetThreadFieldResponse::AdjustedClientToken(x) => Ok(HxToken::from_raw_object(x)?),
+        }).send_async().await? {
+            GetThreadFieldResponse::AdjustedClientToken(x) => Ok(HxToken::from_raw_object(x).await?),
             _ => unreachable!(),
         }
     }
