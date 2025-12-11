@@ -24,7 +24,8 @@ pub enum ServiceFunction {
     GetSetThreadContext = 20,
     GetThreadField = 21,
     SetThreadField = 22,
-    OpenToken = 23
+    OpenToken = 23,
+    GetTokenField = 24,
 }
 
 impl ServiceFunction {
@@ -58,6 +59,7 @@ impl ServiceFunction {
             21 => ServiceFunction::GetThreadField,
             22 => ServiceFunction::SetThreadField,
             23 => ServiceFunction::OpenToken,
+            24 => ServiceFunction::GetTokenField,
             _ => ServiceFunction::Unknown
         }
     }
