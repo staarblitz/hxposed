@@ -11,6 +11,7 @@ use async_std::io::stdin;
 use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::requests::process::ProcessField::MitigationFlags;
 use hxposed_core::services::process::HxProcess;
+use hxposed_core::services::security::HxToken;
 use hxposed_core::services::thread::HxThread;
 use hxposed_core::services::types::process_fields::{MitigationOptions, ProcessProtection, ProcessSignatureLevel, ProcessSignatureLevels, ProtectionSigner, ProtectionType};
 use uuid::Uuid;
@@ -95,7 +96,7 @@ async fn async_main() {
 
     println!("Process signature levels: {:?}", signature_levels);
 
-    let options = match process.get_mitigation_options().await {
+    let options = match process.get_mitigation_options() {
         Ok(x) => x,
         Err(e) => {
             println!("Error getting process mitigation levels: {:?}", e);
@@ -134,6 +135,18 @@ async fn async_main() {
         Ok(_) => println!("Process mitigation options changed!"),
         Err(x) => println!("Error changing process mitigation options: {:?}", x),
     }
+
+    let token = match process.get_primary_token().await {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error getting process primary token: {:?}", e);
+            return;
+        }
+    };
+
+    println!("Process primary token got!");
+
+
 
     /*println!("Address to read/write?: ");
     let mut input = String::new();
