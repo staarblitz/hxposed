@@ -28,7 +28,7 @@ use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
-use hxposed_core::hxposed::error::NotAllowedReason;
+use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::func::ServiceFunction::Authorize;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
@@ -255,9 +255,12 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::FreeMemory=> {
             services::handle_memory_services(guest, &request, plugin, async_info);
         }
+        ServiceFunction::OpenToken => {
+            services::handle_security_services(guest, &request, plugin, async_info);
+        }
         _ => {
-            log::warn!("Unsupported vmcall");
-            write_response(guest, HypervisorResponse::not_found())
+            log::warn!("Unsupported vmcall: {:?}", info.func());
+            write_response(guest, HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction))
         }
     }
 }
