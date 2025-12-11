@@ -86,8 +86,13 @@ pub(crate) unsafe extern "C" fn PspSetSetContextThreadInternal(
     naked_asm!("jmp r15")
 }
 
-
 pub(crate) const NT_CURRENT_PROCESS: HANDLE = -1 as _;
+
+#[unsafe(naked)]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn KeGetCurrentThread() -> PETHREAD {
+    naked_asm!("mov rax, gs:[0x188]", "ret")
+}
 
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
