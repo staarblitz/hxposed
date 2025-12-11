@@ -8,7 +8,7 @@ use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::services::security_services::*;
 use crate::services::thread_services::*;
-use crate::win::timing;
+use crate::win::{timing, KeGetCurrentThread};
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
 use wdk_sys::_MODE::KernelMode;
@@ -24,7 +24,7 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
     let plugins = unsafe { &mut *PLUGINS.load(Ordering::Relaxed) };
 
     // KeGetCurrentThread is not export by bindgen. lmao
-    unsafe { KeSetPriorityThread(__readgsqword(0x188) as _, LOW_REALTIME_PRIORITY as _) }
+    unsafe { KeSetPriorityThread(KeGetCurrentThread(), LOW_REALTIME_PRIORITY as _) };
 
     loop {
         // this labeled loops are fire 🔥🔥🔥
