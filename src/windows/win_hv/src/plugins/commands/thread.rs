@@ -30,6 +30,24 @@ pub struct KillThreadAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
 }
 
+impl AsyncCommand for GetThreadFieldAsyncCommand {
+    fn get_service_function(&self) -> ServiceFunction {
+        ServiceFunction::GetThreadField
+    }
+
+    fn complete(&mut self, result: HypervisorResponse) {
+        write_and_set(
+            &result,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
+        )
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 impl AsyncCommand for KillThreadAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::KillThread
