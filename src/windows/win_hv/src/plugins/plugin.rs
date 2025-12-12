@@ -93,6 +93,18 @@ impl PluginObjectTable {
             None
         }
     }
+    
+    pub fn pop_open_token(&mut self, addr: PACCESS_TOKEN) -> Option<PACCESS_TOKEN> {
+        if let Some(pos) = self
+            .open_tokens
+            .iter()
+            .position(|m| (m.addr() as u64) == (addr as u64))
+        {
+            Some(self.open_tokens.remove(pos))
+        } else {
+            None
+        }
+    }
 
     pub fn get_open_token(
         &self,

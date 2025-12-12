@@ -15,7 +15,7 @@ mod win;
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::cback::registry_callback;
-use crate::nt::get_nt_info;
+use crate::nt::{get_nt_info, get_system_token};
 use crate::plugins::plugin::Plugin;
 use crate::plugins::{PluginTable, load_plugins};
 use crate::win::Utf8ToUnicodeString;
@@ -68,11 +68,16 @@ extern "C" fn driver_entry(
     log::info!("Welcome to HxPosed!");
 
     get_nt_info();
+    get_system_token();
 
     if nt::NT_BUILD.load(Ordering::Relaxed) != 26200 {
         log::error!("Unsupported version");
         return STATUS_TOO_LATE;
     }
+
+    log::info!("HxPosed Initialized.");
+    log::info!("NT Version: {:x}", nt::NT_BUILD.load(Ordering::Relaxed));
+    log::info!("SYSTEM Token: {:x}", nt::SYSTEM_TOKEN.load(Ordering::Relaxed) as u64);
 
     // Initialize the global allocator with allocated buffer.
     let ptr = unsafe {
@@ -256,7 +261,9 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             services::handle_memory_services(guest, &request, plugin, async_info);
         }
         ServiceFunction::OpenToken
-        | ServiceFunction::GetTokenField => {
+        | ServiceFunction::CloseToken
+        | ServiceFunction::GetTokenField
+        | ServiceFunction::SetTokenField => {
             services::handle_security_services(guest, &request, plugin, async_info);
         }
         _ => {

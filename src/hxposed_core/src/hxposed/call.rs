@@ -36,8 +36,20 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::KillProcess)
     }
 
+    pub(crate) fn close_token() -> Self {
+        Self::new().with_func(ServiceFunction::CloseToken)
+    }
+
     pub(crate) fn get_token_field() -> Self {
-        Self::new().with_func(ServiceFunction::GetTokenField).with_extended_args_present(true)
+        Self::new()
+            .with_func(ServiceFunction::GetTokenField)
+            .with_extended_args_present(true)
+    }
+
+    pub(crate) fn set_token_field() -> Self {
+        Self::new()
+            .with_func(ServiceFunction::SetTokenField)
+            .with_extended_args_present(true)
     }
 
     pub(crate) fn open_token() -> Self {
@@ -45,15 +57,21 @@ impl HypervisorCall {
     }
 
     pub(crate) fn get_thread_field() -> Self {
-        Self::new().with_func(ServiceFunction::GetThreadField).with_extended_args_present(true)
+        Self::new()
+            .with_func(ServiceFunction::GetThreadField)
+            .with_extended_args_present(true)
     }
 
     pub(crate) fn set_thread_field() -> Self {
-        Self::new().with_func(ServiceFunction::SetThreadField).with_extended_args_present(true)
+        Self::new()
+            .with_func(ServiceFunction::SetThreadField)
+            .with_extended_args_present(true)
     }
 
     pub(crate) fn get_set_thread_context() -> Self {
-        Self::new().with_func(ServiceFunction::GetSetThreadContext).with_extended_args_present(true)
+        Self::new()
+            .with_func(ServiceFunction::GetSetThreadContext)
+            .with_extended_args_present(true)
     }
 
     pub(crate) fn kill_thread() -> Self {

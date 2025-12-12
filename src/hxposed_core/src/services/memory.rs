@@ -1,16 +1,16 @@
 use crate::error::HypervisorError;
+use crate::hxposed::call::ServiceParameter;
 use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::memory::*;
+use crate::hxposed::responses::HypervisorResponse;
 use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
+use crate::services::memory_map::HxMemoryDescriptor;
 use crate::services::types::memory_fields::{KernelMemoryState, MemoryPool, MemoryProtection};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 use core::ptr::copy_nonoverlapping;
-use crate::hxposed::call::ServiceParameter;
-use crate::hxposed::requests::memory::*;
-use crate::hxposed::responses::HypervisorResponse;
-use crate::services::memory_map::HxMemoryDescriptor;
 
 pub struct HxMemory {
     pub id: u32,
@@ -63,7 +63,9 @@ impl HxMemory {
     pub async fn alloc<T>(pool: MemoryPool) -> Result<HxMemoryDescriptor<T>, HypervisorError> {
         let size = size_of::<T>();
         if size > u32::MAX as usize {
-            return Err(HypervisorError::from_response(HypervisorResponse::invalid_params(ServiceParameter::Arg2)))
+            return Err(HypervisorError::from_response(
+                HypervisorResponse::invalid_params(ServiceParameter::Arg2),
+            ));
         }
 
         let align = align_of::<T>();
@@ -76,7 +78,12 @@ impl HxMemory {
         .send_async()
         .await?;
 
-        Ok(HxMemoryDescriptor::<T>::new(alloc.address, alloc.bytes_allocated, pool, KernelMemoryState::Allocated))
+        Ok(HxMemoryDescriptor::<T>::new(
+            alloc.address,
+            alloc.bytes_allocated,
+            pool,
+            KernelMemoryState::Allocated,
+        ))
     }
 
     ///

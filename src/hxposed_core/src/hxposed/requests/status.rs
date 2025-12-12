@@ -1,8 +1,8 @@
+use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use crate::hxposed::responses::status::StatusResponse;
 use alloc::boxed::Box;
 use core::mem;
-use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::responses::status::StatusResponse;
 
 #[derive(Clone, Default, Debug)]
 #[repr(C)]

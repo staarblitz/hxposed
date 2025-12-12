@@ -2,12 +2,12 @@ use crate::error::HypervisorError;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::thread::*;
+use crate::hxposed::responses::thread::GetThreadFieldResponse;
 use crate::intern::win::GetCurrentThreadId;
 use crate::plugins::plugin_perms::PluginPermissions;
+use crate::services::security::HxToken;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicU64, Ordering};
-use crate::hxposed::responses::thread::GetThreadFieldResponse;
-use crate::services::security::HxToken;
 
 pub struct HxThread {
     pub id: u32,
@@ -92,12 +92,17 @@ impl HxThread {
     /// * [`HypervisorError`] - Most likely thread is not impersonating.
     pub async fn get_impersonation_token(&self) -> Result<HxToken, HypervisorError> {
         match (GetThreadFieldRequest {
-            id:self.id,
+            id: self.id,
             field: ThreadField::AdjustedClientToken,
 
             ..Default::default()
-        }).send_async().await? {
-            GetThreadFieldResponse::AdjustedClientToken(x) => Ok(HxToken::from_raw_object(x).await?),
+        })
+        .send_async()
+        .await?
+        {
+            GetThreadFieldResponse::AdjustedClientToken(x) => {
+                Ok(HxToken::from_raw_object(x).await?)
+            }
             _ => unreachable!(),
         }
     }
@@ -119,13 +124,15 @@ impl HxThread {
             field: ThreadField::ActiveImpersonationInfo,
 
             ..Default::default()
-        }.send()?) {
+        }
+        .send()?)
+        {
             GetThreadFieldResponse::ActiveImpersonationInfo(x) => Ok(x),
             _ => unreachable!(),
         }
     }
 
-   /* ///
+    /* ///
     /// # Get Context (New)
     ///
     /// - Gets the thread context.

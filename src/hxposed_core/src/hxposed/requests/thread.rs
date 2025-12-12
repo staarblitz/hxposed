@@ -1,5 +1,5 @@
 use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::process::{ObjectOpenType};
+use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::thread::*;
@@ -31,12 +31,12 @@ pub struct KillThreadRequest {
     pub exit_code: u32,
 }
 
-#[derive(Clone,Default,Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct GetSetThreadContextRequest {
     pub id: u32,
     pub operation: ThreadContextOperation,
     pub data: *mut u8,
-    pub data_len: usize
+    pub data_len: usize,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -248,7 +248,7 @@ impl VmcallRequest for OpenThreadRequest {
     }
 }
 
-#[derive(Clone,Default,Debug)]
+#[derive(Clone, Default, Debug)]
 pub enum ThreadField {
     #[default]
     Unknown = 0,
@@ -266,16 +266,16 @@ impl ThreadField {
             0 => ThreadField::Unknown,
             1 => ThreadField::ActiveImpersonationInfo,
             2 => ThreadField::AdjustedClientToken,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
 
 #[derive(Clone, Default, Debug)]
-pub enum ThreadContextOperation{
+pub enum ThreadContextOperation {
     #[default]
     Set,
-    Get
+    Get,
 }
 
 impl ThreadContextOperation {

@@ -7,7 +7,7 @@ use crate::plugins::plugin_perms::PluginPermissions;
 #[derive(Clone, Default, Debug)]
 #[repr(C)]
 pub struct AuthorizationResponse {
-    pub permissions: PluginPermissions
+    pub permissions: PluginPermissions,
 }
 
 impl VmcallResponse for AuthorizationResponse {
@@ -16,12 +16,12 @@ impl VmcallResponse for AuthorizationResponse {
             return Err(HypervisorError::from_response(raw));
         }
         Ok(Self {
-            permissions: PluginPermissions::from_bits(raw.arg1).unwrap()
+            permissions: PluginPermissions::from_bits(raw.arg1).unwrap(),
         })
     }
 
     fn into_raw(self) -> HypervisorResponse {
-        HypervisorResponse{
+        HypervisorResponse {
             result: HypervisorResult::ok(ServiceFunction::Authorize),
             arg1: self.permissions.bits(),
             ..Default::default()

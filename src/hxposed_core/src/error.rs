@@ -72,11 +72,16 @@ impl HypervisorError {
 
         let reason_string = match self.error_source {
             ErrorSource::Hx => match InternalErrorCode::from_bits(self.error_code) {
-                InternalErrorCode::NotAllowed => format!("{:?}", NotAllowedReason::from_bits(self.error_reason as _)),
+                InternalErrorCode::NotAllowed => {
+                    format!("{:?}", NotAllowedReason::from_bits(self.error_reason as _))
+                }
                 InternalErrorCode::InvalidParams => {
                     format!("{:?}", ServiceParameter::from_bits(self.error_reason as _))
                 }
-                InternalErrorCode::NotFound => format!("Object {:?} not found", NotAllowedReason::from_bits(self.error_reason as _)),
+                InternalErrorCode::NotFound => format!(
+                    "Object {:?} not found",
+                    NotAllowedReason::from_bits(self.error_reason as _)
+                ),
                 _ => "None".to_string(),
             },
             _ => format!("Error reason {:?}", self.error_reason),

@@ -8,7 +8,7 @@ pub enum InternalErrorCode {
     NotAllowed = 2,
     NotLoaded = 3,
     NotFound = 4,
-    InvalidParams = 5
+    InvalidParams = 5,
 }
 
 impl InternalErrorCode {
@@ -35,7 +35,7 @@ pub enum NotAllowedReason {
     #[default]
     Unknown = 0,
     PluginNotLoaded = u32::MAX,
-    MissingPermissions = 1
+    MissingPermissions = 1,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
@@ -48,11 +48,13 @@ pub enum NotFoundReason {
     Mdl = 3,
     Thread = 4,
     ServiceFunction = 5,
-    Token = 6
+    Token = 6,
 }
 
 impl NotFoundReason {
-    pub const fn into_bits(self) -> u32 {self as _}
+    pub const fn into_bits(self) -> u32 {
+        self as _
+    }
 
     pub const fn from_bits(value: u32) -> Self {
         match value {
@@ -63,19 +65,21 @@ impl NotFoundReason {
             5 => Self::ServiceFunction,
             6 => Self::Token,
 
-            _ => Self::Unknown
+            _ => Self::Unknown,
         }
     }
 }
 
 impl NotAllowedReason {
-    pub const fn into_bits(self) -> u32 {self as _}
+    pub const fn into_bits(self) -> u32 {
+        self as _
+    }
 
     pub const fn from_bits(value: u32) -> Self {
         match value {
             u32::MAX => Self::PluginNotLoaded,
             1 => Self::MissingPermissions,
-            _ => Self::Unknown
+            _ => Self::Unknown,
         }
     }
 }
@@ -99,7 +103,7 @@ impl ErrorSource {
             0 => Self::Nt,
             1 => Self::Hv,
             2 => Self::Hx,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

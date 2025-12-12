@@ -28,10 +28,9 @@ impl VmcallResponse for OpenObjectResponse {
     }
 }
 
-
-impl EmptyResponse{
+impl EmptyResponse {
     pub fn with_service(service_function: ServiceFunction) -> HypervisorResponse {
-        HypervisorResponse{
+        HypervisorResponse {
             result: HypervisorResult::ok(service_function),
             ..Default::default() // this is actually a very cool feature.
         }

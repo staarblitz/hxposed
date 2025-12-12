@@ -126,6 +126,13 @@ pub fn handle_security_services(
             plugin,
             async_info,
         ),
+        ServiceFunction::CloseToken => close_token_sync(
+            guest,
+            CloseTokenRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
+        ServiceFunction::SetTokenField => set_token_field_async(guest, SetTokenFieldRequest::from_raw(request), plugin, async_info),
         ServiceFunction::GetTokenField => get_token_field_async(guest, GetTokenFieldRequest::from_raw(request), plugin, async_info),
         _ => unreachable!("forgot to implement this one"),
     };

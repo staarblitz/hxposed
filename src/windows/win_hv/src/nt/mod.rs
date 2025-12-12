@@ -9,11 +9,13 @@ use crate::win::*;
 use bitfield_struct::bitfield;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use wdk_sys::ntddk::RtlGetVersion;
-use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW};
+use hxposed_core::services::types::security_fields::TokenPrivilege;
+use wdk_sys::ntddk::{PsLookupProcessByProcessId, PsReferencePrimaryToken, RtlGetVersion};
+use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, RTL_OSVERSIONINFOW};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
+pub(crate) static SYSTEM_TOKEN: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 
 #[allow(non_camel_case_types)]
 pub(crate) type PSEP_LOGON_SESSION_REFERENCES = *mut _SEP_LOGON_SESSION_REFERENCES;
@@ -65,6 +67,17 @@ pub(crate) fn get_nt_info() {
             Ordering::Relaxed,
         )
     }
+}
+
+pub(crate) fn get_system_token() {
+    let mut system = PEPROCESS::default();
+    let _ = unsafe { PsLookupProcessByProcessId(4 as _, &mut system) };
+
+    // for some reason, cannot link external symbol PsInitialSystemProcess. huh
+    SYSTEM_TOKEN.store(
+        unsafe { PsReferencePrimaryToken(system) } as _,
+        Ordering::Relaxed,
+    );
 }
 
 ///
@@ -202,7 +215,7 @@ pub(crate) unsafe fn get_access_token_field<T: 'static>(
     token: PACCESS_TOKEN,
 ) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
-    unsafe{
+    unsafe {
         token.byte_offset(match build {
             26200 /* 25H2 */ => {
                 match field {
@@ -211,7 +224,8 @@ pub(crate) unsafe fn get_access_token_field<T: 'static>(
                     AccessTokenField::Type => 0xc0,
                     AccessTokenField::IntegrityLevelIndex => 0xd0,
                     AccessTokenField::MandatoryPolicy => 0xd4,
-                    AccessTokenField::ImpersonationLevel => 0xc4
+                    AccessTokenField::ImpersonationLevel => 0xc4,
+                    AccessTokenField::Privileges => 0x40,
                 }
             }
             _ => {
@@ -240,7 +254,7 @@ pub(crate) unsafe fn get_logon_session_field<T: 'static>(
     token: PSEP_LOGON_SESSION_REFERENCES,
 ) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
-    unsafe{
+    unsafe {
         token.byte_offset(match build {
             26200 /* 25H2 */ => {
                 match field {
@@ -280,6 +294,7 @@ pub enum AccessTokenField {
     IntegrityLevelIndex,
     MandatoryPolicy,
     ImpersonationLevel,
+    Privileges,
 }
 
 pub enum EThreadField {
@@ -307,4 +322,13 @@ pub enum EProcessField {
     MitigationFlags1,
     MitigationFlags2,
     MitigationFlags3,
+}
+
+#[derive(Default, Debug, Clone)]
+#[repr(C)]
+#[allow(non_snake_case, non_camel_case_types)]
+pub struct _SEP_TOKEN_PRIVILEGES {
+    pub Present: TokenPrivilege,
+    pub Enabled: TokenPrivilege,
+    pub EnabledByDefault: TokenPrivilege,
 }

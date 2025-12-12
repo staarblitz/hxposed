@@ -9,12 +9,7 @@ use wdk_sys::ntddk::{
     ExAllocatePool2, RtlCompareMemory, RtlCopyUnicodeString, RtlInitUTF8String,
     RtlUTF8StringToUnicodeString,
 };
-use wdk_sys::{
-    BOOLEAN, CHAR, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID,
-    PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED,
-    PSECURITY_DESCRIPTOR, PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T, TRUE, ULONG,
-    UNICODE_STRING, USHORT, UTF8_STRING,
-};
+use wdk_sys::{BOOLEAN, CHAR, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID, PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PSECURITY_DESCRIPTOR, PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T, TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING, _KPROCESS};
 
 pub(crate) mod alloc;
 pub(crate) mod danger;
@@ -39,7 +34,7 @@ pub(crate) static NT_PS_SET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextTh
 pub(crate) static NT_PS_TERMINATE_THREAD: AtomicPtr<PsTerminateThreadType> =
     AtomicPtr::new(null_mut());
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 /// To use, set r15 to your desired address :)
 pub(crate) unsafe extern "C" fn PsTerminateProcess(
@@ -49,7 +44,7 @@ pub(crate) unsafe extern "C" fn PsTerminateProcess(
     naked_asm!("jmp r15")
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 /// To use, set r15 to your desired address :)
 pub(crate) unsafe extern "C" fn PspTerminateThread(
@@ -60,7 +55,7 @@ pub(crate) unsafe extern "C" fn PspTerminateThread(
     naked_asm!("jmp r15")
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 /// To use, set r15 to your desired address :)
 pub(crate) unsafe extern "C" fn PspGetSetContextThreadInternal(
@@ -73,7 +68,7 @@ pub(crate) unsafe extern "C" fn PspGetSetContextThreadInternal(
     naked_asm!("jmp r15")
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 /// To use, set r15 to your desired address :)
 pub(crate) unsafe extern "C" fn PspSetSetContextThreadInternal(

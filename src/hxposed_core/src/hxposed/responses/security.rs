@@ -1,8 +1,9 @@
+use core::arch::asm;
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use crate::services::types::security_fields::{ImpersonationLevel, TokenType};
+use crate::services::types::security_fields::{ImpersonationLevel, TokenPrivilege, TokenType};
 
 #[derive(Clone, Default, Debug)]
 #[repr(u16)]
@@ -15,12 +16,15 @@ pub enum GetTokenFieldResponse {
     IntegrityLevelIndex(u32),
     MandatoryPolicy(u32),
     ImpersonationLevel(ImpersonationLevel),
+    EnabledPrivileges(TokenPrivilege),
+    PresentPrivileges(TokenPrivilege),
+    EnabledByDefaultPrivileges(TokenPrivilege),
 }
 
 impl VmcallResponse for GetTokenFieldResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
         if raw.result.is_error() {
-            return Err(HypervisorError::from_response(raw))
+            return Err(HypervisorError::from_response(raw));
         }
 
         Ok(match raw.arg1 {
@@ -30,6 +34,9 @@ impl VmcallResponse for GetTokenFieldResponse {
             4 => Self::IntegrityLevelIndex(raw.arg2 as _),
             5 => Self::MandatoryPolicy(raw.arg2 as _),
             6 => Self::ImpersonationLevel(ImpersonationLevel::from_bits(raw.arg2 as _)),
+            7 => Self::EnabledPrivileges(TokenPrivilege::from_bits_truncate(raw.arg2)),
+            8 => Self::PresentPrivileges(TokenPrivilege::from_bits_truncate(raw.arg2)),
+            9 => Self::EnabledByDefaultPrivileges(TokenPrivilege::from_bits_truncate(raw.arg2)),
             _ => unreachable!("Developer forgot to implement this one."),
         })
     }
@@ -42,6 +49,9 @@ impl VmcallResponse for GetTokenFieldResponse {
             Self::IntegrityLevelIndex(x) => (4, x as _, 0),
             Self::MandatoryPolicy(x) => (5, x as _, 0),
             Self::ImpersonationLevel(x) => (6, x.into_bits() as _, 0),
+            Self::EnabledPrivileges(x) => (7, x.bits() as _, 0),
+            Self::PresentPrivileges(x) => (8, x.bits() as _, 0),
+            Self::EnabledByDefaultPrivileges(x) => (9, x.bits() as _, 0),
             _ => unreachable!(),
         };
 
@@ -49,7 +59,7 @@ impl VmcallResponse for GetTokenFieldResponse {
             result: HypervisorResult::ok(ServiceFunction::GetTokenField),
             arg1,
             arg2,
-            arg3
+            arg3,
         }
     }
 }

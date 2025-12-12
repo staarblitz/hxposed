@@ -5,7 +5,7 @@ pub enum HypervisorStatus {
     #[default]
     Unknown = 0,
     SystemVirtualized = 1,
-    SystemDeVirtualized =2,
+    SystemDeVirtualized = 2,
 }
 
 impl From<u32> for HypervisorStatus {

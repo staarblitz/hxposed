@@ -1,12 +1,12 @@
 use crate::error::HypervisorError;
+use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::memory::{FreeMemoryRequest, MapMemoryOperation, MapMemoryRequest};
 use crate::plugins::plugin_perms::PluginPermissions;
+use crate::services::memory::HxMemory;
 use crate::services::types::memory_fields::{KernelMemoryState, MemoryPool};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use spin::Mutex;
-use crate::hxposed::requests::memory::{FreeMemoryRequest, MapMemoryOperation, MapMemoryRequest};
-use crate::hxposed::requests::Vmcall;
-use crate::services::memory::HxMemory;
 
 pub struct HxMemoryDescriptor<T> {
     pub pool: MemoryPool,
@@ -90,12 +90,17 @@ impl<'descriptor, T> HxMemoryDescriptor<T> {
     /// ## Remarks
     /// - When [`HxMemoryGuard`] goes out of scope, it automatically unmaps the memory.
     ///
-    pub async fn map(&'descriptor mut self, map_address: Option<u64>) -> Result<HxMemoryGuard<'descriptor,T>, HypervisorError> {
+    pub async fn map(
+        &'descriptor mut self,
+        map_address: Option<u64>,
+    ) -> Result<HxMemoryGuard<'descriptor, T>, HypervisorError> {
         let result = MapMemoryRequest {
             mdl_address: self.mdl_address,
             map_address: map_address.unwrap_or(0),
-            operation: MapMemoryOperation::Map
-        }.send_async().await?;
+            operation: MapMemoryOperation::Map,
+        }
+        .send_async()
+        .await?;
 
         Ok(HxMemoryGuard::<'descriptor, T> {
             virtual_addr: result.mapped_address as *mut T,
@@ -110,16 +115,20 @@ impl<'descriptor, T> HxMemoryDescriptor<T> {
     ///
     /// I don't know. I don't want to learn.
     pub async fn free(self) {
-        let _ = FreeMemoryRequest{
+        let _ = FreeMemoryRequest {
             mdl_address: self.mdl_address,
-        }.send_async().await;
+        }
+        .send_async()
+        .await;
     }
 
     pub async fn unmap(&mut self) {
         let _ = MapMemoryRequest {
             mdl_address: self.mdl_address,
             map_address: self.mapped_addr,
-            operation: MapMemoryOperation::Map
-        }.send_async().await;
+            operation: MapMemoryOperation::Map,
+        }
+        .send_async()
+        .await;
     }
 }

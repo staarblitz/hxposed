@@ -18,6 +18,30 @@ pub struct GetTokenFieldAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
 }
 
+pub struct SetTokenFieldAsyncCommand {
+    pub command: SetTokenFieldRequest,
+    pub uuid: Uuid,
+    pub async_info: UnsafeAsyncInfo,
+}
+
+impl AsyncCommand for SetTokenFieldAsyncCommand {
+    fn get_service_function(&self) -> ServiceFunction {
+        ServiceFunction::SetTokenField
+    }
+
+    fn complete(&mut self, result: HypervisorResponse) {
+        write_and_set(
+            &result,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
+        )
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 impl AsyncCommand for GetTokenFieldAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::GetTokenField

@@ -147,6 +147,14 @@ async fn async_main() {
     println!("Token account name: {}", token.get_account_name().await.unwrap());
     println!("Token source name: {}", token.get_source_name().await.unwrap());
 
+    println!("Token enabled privileges: {:?}", token.get_enabled_privileges().unwrap());
+    let system_privs = HxToken::get_system_present_privileges().unwrap();
+    println!("System privileges: {:?}", system_privs);
+    match token.set_enabled_privileges(system_privs).await {
+        Ok(_) => println!("Token enabled privileges!"),
+        Err(x) => println!("Error changing token privileges: {:?}", x),
+    }
+
     /*println!("Address to read/write?: ");
     let mut input = String::new();
     stdin().read_line(&mut input).await.unwrap();

@@ -1,10 +1,10 @@
-use alloc::boxed::Box;
-use core::mem;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::memory::*;
 use crate::services::types::memory_fields::{MemoryPool, MemoryProtection};
+use alloc::boxed::Box;
+use core::mem;
 
 #[derive(Default, Debug)]
 pub struct RWProcessMemoryRequest {
@@ -23,21 +23,21 @@ pub struct ProtectProcessMemoryRequest {
     pub protection: MemoryProtection,
 }
 
-#[derive(Default,Debug)]
+#[derive(Default, Debug)]
 pub struct AllocateMemoryRequest {
     pub size: u32,
     pub align: usize,
     pub pool: MemoryPool,
 }
 
-#[derive(Default,Debug)]
+#[derive(Default, Debug)]
 pub struct MapMemoryRequest {
     pub mdl_address: u64,
     pub map_address: u64,
-    pub operation: MapMemoryOperation
+    pub operation: MapMemoryOperation,
 }
 
-#[derive(Default,Debug)]
+#[derive(Default, Debug)]
 pub struct FreeMemoryRequest {
     pub mdl_address: u64,
 }
@@ -46,7 +46,7 @@ impl VmcallRequest for FreeMemoryRequest {
     type Response = EmptyResponse;
 
     fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest{
+        let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::free_mem(),
             arg1: self.mdl_address,
 
@@ -60,7 +60,7 @@ impl VmcallRequest for FreeMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            mdl_address: request.arg1
+            mdl_address: request.arg1,
         }
     }
 }
@@ -87,7 +87,7 @@ impl VmcallRequest for MapMemoryRequest {
         Self {
             mdl_address: request.arg1,
             map_address: request.arg2,
-            operation: MapMemoryOperation::from_bits(request.arg3 as _)
+            operation: MapMemoryOperation::from_bits(request.arg3 as _),
         }
     }
 }
@@ -185,7 +185,7 @@ impl VmcallRequest for ProtectProcessMemoryRequest {
 pub enum MapMemoryOperation {
     #[default]
     Map,
-    Unmap
+    Unmap,
 }
 
 impl MapMemoryOperation {

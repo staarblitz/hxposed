@@ -1,12 +1,12 @@
-#[cfg(feature = "usermode")]
-pub mod process;
+pub mod async_service;
 #[cfg(feature = "usermode")]
 pub mod memory;
-pub mod async_service;
-pub mod types;
 #[cfg(feature = "usermode")]
 pub mod memory_map;
 #[cfg(feature = "usermode")]
-pub mod thread;
+pub mod process;
 #[cfg(feature = "usermode")]
 pub mod security;
+#[cfg(feature = "usermode")]
+pub mod thread;
+pub mod types;

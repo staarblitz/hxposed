@@ -1,9 +1,9 @@
-use alloc::boxed::Box;
-use core::mem;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::auth::AuthorizationResponse;
 use crate::plugins::plugin_perms::PluginPermissions;
+use alloc::boxed::Box;
+use core::mem;
 use uuid::Uuid;
 
 #[derive(Clone, Default, Debug)]

@@ -1,8 +1,8 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
-use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::hxposed::responses::process::GetProcessFieldResponse;
+use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
 #[derive(Clone, Debug, Default)]
 pub struct SuspendThreadResponse {
@@ -45,7 +45,6 @@ impl VmcallResponse for GetThreadFieldResponse {
         }
     }
 }
-
 
 impl VmcallResponse for SuspendThreadResponse {
     fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {

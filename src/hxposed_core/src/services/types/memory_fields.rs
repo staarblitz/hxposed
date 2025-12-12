@@ -23,13 +23,13 @@ bitflags! {
 #[derive(Debug, Clone, Copy)]
 pub enum MemoryType {
     Virtual,
-    Physical
+    Physical,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
 pub enum MemoryPool {
     #[default]
-    NonPaged
+    NonPaged,
 }
 
 impl MemoryPool {
@@ -48,5 +48,5 @@ pub enum KernelMemoryState {
     None,
     Allocated,
     Mapped,
-    Freed
+    Freed,
 }

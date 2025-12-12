@@ -221,7 +221,7 @@ impl ProtectionSigner {
             5 => ProtectionSigner::Windows,
             6 => ProtectionSigner::WinTcb,
             7 => ProtectionSigner::Max,
-            _ => ProtectionSigner::None
+            _ => ProtectionSigner::None,
         }
     }
 
@@ -235,7 +235,7 @@ pub struct ProcessSignatureLevels {
     #[bits(8)]
     pub signature_level: ProcessSignatureLevel,
     #[bits(8)]
-    pub section_signature_level: u8
+    pub section_signature_level: u8,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -257,7 +257,7 @@ pub enum ProcessSignatureLevel {
     Windows = 12,
     WindowsPPL = 13,
     WindowsTcb = 14,
-    Custom6 = 15
+    Custom6 = 15,
 }
 
 impl ProcessSignatureLevel {

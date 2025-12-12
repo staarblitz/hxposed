@@ -16,13 +16,13 @@ pub struct ProtectProcessMemoryResponse {
     pub bytes_processed: usize,
 }
 
-#[derive(Clone,Default,Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct AllocateMemoryResponse {
     pub address: u64,
     pub bytes_allocated: u32,
 }
 
-#[derive(Clone,Default,Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct MapMemoryResponse {
     pub mapped_address: u64,
 }
@@ -55,7 +55,7 @@ impl VmcallResponse for AllocateMemoryResponse {
         } else {
             Ok(Self {
                 address: raw.arg1,
-                bytes_allocated: raw.arg2 as _
+                bytes_allocated: raw.arg2 as _,
             })
         }
     }

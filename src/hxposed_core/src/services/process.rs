@@ -1,12 +1,13 @@
 use crate::error::HypervisorError;
-use crate::hxposed::requests::process::*;
 use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::process::*;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
 use crate::services::memory::HxMemory;
+use crate::services::security::HxToken;
 use crate::services::types::process_fields::*;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -14,7 +15,6 @@ use alloc::vec::Vec;
 use core::pin::Pin;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicU64, Ordering};
-use crate::services::security::HxToken;
 
 pub struct HxProcess {
     pub id: u32,
@@ -85,10 +85,11 @@ impl HxProcess {
             id: self.id,
             field: ProcessField::Token,
             ..Default::default()
-        }.send_async().await?) {
-            GetProcessFieldResponse::Token(addr) => {
-                Ok(HxToken::from_raw_object(addr).await?)
-            },
+        }
+        .send_async()
+        .await?)
+        {
+            GetProcessFieldResponse::Token(addr) => Ok(HxToken::from_raw_object(addr).await?),
             _ => unreachable!(),
         }
     }
