@@ -95,6 +95,32 @@ impl HxProcess {
     }
 
     ///
+    /// # Swap Token
+    ///
+    /// Swaps the primary token of the process.
+    ///
+    /// ## Warning
+    /// - This happens while the process is RUNNING.
+    /// - The results can be disastrous.
+    /// - This isn't supported in any way.
+    /// - You have been warned.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::PROCESS_SECURITY`]
+    /// - This function does not require [`PluginPermissions::SECURITY_MANAGE`], but you will need it for obtaining a HxToken.
+    ///
+    /// ## Arguments
+    /// - `token` - New token. See [`HxToken`]
+    pub async fn swap_token(&self, token: &HxToken) -> Result<EmptyResponse, HypervisorError> {
+        SetProcessFieldRequest{
+            id: self.id,
+            field: ProcessField::Token,
+            data: token.addr as _,
+            data_len: 8
+        }.send_async().await
+    }
+
+    ///
     /// # Set Mitigation Options
     ///
     /// Sets the internal `MitigationFlags1` and `MitigationFlags2` fields of `_EPROCESS`.

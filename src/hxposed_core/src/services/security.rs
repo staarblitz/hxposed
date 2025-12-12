@@ -12,7 +12,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 pub struct HxToken {
-    addr: u64,
+    pub(crate) addr: u64,
 }
 
 impl Drop for HxToken {
@@ -38,6 +38,9 @@ impl HxToken {
     ///
     /// Returns a handle with `TOKEN_ALL_ACCESS`.
     ///
+    /// ## Permission
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
+    ///
     /// ## Warning
     /// - The caller holds full ownership to the handle.
     ///
@@ -59,6 +62,9 @@ impl HxToken {
     ///
     /// - Gets the valid privilege bitmask for this token.
     /// - Must not be confused with [`Self::get_enabled_privileges`].
+    ///
+    /// ## Permission
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
     ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetTokenFieldResponse::PresentPrivileges`]. Which it should NOT.
@@ -84,6 +90,9 @@ impl HxToken {
     /// - Gets the valid privilege bitmask for the SYSTEM token.
     /// - Must not be confused with [`Self::get_enabled_privileges`].
     ///
+    /// ## Permission
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
+    ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetTokenFieldResponse::PresentPrivileges`]. Which it should NOT.
     ///
@@ -106,6 +115,9 @@ impl HxToken {
     /// # Get Enabled Privileges
     ///
     /// Gets the privileges currently enabled for this token.
+    ///
+    /// ## Permission
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
     ///
     /// ## Arguments
     /// * `privileges` - New privilege bitmask to apply. See [`TokenPrivilege`].
@@ -130,6 +142,9 @@ impl HxToken {
     ///
     /// Gets the privileges currently enabled for this token.
     ///
+    /// ## Permission
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
+    ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetTokenFieldResponse::EnabledPrivileges`]. Which it should NOT.
     ///
@@ -152,6 +167,9 @@ impl HxToken {
     /// # Get Default Enabled Privileges
     ///
     /// Gets the privileges enabled by default for this token.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
     ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetTokenFieldResponse::EnabledByDefaultPrivileges`]. Which it should NOT.
@@ -176,11 +194,12 @@ impl HxToken {
     ///
     /// Gets the `SourceName` field in `_TOKEN_SOURCE` structure.
     ///
+    /// ## Permission
+    /// * [`PluginPermissions::SECURITY_MANAGE`]
+    ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetTokenFieldResponse::SourceName`]. Which it should NOT.
     ///
-    /// ## Permission
-    /// * [`PluginPermissions::SECURITY_MANAGE`]
     ///
     /// ## Return
     /// * [`String`] - A beautiful string.

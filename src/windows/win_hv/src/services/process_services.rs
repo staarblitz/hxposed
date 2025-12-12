@@ -210,10 +210,17 @@ pub(crate) fn set_process_field_async(
 /// * [`HypervisorResponse::invalid_params`] - Invalid buffer.
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> HypervisorResponse {
-    let mut process = PEPROCESS::default();
-    match unsafe { PsLookupProcessByProcessId(request.command.id as _, &mut process) } {
-        STATUS_SUCCESS => {}
-        err => return HypervisorResponse::nt_error(err as _),
+    let plugin = match PluginTable::lookup(request.uuid) {
+        Some(plugin) => plugin,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
+    let process = match plugin
+        .object_table
+        .get_open_process(Some(request.command.id), None)
+    {
+        Some(thread) => thread,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.command.field {
@@ -285,6 +292,24 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 }
                 Err(_) => HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
             }
+        }
+        ProcessField::Token => {
+            if request.command.data_len != 8 {
+                return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
+            }
+
+            let token = match plugin.object_table.get_open_token(request.command.data as _) {
+                Some(x) => x,
+                None => return HypervisorResponse::not_found_what(NotFoundReason::Token)
+            };
+
+            let field = unsafe {
+                get_eprocess_field::<u64>(EProcessField::Token, process)
+            };
+
+            unsafe {field.write(token as _)};
+
+            EmptyResponse::with_service(ServiceFunction::SetProcessField)
         }
         _ => HypervisorResponse::not_found(),
     }
