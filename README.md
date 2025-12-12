@@ -69,7 +69,7 @@ let token = process.get_primary_token().await;
 println!("Token account name: {}", token.get_account_name()); // Admin, User, PC whatever
 
 let system_set = HxToken::get_system_present_privileges().unwrap(); // Gets the privilege bitmask of SYSTEM user.
-token.set_enabled_privileges(system_set).await;
+token.set_enabled_privileges(system_set).await; // Overpowered now.
 ```
 #### Allocate from nonpaged pool
 - No IRPs.
