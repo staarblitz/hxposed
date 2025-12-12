@@ -144,9 +144,8 @@ async fn async_main() {
         }
     };
 
-    println!("Process primary token got!");
-
-
+    println!("Token account name: {}", token.get_account_name().await.unwrap());
+    println!("Token source name: {}", token.get_source_name().await.unwrap());
 
     /*println!("Address to read/write?: ");
     let mut input = String::new();
