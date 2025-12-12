@@ -1,19 +1,25 @@
+pub(crate) mod blanket;
+pub(crate) mod context;
+pub(crate) mod handlebox;
+pub(crate) mod logger;
 pub(crate) mod process;
 pub(crate) mod worker;
-pub(crate) mod context;
-pub(crate) mod logger;
-pub(crate) mod blanket;
-pub(crate) mod handlebox;
 
 use crate::win::*;
+use bitfield_struct::bitfield;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use bitfield_struct::bitfield;
 use wdk_sys::ntddk::RtlGetVersion;
-use wdk_sys::{PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW};
+use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
+
+#[allow(non_camel_case_types)]
+pub(crate) type PSEP_LOGON_SESSION_REFERENCES = *mut _SEP_LOGON_SESSION_REFERENCES;
+
+#[allow(non_camel_case_types)]
+pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 
 ///
 /// # Get NT Info
@@ -156,10 +162,10 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
 /// - Absolute **pointer** to the field, in [`T`].
 pub(crate) unsafe fn get_ethread_field<T: 'static>(
     field: EThreadField,
-    thread: PETHREAD
+    thread: PETHREAD,
 ) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
-    unsafe{
+    unsafe {
         thread.byte_offset(match build {
             26200 /* 25H2 */ => {
                 match field {
@@ -177,6 +183,81 @@ pub(crate) unsafe fn get_ethread_field<T: 'static>(
     }
 }
 
+///
+/// # Get `ACCESS_TOKEN` Field
+///
+/// Gets pointer to field of `ACCESS_TOKEN` depending on NT version.
+///
+/// ## Arguments
+/// * `field` - Field you want to acquire pointer to. See [`AccessTokenField`]
+/// * `thread` - Thread object to get pointer from.
+///
+/// ## Panic
+/// - This function panics if the NT version is not supported.
+///
+/// ## Returns
+/// - Absolute **pointer** to the field, in [`T`].
+pub(crate) unsafe fn get_access_token_field<T: 'static>(
+    field: AccessTokenField,
+    token: PACCESS_TOKEN,
+) -> *mut T {
+    let build = NT_BUILD.load(Ordering::Relaxed);
+    unsafe{
+        token.byte_offset(match build {
+            26200 /* 25H2 */ => {
+                match field {
+                    AccessTokenField::TokenSource => 0x0,
+                    AccessTokenField::LogonSession => 0xd8,
+                    AccessTokenField::Type => 0xc0,
+                    AccessTokenField::IntegrityLevelIndex => 0xd0,
+                    AccessTokenField::MandatoryPolicy => 0xd4,
+                    AccessTokenField::ImpersonationLevel => 0xc4
+                }
+            }
+            _ => {
+                panic!("Unknown NT build {}", build)
+            }
+        }) as *mut T
+    }
+}
+
+///
+/// # Get `_SEP_LOGON_SESSION_REFERENCES` Field
+///
+/// Gets pointer to field of `_SEP_LOGON_SESSION_REFERENCES` depending on NT version.
+///
+/// ## Arguments
+/// * `field` - Field you want to acquire pointer to. See [`LogonSessionField`]
+/// * `thread` - Thread object to get pointer from.
+///
+/// ## Panic
+/// - This function panics if the NT version is not supported.
+///
+/// ## Returns
+/// - Absolute **pointer** to the field, in [`T`].
+pub(crate) unsafe fn get_logon_session_field<T: 'static>(
+    field: LogonSessionField,
+    token: PSEP_LOGON_SESSION_REFERENCES,
+) -> *mut T {
+    let build = NT_BUILD.load(Ordering::Relaxed);
+    unsafe{
+        token.byte_offset(match build {
+            26200 /* 25H2 */ => {
+                match field {
+                    LogonSessionField::LogonId => 0x8,
+                    LogonSessionField::Flags => 0x20,
+                    LogonSessionField::Token => 0x30,
+                    LogonSessionField::AccountName => 0x38,
+                    LogonSessionField::AuthorityName => 0x48,
+                }
+            }
+            _ => {
+                panic!("Unknown NT build {}", build)
+            }
+        }) as *mut T
+    }
+}
+
 pub enum NtProcedure {
     PsTerminateProcessProc,
     PspSetContextThreadInternal,
@@ -184,12 +265,29 @@ pub enum NtProcedure {
     PspTerminateThreadByPointer,
 }
 
+pub enum LogonSessionField {
+    LogonId,
+    Flags,
+    Token,
+    AccountName,
+    AuthorityName,
+}
+
+pub enum AccessTokenField {
+    TokenSource,
+    LogonSession,
+    Type,
+    IntegrityLevelIndex,
+    MandatoryPolicy,
+    ImpersonationLevel,
+}
+
 pub enum EThreadField {
     Lock,
     OffsetFromListEntry,
     ClientId,
     CrossThreadFlags,
-    AdjustedClientToken
+    AdjustedClientToken,
 }
 
 /// TODO: Document what those return
