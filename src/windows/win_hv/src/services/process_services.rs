@@ -6,11 +6,11 @@ use crate::win::PsTerminateProcess;
 use crate::win::danger::DangerPtr;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use bit_field::BitField;
 use core::arch::asm;
 use core::ops::{BitAnd, BitXor};
 use core::ptr::copy_nonoverlapping;
 use core::sync::atomic::Ordering;
-use bit_field::BitField;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
@@ -22,7 +22,10 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::*;
-use wdk_sys::ntddk::{ExAcquirePushLockExclusiveEx, ExReleasePushLockExclusiveEx, ProbeForRead, ProbeForWrite, PsGetThreadId, PsLookupProcessByProcessId, PsReferencePrimaryToken};
+use wdk_sys::ntddk::{
+    ExAcquirePushLockExclusiveEx, ExReleasePushLockExclusiveEx, ProbeForRead, ProbeForWrite,
+    PsGetThreadId, PsLookupProcessByProcessId, PsReferencePrimaryToken,
+};
 use wdk_sys::{_KTHREAD, _UNICODE_STRING, LIST_ENTRY, PEPROCESS, PETHREAD, STATUS_SUCCESS};
 
 ///
@@ -137,6 +140,10 @@ pub(crate) fn get_process_threads_async(
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
     }
 
+    if !async_info.is_present() {
+        return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
+    }
+
     plugin.queue_command(Box::new(GetProcessThreadsAsyncCommand {
         command: request,
         async_info,
@@ -173,6 +180,10 @@ pub(crate) fn set_process_field_async(
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
     }
 
+    if !async_info.is_present() {
+        return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
+    }
+    
     plugin.queue_command(Box::new(SetProcessFieldAsyncCommand {
         uuid: plugin.uuid,
         command: request,
@@ -259,14 +270,16 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 ProbeForRead(request.command.data as _, request.command.data_len as _, 2)
             }) {
                 Ok(_) => {
-                    let mitigations =
-                        unsafe { *(request.command.data as *mut MitigationOptions) };
+                    let mitigations = unsafe { *(request.command.data as *mut MitigationOptions) };
 
                     let flags_field1 = unsafe {
-                        get_eprocess_field::<MitigationOptions>(EProcessField::MitigationFlags1, process)
+                        get_eprocess_field::<MitigationOptions>(
+                            EProcessField::MitigationFlags1,
+                            process,
+                        )
                     };
 
-                    unsafe {flags_field1.write(mitigations)};
+                    unsafe { flags_field1.write(mitigations) };
 
                     EmptyResponse::with_service(ServiceFunction::SetProcessField)
                 }
@@ -305,28 +318,24 @@ pub(crate) fn get_process_field_async(
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
     }
 
-    match request.field {
-        ProcessField::NtPath | ProcessField::Token => {
-            if !async_info.is_present() {
-                return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
-            }
+    let obj = GetProcessFieldAsyncCommand {
+        uuid: plugin.uuid,
+        command: request,
+        async_info,
+    };
 
-            plugin.queue_command(Box::new(GetProcessFieldAsyncCommand {
-                uuid: plugin.uuid,
-                command: request,
-                async_info,
-            }));
+    match obj.async_info.is_present() {
+        true => {
+            plugin.queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::KillProcess)
+        },
+        false => match obj.command.field {
+            ProcessField::NtPath | ProcessField::Token => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
+            ProcessField::Protection | ProcessField::MitigationFlags | ProcessField::Signers => {
+                get_process_field_sync(&obj)
+            },
+            ProcessField::Unknown => HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
         }
-        // directly call the sync counterpart.
-        ProcessField::Protection | ProcessField::MitigationFlags  | ProcessField::Signers  => {
-            get_process_field_sync(&GetProcessFieldAsyncCommand {
-                uuid: plugin.uuid,
-                command: request,
-                async_info,
-            })
-        }
-        _ => HypervisorResponse::not_found(),
     }
 }
 
@@ -405,7 +414,7 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_SECURITY);
             }
 
-            let token = unsafe {PsReferencePrimaryToken(process)};
+            let token = unsafe { PsReferencePrimaryToken(process) };
 
             GetProcessFieldResponse::Token(token as _)
         }
@@ -442,6 +451,10 @@ pub(crate) fn kill_process_async(
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
         return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
+    }
+
+    if !async_info.is_present() {
+        return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
     plugin.queue_command(Box::new(KillProcessAsyncCommand {
@@ -524,16 +537,15 @@ pub(crate) fn open_process_async(
         uuid: plugin.uuid,
     };
 
-    match obj.command.open_type {
-        ObjectOpenType::Handle => {
-            if !obj.async_info.is_present() {
-                return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
-            }
+    match obj.async_info.is_present() {
+        true => {
             plugin.queue_command(Box::new(obj));
-
             EmptyResponse::with_service(ServiceFunction::OpenProcess)
         }
-        ObjectOpenType::Hypervisor => open_process_sync(&obj),
+        false => match obj.command.open_type {
+            ObjectOpenType::Handle => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
+            ObjectOpenType::Hypervisor => open_process_sync(&obj),
+        },
     }
 }
 

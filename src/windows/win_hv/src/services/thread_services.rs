@@ -59,6 +59,10 @@ pub(crate) fn kill_thread_async(
         return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
     }
 
+    if !async_info.is_present() {
+        return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
+    }
+
     plugin.queue_command(Box::new(KillThreadAsyncCommand {
         command: request,
         uuid: plugin.uuid,
@@ -118,6 +122,10 @@ pub(crate) fn suspend_resume_thread_async(
 ) -> HypervisorResponse {
     if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
         return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
+    }
+
+    if !async_info.is_present() {
+        return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
     plugin.queue_command(Box::new(SuspendResumeThreadAsyncCommand {
@@ -198,9 +206,15 @@ pub(crate) fn get_thread_field_async(
         async_info,
     };
 
-    match obj.command.field {
-        ThreadField::ActiveImpersonationInfo => get_thread_field_sync(&obj),
-        _ => HypervisorResponse::not_found(),
+    match obj.async_info.is_present() {
+        true => {
+            plugin.queue_command(Box::new(obj));
+            EmptyResponse::with_service(ServiceFunction::SuspendResumeThread)
+        }
+        false => match obj.command.field {
+            ThreadField::ActiveImpersonationInfo => get_thread_field_sync(&obj),
+            _ => HypervisorResponse::not_found(),
+        },
     }
 }
 
@@ -267,16 +281,15 @@ pub(crate) fn open_thread_async(
         async_info,
     };
 
-    match obj.command.open_type {
-        ObjectOpenType::Handle => {
-            if !obj.async_info.is_present() {
-                return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
-            }
-
+    match obj.async_info.is_present() {
+        true => {
             plugin.queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::OpenThread)
         }
-        ObjectOpenType::Hypervisor => open_thread_sync(&obj),
+        false => match obj.command.open_type {
+            ObjectOpenType::Handle => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
+            ObjectOpenType::Hypervisor => open_thread_sync(&obj),
+        },
     }
 }
 
