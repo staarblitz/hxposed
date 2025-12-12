@@ -255,7 +255,8 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::FreeMemory=> {
             services::handle_memory_services(guest, &request, plugin, async_info);
         }
-        ServiceFunction::OpenToken => {
+        ServiceFunction::OpenToken
+        | ServiceFunction::GetTokenField => {
             services::handle_security_services(guest, &request, plugin, async_info);
         }
         _ => {
