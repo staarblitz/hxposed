@@ -47,7 +47,8 @@ pub enum NotFoundReason {
     Plugin = 2,
     Mdl = 3,
     Thread = 4,
-    ServiceFunction = 5
+    ServiceFunction = 5,
+    Token = 6
 }
 
 impl NotFoundReason {
@@ -60,6 +61,8 @@ impl NotFoundReason {
             3 => Self::Mdl,
             4 => Self::Thread,
             5 => Self::ServiceFunction,
+            6 => Self::Token,
+
             _ => Self::Unknown
         }
     }
