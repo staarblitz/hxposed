@@ -19,7 +19,7 @@ impl HxToken {
         }.send_async().await?;
 
         Ok(Self {
-            addr: result.addr
+            addr
         })
     }
 
@@ -43,7 +43,7 @@ impl HxToken {
             ..Default::default()
         }).send_async().await? {
             GetTokenFieldResponse::SourceName(name) => { // did I tell this u64 is a char[8]?
-                match String::from_utf8(name.to_le_bytes().into_vec()) {
+                match String::from_utf8(name.to_le_bytes().to_vec()) {
                     Ok(str) => Ok(str),
                     Err(_) => Err(HypervisorError::not_found())
                 }
