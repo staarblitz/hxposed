@@ -94,6 +94,24 @@ impl PluginObjectTable {
         }
     }
 
+    pub fn get_open_token(
+        &self,
+        addr: PACCESS_TOKEN
+    ) -> Option<PACCESS_TOKEN> {
+        let ptr = self.open_tokens.iter().find(|p| {
+            if (**p).addr() == addr as u64 as usize {
+                return true;
+            }
+
+            false
+        });
+
+        match ptr {
+            None => None,
+            Some(p) => Some(*p),
+        }
+    }
+
     pub fn get_open_thread(
         &self,
         id: Option<u32>,
