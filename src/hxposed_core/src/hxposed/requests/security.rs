@@ -10,6 +10,7 @@ pub struct OpenTokenRequest {
     pub addr: u64
 }
 
+#[derive(Debug, Default, Clone)]
 pub struct GetTokenFieldRequest {
     pub addr: u64,
     pub field: TokenField,
