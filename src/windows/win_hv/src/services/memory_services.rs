@@ -199,12 +199,12 @@ pub(crate) fn allocate_mdl_async(
     if !plugin.perm_check(
         PluginPermissions::MEMORY_PHYSICAL
             | PluginPermissions::MEMORY_VIRTUAL
-            | PluginPermissions::MEMORY_PROTECT,
+            | PluginPermissions::MEMORY_ALLOCATION,
     ) {
         return HypervisorResponse::not_allowed_perms(
             PluginPermissions::MEMORY_PHYSICAL
                 | PluginPermissions::MEMORY_VIRTUAL
-                | PluginPermissions::MEMORY_PROTECT,
+                | PluginPermissions::MEMORY_ALLOCATION,
         );
     }
 
