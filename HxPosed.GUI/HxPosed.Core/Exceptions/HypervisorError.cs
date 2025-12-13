@@ -9,24 +9,27 @@ namespace HxPosed.Core.Exceptions
     internal struct HypervisorError
     {
         public ErrorSource Source;
-        public ErrorCode Error;
+        public ushort Error;
+        public ushort Reason;
 
-        public readonly bool IsError() => !(Source == ErrorSource.Hx && Error == ErrorCode.Ok);
+        public readonly bool IsError() => !(Source == ErrorSource.Hx && (ErrorCode)Error == ErrorCode.Ok);
     }
 
 
-    internal enum ErrorSource : uint
+    internal enum ErrorSource : ushort
     {
         Nt = 0,
         Hv = 1,
         Hx = 2,
     }
 
-    internal enum ErrorCode: uint
+    internal enum ErrorCode: ushort
     {
         Unknown = 0,
         Ok = 1,
         NotAllowed = 2,
-        NotLoaded = 3
+        NotLoaded = 3,
+        NotFound = 4,
+        InvalidParams = 5,
     }
 }
