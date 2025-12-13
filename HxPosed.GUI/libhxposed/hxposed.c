@@ -4,41 +4,103 @@
 #include "hxposed.h"
 #include <intrin.h>
 
-__declspec(dllexport) hypervisor_error_t get_hx_state(hx_status_response_t* resp) {
-	hypervisor_req_resp_t req_resp = { 0 };
-	req_resp.call = call_get_status();
-
-	if (trap(&req_resp) == -1) {
-		hypervisor_error_t err = { 0 };
-		err.code = NotLoaded;
-		err.source = Hx;
-		return err;
-	}
-
-	resp->status = req_resp.arg1;
-	resp->version = req_resp.arg2;
-
-	return err_from_result(&req_resp.result);
+HX_ERROR HxNotLoaded() {
+	HX_ERROR err = { 0 };
+	err.ErrorCode = HxErrNotLoaded;
+	err.ErrorSource = HxSourceHx;
+	return err;
 }
 
-__declspec(dllexport) hypervisor_error_t hx_auth(hx_auth_request_t* auth, hx_auth_response_t* resp) {
-	hypervisor_req_resp_t req_resp = { 0 };
-	req_resp.call = call_auth();
+HANDLE HxpCreateEvent() {
+	return CreateEventA(NULL, TRUE, FALSE, NULL);
+}
 
-	uint64_t* guid = &auth->guid;
+__declspec(dllexport) HX_ERROR HxGetStatus(PHXS_STATUS Response, HANDLE Async) {
+	HX_REQUEST_RESPONSE reqResp = { 0 };
+	reqResp.Call = HxCallGetStatus();
 
-	req_resp.arg1 = guid[0];
-	req_resp.arg2 = guid[1];
-	req_resp.arg3 = resp->permissions;
-
-	if (trap(&req_resp) == -1) {
-		hypervisor_error_t err = { 0 };
-		err.code = NotLoaded;
-		err.source = Hx;
-		return err;
+	if (HxpTrap(&reqResp) == -1) {
+		return HxNotLoaded();
 	}
 
-	resp->permissions = req_resp.arg1;
+	Response->Status = reqResp.Arg1;
+	Response->Version = reqResp.Arg2;
 
-	return err_from_result(&req_resp.result);
+	return HxErrorFromResult(&reqResp.Result);
+}
+
+__declspec(dllexport) HX_ERROR HxAuthenticate(PHXR_AUTH Auth, PHXS_AUTH Response) {
+	HX_REQUEST_RESPONSE reqResp = { 0 };
+	reqResp.Call = HxCallAuth();
+
+	// 200000iq
+	UINT64* guid = &Auth->Guid;
+
+	reqResp.Arg1 = guid[0];
+	reqResp.Arg2 = guid[1];
+	reqResp.Arg3 = Auth->Permissions;
+
+	if (HxpTrap(&reqResp, NULL) == -1) {
+		return HxNotLoaded();
+	}
+
+	Response->Permissions = reqResp.Arg1;
+
+	return HxErrorFromResult(&reqResp.Result);
+}
+
+__declspec(dllexport) HX_ERROR HxOpenProcess(PHXR_OPEN_PROCESS Request, PHXS_OPEN_OBJECT_RESPONSE Response, PHX_ASYNC_INFO Async) {
+	HX_REQUEST_RESPONSE reqResp = { 0 };
+	reqResp.Call = HxCallOpenProcess();
+
+	reqResp.Arg1 = Request->Id;
+	reqResp.Arg2 = Request->OpenType;
+
+	if (HxpTrap(&reqResp, Async) == -1) {
+		return HxNotLoaded();
+	}
+
+	Response->Address = reqResp.Arg1;
+
+	return HxErrorFromResult(&reqResp.Result);
+}
+
+__declspec(dllexport) HX_ERROR HxCloseProcess(PHXR_CLOSE_PROCESS Request, PHX_ASYNC_INFO Async) {
+	HX_REQUEST_RESPONSE reqResp = { 0 };
+	reqResp.Call = HxCallCloseProcess();
+
+	reqResp.Arg1 = Request->Id;
+
+	if (HxpTrap(&reqResp, Async) == -1) {
+		return HxNotLoaded();
+	}
+
+	return HxErrorFromResult(&reqResp.Result);
+}
+
+__declspec(dllexport) HX_ERROR HxOpenThread(PHXR_OPEN_THREAD Request, PHXS_OPEN_OBJECT_RESPONSE Response, PHX_ASYNC_INFO Async) {
+	HX_REQUEST_RESPONSE reqResp = { 0 };
+	reqResp.Call = HxCallOpenThread();
+
+	reqResp.Arg1 = Request->Id;
+	reqResp.Arg2 = Request->OpenType;
+
+	if (HxpTrap(&reqResp, Async) == -1) {
+		return HxNotLoaded();
+	}
+
+	return HxErrorFromResult(&reqResp.Result);
+}
+
+__declspec(dllexport) HX_ERROR HxCloseThread(PHXR_CLOSE_THREAD Request, PHX_ASYNC_INFO Async) {
+	HX_REQUEST_RESPONSE reqResp = { 0 };
+	reqResp.Call = HxCallCloseThread();
+
+	reqResp.Arg1 = Request->Id;
+
+	if (HxpTrap(&reqResp, Async) == -1) {
+		return HxNotLoaded();
+	}
+
+	return HxErrorFromResult(&reqResp.Result);
 }
