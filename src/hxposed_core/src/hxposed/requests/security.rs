@@ -38,7 +38,7 @@ impl SetTokenFieldRequest {
             addr,
             field: TokenField::EnabledPrivileges,
             data: new_privileges as *mut _ as _,
-            data_len: size_of::<TokenPrivilege>(), // 1 byte
+            data_len: size_of::<TokenPrivilege>(),
         }
     }
 }
