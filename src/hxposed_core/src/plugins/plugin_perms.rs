@@ -38,8 +38,8 @@ bitflags! {
         const RESERVED14        = 1 << 25;
         const RESERVED15        = 1 << 26;
 
-        const SECURITY_CREATE   = 1 << 27;
+        const RESERVED16   = 1 << 27;
         const SECURITY_MANAGE   = 1 << 28;
-        const SECURITY_DELETE   = 1 << 29;
+        const RESERVED17  = 1 << 29;
     }
 }
