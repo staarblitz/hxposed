@@ -12,13 +12,13 @@ namespace HxPosed.GUI.ViewModels
 {
     internal class DashboardViewModel : INotifyPropertyChanged
     {
-        private static StatusResponse GetHypervisorStatus()
+        private static HxStatus GetHypervisorStatus()
         {
             try
             {
                 if (DesignerProperties.GetIsInDesignMode(new System.Windows.DependencyObject()))
                 {
-                    return new StatusResponse
+                    return new HxStatus
                     {
                         Status = HypervisorStatus.SystemVirtualized,
                         Version = 0xDEAD
@@ -29,11 +29,11 @@ namespace HxPosed.GUI.ViewModels
             }
             catch(HypervisorException ex)
             {
-                return new StatusResponse { Status = HypervisorStatus.Unknown, Version = 0 };
+                return new HxStatus { Status = HypervisorStatus.Unknown, Version = 0 };
             }
         }
 
-        private StatusResponse _hvStatus = GetHypervisorStatus();
+        private HxStatus _hvStatus = GetHypervisorStatus();
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
