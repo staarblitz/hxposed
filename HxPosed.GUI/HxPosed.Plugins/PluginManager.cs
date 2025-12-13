@@ -13,23 +13,30 @@ namespace HxPosed.Plugins
         /// </summary>
         public static void HealthCheck()
         {
-            using var key = Registry.LocalMachine.OpenSubKey("Software", true);
-            RegistryKey mainKey = null;
-            if (!key!.GetSubKeyNames().Contains("HxPosed"))
-                mainKey = key.CreateSubKey("HxPosed", true);
-            else
-                mainKey = key.OpenSubKey("HxPosed", true)!;
-
-            if (!mainKey.GetSubKeyNames().Contains("Plugins"))
+            try
             {
-                mainKey.CreateSubKey("Plugins").Dispose();
-#if DEBUG
-                Plugin.New(Guid.NewGuid(), "Test Plugin", "Showcases how the UI looks", 1, "https://github.com/Staarblitz", "Staarblitz", "App24");
-#endif
-            }
-                
+                using var key = Registry.LocalMachine.OpenSubKey("Software", true);
+                RegistryKey mainKey = null;
+                if (!key!.GetSubKeyNames().Contains("HxPosed"))
+                    mainKey = key.CreateSubKey("HxPosed", true);
+                else
+                    mainKey = key.OpenSubKey("HxPosed", true)!;
 
-            mainKey.Dispose();
+                if (!mainKey.GetSubKeyNames().Contains("Plugins"))
+                {
+                    mainKey.CreateSubKey("Plugins").Dispose();
+#if DEBUG
+                    Plugin.New(Guid.NewGuid(), "Test Plugin", "Showcases how the UI looks", 1, "https://github.com/Staarblitz", "Staarblitz", "App24");
+#endif
+                }
+
+
+                mainKey.Dispose();
+            }
+            catch
+            {
+
+            }
         }
 
         /// <summary>
