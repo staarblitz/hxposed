@@ -14,13 +14,18 @@ namespace HxPosed.Plugins.Permissions
         ProcessExecutive = 1 << 0,
         [Display(Name = "Process Memory", Description = "Allow access to memory of process objects.")]
         ProcessMemory = 1 << 1,
-        [Display(Name = "Process Control", Description = "Allow access to process control block (e.g. affinity)")]
+        [Display(Name = "Process Control", Description = "Allow access to process control block (e.g. affinity). RESERVED")]
         ProcessControl = 1 << 2,
+        [Display(Name = "Process Security", Description = "Allow access to process' token.")]
+        ProcessSecurity = 1 << 3,
 
-        Reserved = 1 << 3,
-        Reserved2 = 1 << 4,
-        Reserved3 = 1 << 5,
-        Reserved4 = 1 << 6,
+        [Display(Name = "Thread Executive", Description = "Allow executive access (e.g. suspend, terminate) to thread objects.")]
+        ThreadExecutive = 1 << 4,
+        [Display(Name = "Thread Control", Description = "Allow access to thread control block (e.g. wait list). RESERVED")]
+        ThreadControl = 1 << 5,
+        [Display(Name = "Thread Security", Description = "Allow access to thread's token.")]
+        ThreadSecurity = 1 << 6,
+
         Reserved5 = 1 << 7,
 
         [Display(Name = "Virtual Memory", Description = "Allow access to virtual memory (note: this is a flag rather than a permission).")]
@@ -40,27 +45,26 @@ namespace HxPosed.Plugins.Permissions
         Reserved9 = 1 << 16,
         Reserved10 = 1 << 17,
 
-        [Display(Name = "Msr Read", Description = "Allow reading model-specific-register values.")]
+        [Display(Name = "CPU Msr Read", Description = "Allow reading model-specific-register values. RESERVED")]
         CpuMsrRead = 1 << 18,
-        [Display(Name = "Msr Read", Description = "Allow writing model-specific-register values.")]
+        [Display(Name = "CPU Msr Write", Description = "Allow writing model-specific-register values. RESERVED")]
         CpuMsrWrite = 1 << 19,
-        [Display(Name = "Msr Read", Description = "Allow R/W segmentation registers.")]
+        [Display(Name = "CPU Segmentation", Description = "Allow R/W segmentation registers. RESERVED")]
         CpuSegmentation = 1 << 20,
-        [Display(Name = "Msr Read", Description = "Allow R/W control registers.")]
+        [Display(Name = "CPU Control", Description = "Allow R/W control registers. RESERVED")]
         CpuControl = 1 << 21,
+        [Display(Name = "CPU I/O", Description ="Allows access to ports. RESERVED")]
+        CpuIO = 1 << 22,
 
-        Reserved11 = 1 << 22,
         Reserved12 = 1 << 23,
         Reserved13 = 1 << 24,
         Reserved14 = 1 << 25,
         Reserved15 = 1 << 26,
 
-        [Display(Name = "Security Create", Description = "Allow creating new security tokens.")]
-        SecurityCreate = 1 << 27,
+        Reserved16 = 1 << 27,
         [Display(Name = "Security Manage", Description = "Allow managing existing security tokens.")]
         SecurityManage = 1 << 28,
-        [Display(Name = "Security Delete", Description = "Allow deleting security tokens.")]
-        SecurityDelete = 1 << 29,
+        Reserved17 = 1 << 29,
 
         // Rest is reserved
 
