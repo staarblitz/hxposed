@@ -13,7 +13,7 @@
         internal HypervisorException(HypervisorError error)
         {
             _source = error.Source.ToString();
-            _message = error.Error switch
+            _message = (ErrorCode)error.Error switch
             {
                 ErrorCode.Ok => "Operation completed succesfully",
                 ErrorCode.NotAllowed => "Missing permissions for operation",
