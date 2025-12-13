@@ -35,6 +35,9 @@
     <ClInclude Include="req.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="fields.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="trap.asm">
