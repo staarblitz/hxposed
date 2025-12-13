@@ -84,8 +84,6 @@ typedef struct _HX_CALL {
 typedef struct _HX_REQUEST_RESPONSE {
     HX_CALL Call;
     HX_RESULT Result;
-    // padding for the first member of shared memory region
-    UINT32 Padding;
 
     // args
     UINT64 Arg1;
