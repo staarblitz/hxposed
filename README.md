@@ -103,7 +103,7 @@ Easy. Powerful. No-nonsense.
 ![the demo](assets/prev.gif)
 
 > [!IMPORTANT]
-> Bindings for C# and C are **outdated**! They are not the main concern until core functionality is implemented.
+> Bindings for C# and C are on the way!
 
 ## Technichal Details
 Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
