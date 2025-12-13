@@ -24,10 +24,34 @@ pub struct GetThreadFieldAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
 }
 
+pub struct SetThreadFieldAsyncCommand {
+    pub command: SetThreadFieldRequest,
+    pub uuid: Uuid,
+    pub async_info: UnsafeAsyncInfo,
+}
+
 pub struct KillThreadAsyncCommand {
     pub command: KillThreadRequest,
     pub uuid: Uuid,
     pub async_info: UnsafeAsyncInfo,
+}
+
+impl AsyncCommand for SetThreadFieldAsyncCommand {
+    fn get_service_function(&self) -> ServiceFunction {
+        ServiceFunction::SetThreadField
+    }
+
+    fn complete(&mut self, result: HypervisorResponse) {
+        write_and_set(
+            &result,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
+        )
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl AsyncCommand for GetThreadFieldAsyncCommand {
