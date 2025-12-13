@@ -190,6 +190,72 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
     .into_raw()
 }
 
+pub(crate) fn set_thread_field_sync(request: SetThreadFieldAsyncCommand) -> HypervisorResponse {
+    let plugin = match PluginTable::lookup(request.uuid) {
+        Some(plugin) => plugin,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
+    let thread = match plugin
+        .object_table
+        .get_open_thread(Some(request.command.id), None)
+    {
+        Some(thread) => thread,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+    };
+
+    match request.command.field {
+        ThreadField::AdjustedClientToken => {
+            if !plugin.perm_check(PluginPermissions::THREAD_SECURITY) {
+                return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
+            }
+
+            let token = match plugin
+                .object_table
+                .get_open_token(request.command.data as _)
+            {
+                Some(x) => x,
+                None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
+            };
+
+            let field =
+                unsafe { get_ethread_field::<*mut u64>(EThreadField::AdjustedClientToken, thread) };
+
+            unsafe { field.write(token as _) };
+
+            EmptyResponse::with_service(ServiceFunction::SetThreadField)
+        }
+        _ => HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
+    }
+}
+
+pub(crate) fn set_thread_field_async(
+    _guest: &mut dyn Guest,
+    request: SetThreadFieldRequest,
+    plugin: &mut Plugin,
+    async_info: UnsafeAsyncInfo,
+) -> HypervisorResponse {
+    if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
+        return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
+    }
+
+    let obj = SetThreadFieldAsyncCommand {
+        command: request,
+        uuid: plugin.uuid,
+        async_info,
+    };
+
+    match obj.async_info.is_present() {
+        true => {
+            plugin.queue_command(Box::new(obj));
+            EmptyResponse::with_service(ServiceFunction::SetThreadField)
+        }
+        false => match obj.command.field {
+            _ => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
+        },
+    }
+}
+
 pub(crate) fn get_thread_field_async(
     _guest: &mut dyn Guest,
     request: GetThreadFieldRequest,
@@ -213,7 +279,7 @@ pub(crate) fn get_thread_field_async(
         }
         false => match obj.command.field {
             ThreadField::ActiveImpersonationInfo => get_thread_field_sync(&obj),
-            _ => HypervisorResponse::not_found(),
+            _ => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
         },
     }
 }
