@@ -1,13 +1,13 @@
 #pragma once
 #include "hxposed.h"
 
-int err_is_error(hypervisor_error_t* err) {
-	return !(err->code == Ok || err->source == Hx);
+BOOL HxIsError(PHX_ERROR Error) {
+	return !(Error->ErrorCode == HxErrOk || Error->ErrorSource == HxSourceHx);
 }
 
-hypervisor_error_t err_from_result(hypervisor_result_t* result) {
-	hypervisor_error_t error = { 0 };
-	error.code = result->code;
-	error.source = result->source;
+HX_ERROR HxErrorFromResult(PHX_RESULT Result) {
+	HX_ERROR error = { 0 };
+	error.ErrorCode = Result->ErrorCode;
+	error.ErrorSource = Result->ErrorSource;
 	return error;
 }
