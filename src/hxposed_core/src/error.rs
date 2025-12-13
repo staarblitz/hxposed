@@ -9,7 +9,7 @@ use core::fmt::{Debug, Display, Error, Formatter, Write};
 pub struct HypervisorError {
     pub error_source: ErrorSource,
     pub error_code: u16,
-    pub error_reason: u16,
+    pub error_reason: u16, // I know I'm missing a big pattern matching potential here.
 }
 
 impl Debug for HypervisorError {
