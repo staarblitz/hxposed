@@ -6,8 +6,8 @@ use crate::hxposed::responses::thread::GetThreadFieldResponse;
 use crate::intern::win::GetCurrentThreadId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::security::HxToken;
-use alloc::boxed::Box;
 use core::sync::atomic::{AtomicU64, Ordering};
+use crate::hxposed::responses::empty::EmptyResponse;
 
 pub struct HxThread {
     pub id: u32,
@@ -79,6 +79,33 @@ impl HxThread {
         Ok(result.previous_count)
     }
 
+    ///
+    /// # Swap Impersonation Token
+    ///
+    /// Swaps the impersonation token of the thread.
+    ///
+    /// ## Warning
+    /// - This happens while the thread is EXECUTING.
+    /// - The results can be disastrous.
+    /// - This isn't supported in any way.
+    /// - You have been warned.
+    ///
+    /// ## Permissions
+    /// * [`PluginPermissions::THREAD_SECURITY`]
+    /// - This function does not require [`PluginPermissions::SECURITY_MANAGE`], but you will need it for obtaining a HxToken.
+    ///
+    /// ## Arguments
+    /// - `token` - New token. See [`HxToken`]
+    pub async fn swap_impersonation_token(&self, token: &HxToken) -> Result<EmptyResponse, HypervisorError> {
+         SetThreadFieldRequest {
+            id: self.id,
+            field: ThreadField::AdjustedClientToken,
+            data: token.addr as _,
+            data_len: size_of::<u64>(),
+        }.send_async().await
+    }
+
+    ///
     /// # Get Impersonation Token
     ///
     /// Gets the `AdjustedClientToken` field from `_ETHREAD` structure.
