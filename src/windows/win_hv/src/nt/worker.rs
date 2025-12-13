@@ -90,6 +90,12 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .downcast_ref::<OpenTokenAsyncCommand>()
                         .unwrap(),
                 ),
+                ServiceFunction::GetThreadField => get_thread_field_sync(
+                    command.as_any().downcast_ref::<GetThreadFieldAsyncCommand>().unwrap()
+                ),
+                ServiceFunction::SetThreadField => set_thread_field_sync(
+                    command.as_any().downcast_ref::<SetThreadFieldAsyncCommand>().unwrap()
+                ),
                 ServiceFunction::GetTokenField => get_token_field_sync(
                     command
                         .as_any()
