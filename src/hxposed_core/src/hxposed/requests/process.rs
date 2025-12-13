@@ -41,6 +41,7 @@ pub struct SetProcessFieldRequest {
     pub data_len: usize,
 }
 
+///TODO: Maybe merge with [GetProcessFieldRequest]?
 #[derive(Default, Debug)]
 pub struct GetProcessThreadsRequest {
     pub id: u32,
