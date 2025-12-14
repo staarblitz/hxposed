@@ -1,6 +1,11 @@
 #pragma once
 #include <Windows.h>
 
+typedef struct _UINT128 {
+    UINT64 Low;
+    UINT64 High;
+} UINT128, * PUINT128;
+
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN SECURITY
 
 typedef struct _HX_TOKEN_PRIVILEGES {
@@ -263,7 +268,7 @@ typedef struct _HXS_GET_PROCESS_FIELD {
             UINT64 Token;
         } Token;
     } ProcessValues;
-} HXS_GET_PROCESS_FIELD, *PHXS_GET_PROCESS_FIELD;
+} HXS_GET_PROCESS_FIELD, * PHXS_GET_PROCESS_FIELD;
 
 typedef struct _HXS_GET_PROCESS_THREADS {
     UINT32 NumberOfThreads;
@@ -366,7 +371,7 @@ typedef enum _HX_VM_OPERATION {
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN AUTH
 
 typedef struct _HXR_AUTH {
-    GUID Guid;
+    struct _UINT128 Guid;
     UINT64 Permissions;
 } HXR_AUTH, * PHXR_AUTH;
 
@@ -374,7 +379,7 @@ typedef struct _HXR_AUTH {
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN MEMORY
 
 typedef struct _HXR_RW_VM {
-    UINT32 Id;
+    PVOID ProcessAddress;
     PVOID Address;
     SIZE_T Count;
     PVOID Output;
@@ -383,7 +388,7 @@ typedef struct _HXR_RW_VM {
 } HXR_RW_VM, * PHXR_RW_VM;
 
 typedef struct _HXR_PROTECT_VM {
-    UINT32 Id;
+    PVOID ProcessAddress;
     PVOID Address;
     UINT32 Protection;
 } HXR_PROTECT_VM, * PHXR_PROTECT_VM;
@@ -413,30 +418,30 @@ typedef struct _HXR_OPEN_PROCESS {
 } HXR_OPEN_PROCESS, * PHXR_OPEN_PROCESS;
 
 typedef struct _HXR_CLOSE_PROCESS {
-    UINT32 Id;
+    PVOID Address;
 } HXR_CLOSE_PROCESS, * PHXR_CLOSE_PROCESS;
 
 typedef struct _HXR_KILL_PROCESS {
-    UINT32 Id;
+    PVOID Address;
     UINT32 ExitCode;
 } HXR_KILL_PROCESS, * PHXR_KILL_PROCESS;
 
 typedef struct _HXR_GET_PROCESS_FIELD {
-    UINT32 Id;
+    PVOID Address;
     enum _HX_PROCESS_FIELD Field;
     PVOID Data;
     SIZE_T DataLen;
 } HXR_GET_PROCESS_FIELD, * PHXR_GET_PROCESS_FIELD;
 
 typedef struct _HXR_SET_PROCESS_FIELD {
-    UINT32 Id;
+    PVOID Address;
     enum _HX_PROCESS_FIELD Field;
     PVOID Data;
     SIZE_T DataLen;
 } HXR_SET_PROCESS_FIELD, * PHXR_SET_PROCESS_FIELD;
 
 typedef struct _HXR_GET_PROCESS_THREADS {
-    UINT32 Id;
+    PVOID Address;
     PVOID Data;
     SIZE_T DataLen;
 } HXR_GET_PROCESS_THREADS, * PHXR_GET_PROCESS_THREADS;
@@ -454,14 +459,14 @@ typedef struct _HXR_CLOSE_TOKEN {
 } HXR_CLOSE_TOKEN, * PHXR_CLOSE_TOKEN;
 
 typedef struct _HXR_GET_TOKEN_FIELD {
-    UINT32 Id;
+    PVOID Address;
     enum _HX_TOKEN_FIELD Field;
     PVOID Data;
     SIZE_T DataLen;
 } HXR_GET_TOKEN_FIELD, * PHXR_GET_TOKEN_FIELD;
 
 typedef struct _HXR_SET_TOKEN_FIELD {
-    UINT32 Id;
+    PVOID Address;
     enum _HX_TOKEN_FIELD Field;
     PVOID Data;
     SIZE_T DataLen;
@@ -476,29 +481,24 @@ typedef struct _HXR_OPEN_THREAD {
 } HXR_OPEN_THREAD, * PHXR_OPEN_THREAD;
 
 typedef struct _HXR_CLOSE_THREAD {
-    UINT32 Id;
+    PVOID Address;
 } HXR_CLOSE_THREAD, * PHXR_CLOSE_THREAD;
 
 typedef struct _HXR_GET_THREAD_FIELD {
-    UINT32 Id;
+    PVOID Address;
     enum _HX_THREAD_FIELD Field;
     PVOID Data;
     SIZE_T DataLen;
 } HXR_GET_THREAD_FIELD, * PHXR_GET_THREAD_FIELD;
 
 typedef struct _HXR_SET_THREAD_FIELD {
-    UINT32 Id;
+    PVOID Address;
     enum _HX_THREAD_FIELD Field;
     PVOID Data;
     SIZE_T DataLen;
 } HXR_SET_THREAD_FIELD, * PHXR_SET_THREAD_FIELD;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END THREAD
-
-typedef struct _UINT128 {
-    UINT64 Low;
-    UINT64 High;
-} UINT128, *PUINT128;
 
 typedef enum _HX_ERROR_SOURCE {
     HxSourceNt = 0,
@@ -549,15 +549,15 @@ typedef struct _HX_ERROR {
     enum _HX_ERROR_SOURCE ErrorSource;
     UINT16 ErrorCode;
     UINT16 ErrorReason;
-} HX_ERROR, *PHX_ERROR;
+} HX_ERROR, * PHX_ERROR;
 
 #pragma pack(push,1)
 typedef struct _HX_RESULT {
     enum _HX_SERVICE_FUNCTION ServiceFunction : 16;
-    enum _HX_ERROR_SOURCE ErrorSource : 2;
+    UINT32 ErrorSource : 2;
     enum _HX_ERROR_CODE ErrorCode : 3;
     UINT32 Reserved : 11;
-} HX_RESULT, *PHX_RESULT;
+} HX_RESULT, * PHX_RESULT;
 
 typedef struct _HX_CALL {
     enum _HX_SERVICE_FUNCTION ServiceFunction : 16;
@@ -567,7 +567,7 @@ typedef struct _HX_CALL {
     BOOL IsAsync : 1;
     BOOL ExtendedArgsPresent : 1;
     UINT32 Reserved : 10;
-} HX_CALL, *PHX_CALL;
+} HX_CALL, * PHX_CALL;
 
 typedef struct _HX_REQUEST_RESPONSE {
     HX_CALL Call;
@@ -582,7 +582,7 @@ typedef struct _HX_REQUEST_RESPONSE {
     UINT128 ExtendedArg2;
     UINT128 ExtendedArg3;
     UINT128 ExtendedArg4;
-} HX_REQUEST_RESPONSE, *PHX_REQUEST_RESPONSE;
+} HX_REQUEST_RESPONSE, * PHX_REQUEST_RESPONSE;
 
 typedef struct _HX_ASYNC_INFO {
     HANDLE Handle;
@@ -592,7 +592,7 @@ typedef struct _HX_ASYNC_INFO {
     UINT64 Arg1;
     UINT64 Arg2;
     UINT64 Arg3;
-} HX_ASYNC_INFO, *PHX_ASYNC_INFO;
+} HX_ASYNC_INFO, * PHX_ASYNC_INFO;
 #pragma pack(pop)
 
 BOOL HxIsError(PHX_ERROR Error);
@@ -620,25 +620,11 @@ HX_CALL HxCallGetProcessThreads();
 
 
 __declspec(dllexport) HX_ERROR HxGetStatus(PHXS_STATUS Response);
+__declspec(dllexport) HX_ERROR HxpResponseFromAsync(PHX_ASYNC_INFO Async, PVOID Result);
 __declspec(dllexport) HANDLE HxpCreateEventHandle();
-__declspec(dllexport) HX_ERROR HxAuthenticate(PHXR_AUTH Auth, PHXS_AUTH Response);
-__declspec(dllexport) HX_ERROR HxOpenProcess(PHXR_OPEN_PROCESS Request, PHXS_OPEN_OBJECT_RESPONSE Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxGetProcessField(PHXR_GET_PROCESS_FIELD Request, PHXS_GET_PROCESS_FIELD Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxSetProcessField(PHXR_SET_PROCESS_FIELD Request, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxGetProcessThreads(PHXR_GET_PROCESS_THREADS Request, PHXS_GET_PROCESS_THREADS Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxCloseProcess(PHXR_CLOSE_PROCESS Request, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxOpenThread(PHXR_OPEN_THREAD Request, PHXS_OPEN_OBJECT_RESPONSE Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxGetThreadField(PHXR_GET_THREAD_FIELD Request, PHXS_GET_THREAD_FIELD Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxSetThreadField(PHXR_SET_THREAD_FIELD Request, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxCloseThread(PHXR_CLOSE_THREAD Request, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxOpenToken(PHXR_OPEN_TOKEN Request, PHXS_OPEN_OBJECT_RESPONSE Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxGetTokenField(PHXR_GET_TOKEN_FIELD Request, PHXS_GET_TOKEN_FIELD Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxSetTokenField(PHXR_SET_TOKEN_FIELD Request, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxCloseToken(PHXR_CLOSE_TOKEN Request, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxAllocateMemory(PHXR_ALLOCATE_MEMORY Request, PHXS_ALLOCATE_MEMORY Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxFreeMemory(PHXR_FREE_MEMORY Request, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxMapMemory(PHXR_MAP_MEMORY Request, PHXS_MAP_MEMORY Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxVmOperation(PHXR_RW_VM Request, PHXS_RW_VM Response, PHX_ASYNC_INFO Async);
-__declspec(dllexport) HX_ERROR HxProtectVm(PHXR_PROTECT_VM Request, PHX_ASYNC_INFO Async);
 
-INT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse, PHX_ASYNC_INFO AsyncInfo);
+__declspec(dllexport) HX_ERROR HxpResponseFromAsync(PHX_ASYNC_INFO Async, PVOID Result);
+__declspec(dllexport) HX_ERROR HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response);
+__declspec(dllexport) PHX_REQUEST_RESPONSE HxpRawFromRequest(HX_SERVICE_FUNCTION Function, PVOID Request);
+
+__declspec(dllexport) INT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse, PHX_ASYNC_INFO AsyncInfo);
