@@ -151,7 +151,7 @@ pub struct HypervisorResult {
     #[bits(3)]
     pub error_code: InternalErrorCode,
     #[bits(11)]
-    pub cookie: u16,
+    pub reserved: u16,
 }
 
 impl HypervisorResult {
@@ -164,18 +164,16 @@ impl HypervisorResult {
     }
 
     pub fn error(error_source: ErrorSource, error_code: InternalErrorCode) -> Self {
-        Self::error_with_cookie(error_source, error_code, 0)
+        Self::error_with_cookie(error_source, error_code)
     }
 
     pub fn error_with_cookie(
         error_source: ErrorSource,
         error_code: InternalErrorCode,
-        cookie: u16,
     ) -> Self {
         HypervisorResult::default()
             .with_error_source(error_source)
             .with_error_code(error_code)
-            .with_cookie(cookie)
     }
 }
 
