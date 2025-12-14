@@ -5,10 +5,6 @@ use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::thread::*;
 use alloc::boxed::Box;
 use core::mem;
-use crate::hxposed::requests::security::TokenField;
-use crate::services::security::HxToken;
-use crate::services::types::process_fields::ProcessProtection;
-
 #[derive(Clone, Default, Debug)]
 pub struct OpenThreadRequest {
     pub pid: u32,
@@ -56,17 +52,6 @@ pub struct SetThreadFieldRequest {
     pub field: ThreadField,
     pub data: *mut u8,
     pub data_len: usize,
-}
-
-impl SetThreadFieldRequest {
-    pub(crate) fn set_adjusted_client_token(id: u32, new_token: &HxToken) -> Self {
-        Self {
-            id,
-            field: ThreadField::AdjustedClientToken,
-            data: new_token.addr as *mut u8 as _,
-            data_len: size_of::<u64>(),
-        }
-    }
 }
 
 impl VmcallRequest for GetThreadFieldRequest {

@@ -40,7 +40,7 @@ impl VmcallRequest for AuthorizationRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             uuid: Uuid::from_u64_pair(request.arg1, request.arg2),
-            permissions: PluginPermissions::from_bits(request.arg3).unwrap(),
+            permissions: PluginPermissions::from_bits_truncate(request.arg3),
         }
     }
 }

@@ -37,7 +37,9 @@ HxpTrap proc
 	; move handle
 	mov r11, qword ptr [rdx]
 	; move pointer to shared memory region
-	mov r12, rdx + 8
+	add rdx, 8
+	mov r12, rdx
+	sub rdx, 8
 
 no_async:
 
@@ -63,10 +65,15 @@ make_the_call:
 	mov dword ptr [rdi + 4], esi	; save result to second field of HX_REQUEST_RESPONSE
 									; use esi instead of rsi, because HX_RESPONSE is 4 bytes long
 
+	cmp rdx, 0	; if not async, gett the regs immediately
+	jz end_fn
+
 	; save regs returned by hypervisor
 	mov qword ptr [rdi + 8], r8
 	mov qword ptr [rdi + 16], r9
 	mov qword ptr [rdi + 24], r10
+
+end_fn:
 
 	xor rax, rax	; call was ok
 	ret	; we are done here.

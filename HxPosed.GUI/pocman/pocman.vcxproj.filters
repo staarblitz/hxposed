@@ -15,13 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="hxposed.c">
-      <Filter>Quelldateien</Filter>
-    </ClCompile>
-    <ClCompile Include="err.c">
-      <Filter>Quelldateien</Filter>
-    </ClCompile>
-    <ClCompile Include="call.c">
+    <ClCompile Include="pocman.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>
@@ -29,10 +23,5 @@
     <ClInclude Include="hxposed.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="trap.asm">
-      <Filter>Quelldateien</Filter>
-    </MASM>
   </ItemGroup>
 </Project>

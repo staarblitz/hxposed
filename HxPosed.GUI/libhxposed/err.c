@@ -2,7 +2,7 @@
 #include "hxposed.h"
 
 BOOL HxIsError(PHX_ERROR Error) {
-	return !(Error->ErrorCode == HxErrOk || Error->ErrorSource == HxSourceHx);
+	return !(Error->ErrorCode == HxErrOk && Error->ErrorSource == HxSourceHx);
 }
 
 HX_ERROR HxErrorFromResult(PHX_RESULT Result) {

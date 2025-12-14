@@ -1,6 +1,5 @@
 #pragma once
 #include "hxposed.h"
-#include "resp.h"
 
 HX_CALL HxCallGetStatus() {
 	HX_CALL call = { 0 };
@@ -54,6 +53,12 @@ HX_CALL HxCallGetProcessField() {
 	HX_CALL call = { 0 };
 	call.ServiceFunction = HxSvcGetProcessField;
 	call.ExtendedArgsPresent = TRUE;
+	return call;
+}
+
+HX_CALL HxCallGetProcessThreads() {
+	HX_CALL call = { 0 };
+	call.ServiceFunction = HxSvcGetProcessThreads;
 	return call;
 }
 

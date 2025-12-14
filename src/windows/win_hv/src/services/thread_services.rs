@@ -190,7 +190,7 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
     .into_raw()
 }
 
-pub(crate) fn set_thread_field_sync(request: SetThreadFieldAsyncCommand) -> HypervisorResponse {
+pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> HypervisorResponse {
     let plugin = match PluginTable::lookup(request.uuid) {
         Some(plugin) => plugin,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
