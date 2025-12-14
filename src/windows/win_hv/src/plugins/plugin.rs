@@ -126,19 +126,11 @@ impl PluginObjectTable {
 
     pub fn get_open_thread(
         &self,
-        id: Option<u32>,
-        addr: Option<PETHREAD>,
+        addr: PETHREAD,
     ) -> Option<PETHREAD> {
         let ptr = self.open_threads.iter().find(|p| {
-            if let Some(id) = id {
-                if unsafe { PsGetThreadId(**p) as u32 == id } {
-                    return true;
-                }
-            }
-            if let Some(addr) = addr {
-                if (**p).addr() == addr as u64 as usize {
-                    return true;
-                }
+            if (**p).addr() == addr as u64 as usize {
+                return true;
             }
 
             false
@@ -167,19 +159,11 @@ impl PluginObjectTable {
     /// * [`None`] - Process was not found.
     pub fn get_open_process(
         &self,
-        id: Option<u32>,
-        addr: Option<PEPROCESS>,
-    ) -> Option<*mut _KPROCESS> {
+        addr: PEPROCESS,
+    ) -> Option<PEPROCESS> {
         let ptr = self.open_processes.iter().find(|p| {
-            if let Some(id) = id {
-                if unsafe { PsGetProcessId(**p) as u32 == id } {
-                    return true;
-                }
-            }
-            if let Some(addr) = addr {
-                if (**p).addr() == addr as u64 as usize {
-                    return true;
-                }
+            if (**p).addr() == addr as u64 as usize {
+                return true;
             }
 
             false

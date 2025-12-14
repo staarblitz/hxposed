@@ -46,10 +46,17 @@ use wdk_sys::{_KTHREAD, _UNICODE_STRING, LIST_ENTRY, PEPROCESS, PETHREAD, STATUS
 pub(crate) fn get_process_threads_sync(
     request: &GetProcessThreadsAsyncCommand,
 ) -> HypervisorResponse {
-    let mut process = PEPROCESS::default();
-    match unsafe { PsLookupProcessByProcessId(request.command.id as _, &mut process) } {
-        STATUS_SUCCESS => {}
-        err => return HypervisorResponse::nt_error(err as _),
+    let plugin = match PluginTable::lookup(request.uuid) {
+        Some(plugin) => plugin,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
+    let process = match plugin
+        .object_table
+        .get_open_process(request.command.addr as _)
+    {
+        Some(thread) => thread,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     let lock = unsafe { get_eprocess_field::<u64>(EProcessField::Lock, process) };
@@ -147,6 +154,7 @@ pub(crate) fn get_process_threads_async(
     plugin.queue_command(Box::new(GetProcessThreadsAsyncCommand {
         command: request,
         async_info,
+        uuid: plugin.uuid
     }));
 
     EmptyResponse::with_service(ServiceFunction::GetProcessThreads)
@@ -217,7 +225,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
 
     let process = match plugin
         .object_table
-        .get_open_process(Some(request.command.id), None)
+        .get_open_process(request.command.addr as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -388,7 +396,7 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
 
     let process = match plugin
         .object_table
-        .get_open_process(Some(request.command.id), None)
+        .get_open_process(request.command.addr as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -507,10 +515,17 @@ pub(crate) fn kill_process_async(
 /// * [`HypervisorResponse::ok`] - The process was killed.
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
 pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> HypervisorResponse {
-    let mut process = PEPROCESS::default();
-    match unsafe { PsLookupProcessByProcessId(request.command.id as _, &mut process) } {
-        STATUS_SUCCESS => {}
-        err => return HypervisorResponse::nt_error(err as _),
+    let plugin = match PluginTable::lookup(request.uuid) {
+        Some(plugin) => plugin,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
+    let process = match plugin
+        .object_table
+        .get_open_process(request.command.addr as _)
+    {
+        Some(thread) => thread,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     unsafe {

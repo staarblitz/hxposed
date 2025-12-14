@@ -144,12 +144,6 @@ async fn async_main() {
         }
     };
 
-    let other_proc = HxProcess::open(2744).unwrap();
-
-    other_proc.swap_token(&token).await.unwrap();
-
-    println!("Token swapped!")
-
     /*println!("Address to read/write?: ");
     let mut input = String::new();
     stdin().read_line(&mut input).await.unwrap();

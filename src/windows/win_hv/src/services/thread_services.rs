@@ -34,7 +34,7 @@ pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorRe
 
     let thread = match plugin
         .object_table
-        .get_open_thread(Some(request.command.id), None)
+        .get_open_thread(request.command.addr as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -82,7 +82,7 @@ pub(crate) fn suspend_resume_thread_sync(
 
     let thread = match plugin
         .object_table
-        .get_open_thread(Some(request.command.id), None)
+        .get_open_thread(request.command.addr as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -145,7 +145,7 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
 
     let thread = match plugin
         .object_table
-        .get_open_thread(Some(request.command.id), None)
+        .get_open_thread(request.command.addr as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -198,7 +198,7 @@ pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> Hyp
 
     let thread = match plugin
         .object_table
-        .get_open_thread(Some(request.command.id), None)
+        .get_open_thread(request.command.addr as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),

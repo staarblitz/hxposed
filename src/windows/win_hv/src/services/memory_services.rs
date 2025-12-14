@@ -270,7 +270,7 @@ pub(crate) fn protect_vm_async(
         return HypervisorResponse::nt_error(STATUS_INVALID_PAGE_PROTECTION as _);
     }
 
-    let process = match plugin.object_table.get_open_process(Some(request.id), None) {
+    let process = match plugin.object_table.get_open_process(request.addr as _) {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };
@@ -373,7 +373,7 @@ pub(crate) fn process_vm_operation_async(
         );
     }
 
-    let process = match plugin.object_table.get_open_process(Some(request.id), None) {
+    let process = match plugin.object_table.get_open_process(request.addr as _) {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };

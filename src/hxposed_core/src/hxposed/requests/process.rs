@@ -21,13 +21,13 @@ pub struct CloseProcessRequest {
 
 #[derive(Clone, Default, Debug)]
 pub struct KillProcessRequest {
-    pub id: u32,
+    pub addr: u64,
     pub exit_code: u32,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct GetProcessFieldRequest {
-    pub id: u32,
+    pub addr: u64,
     pub field: ProcessField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -35,7 +35,7 @@ pub struct GetProcessFieldRequest {
 
 #[derive(Default, Debug)]
 pub struct SetProcessFieldRequest {
-    pub id: u32,
+    pub addr: u64,
     pub field: ProcessField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -44,7 +44,7 @@ pub struct SetProcessFieldRequest {
 ///TODO: Maybe merge with [GetProcessFieldRequest]?
 #[derive(Default, Debug)]
 pub struct GetProcessThreadsRequest {
-    pub id: u32,
+    pub addr: u64,
     pub data: *mut u8,
     pub data_len: usize,
 }
@@ -55,7 +55,7 @@ impl VmcallRequest for GetProcessThreadsRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_process_threads(),
-            arg1: self.id as _,
+            arg1: self.addr as _,
             arg2: self.data as _,
             arg3: self.data_len as _,
 
@@ -69,7 +69,7 @@ impl VmcallRequest for GetProcessThreadsRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            id: request.arg1 as _,
+            addr: request.arg1 as _,
             data: request.arg2 as _,
             data_len: request.arg3 as _,
         }
@@ -133,7 +133,7 @@ impl VmcallRequest for KillProcessRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::kill_process(),
-            arg1: self.id as _,
+            arg1: self.addr as _,
             arg2: self.exit_code as _,
             ..Default::default()
         });
@@ -145,7 +145,7 @@ impl VmcallRequest for KillProcessRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            id: request.arg1 as _,
+            addr: request.arg1 as _,
             exit_code: request.arg2 as _,
         }
     }
@@ -157,7 +157,7 @@ impl VmcallRequest for GetProcessFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_process_field(),
-            arg1: self.id as _,
+            arg1: self.addr as _,
             arg2: self.field.clone() as _,
 
             extended_arg1: self.data as _,
@@ -172,7 +172,7 @@ impl VmcallRequest for GetProcessFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            id: request.arg1 as _,
+            addr: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as *mut u8,
             data_len: request.extended_arg2 as _,
@@ -186,7 +186,7 @@ impl VmcallRequest for SetProcessFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::set_process_field(),
-            arg1: self.id as _,
+            arg1: self.addr as _,
             arg2: self.field.clone() as _,
 
             extended_arg1: self.data as _,
@@ -202,7 +202,7 @@ impl VmcallRequest for SetProcessFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            id: request.arg1 as _,
+            addr: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as _,
             data_len: request.extended_arg2 as _,
@@ -211,27 +211,27 @@ impl VmcallRequest for SetProcessFieldRequest {
 }
 
 impl SetProcessFieldRequest {
-    pub(crate) fn set_protection(id: u32, new_protection: &mut ProcessProtection) -> Self {
+    pub(crate) fn set_protection(addr: u64, new_protection: &mut ProcessProtection) -> Self {
         Self {
-            id,
+            addr,
             field: ProcessField::Protection,
             data: new_protection as *mut _ as _,
             data_len: size_of::<ProcessProtection>(), // 1 byte
         }
     }
 
-    pub(crate) fn set_signature_levels(id: u32, new_levels: &mut ProcessSignatureLevels) -> Self {
+    pub(crate) fn set_signature_levels(addr: u64, new_levels: &mut ProcessSignatureLevels) -> Self {
         Self {
-            id,
+            addr,
             field: ProcessField::Signers,
             data: new_levels as *mut _ as _,
             data_len: size_of::<ProcessSignatureLevels>(),
         }
     }
 
-    pub(crate) fn set_mitigation_options(id: u32, new_options: &mut MitigationOptions) -> Self {
+    pub(crate) fn set_mitigation_options(addr: u64, new_options: &mut MitigationOptions) -> Self {
         Self {
-            id,
+            addr,
             field: ProcessField::MitigationFlags,
             data: new_options as *mut _ as _,
             data_len: size_of::<MitigationOptions>(),

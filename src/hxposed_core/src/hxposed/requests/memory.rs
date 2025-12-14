@@ -8,7 +8,7 @@ use core::mem;
 
 #[derive(Default, Debug)]
 pub struct RWProcessMemoryRequest {
-    pub id: u32,
+    pub addr: u64,
     pub address: *mut u8,
     pub count: usize,
     pub data: *mut u8,
@@ -18,7 +18,7 @@ pub struct RWProcessMemoryRequest {
 
 #[derive(Default, Debug)]
 pub struct ProtectProcessMemoryRequest {
-    pub id: u32,
+    pub addr: u64,
     pub address: *mut u8,
     pub protection: MemoryProtection,
 }
@@ -125,7 +125,7 @@ impl VmcallRequest for RWProcessMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::process_vm_op(),
-            arg1: self.id as _,
+            arg1: self.addr as _,
             arg2: self.address as _,
             arg3: self.count as _,
 
@@ -143,7 +143,7 @@ impl VmcallRequest for RWProcessMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            id: request.arg1 as _,
+            addr: request.arg1 as _,
             address: request.arg2 as *mut u8,
             count: request.arg3 as _,
 
@@ -160,7 +160,7 @@ impl VmcallRequest for ProtectProcessMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::process_vm_protect(),
-            arg1: self.id as _,
+            arg1: self.addr as _,
             arg2: self.address as _,
             arg3: self.protection.bits() as _,
 
@@ -174,7 +174,7 @@ impl VmcallRequest for ProtectProcessMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            id: request.arg1 as _,
+            addr: request.arg1 as _,
             address: request.arg2 as _,
             protection: MemoryProtection::from_bits(request.arg3 as _).unwrap(),
         }

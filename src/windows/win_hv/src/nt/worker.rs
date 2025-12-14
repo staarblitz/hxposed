@@ -45,7 +45,7 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
 
             let ctx = ApcProcessContext::begin(plugin.process);
 
-            log::trace!("Found work on queue. Processing....");
+            log::trace!("Found {:?} on queue. Processing....", command.get_service_function());
 
             let result = match command.get_service_function() {
                 ServiceFunction::KillProcess => kill_process_sync(
@@ -130,6 +130,12 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                     command
                         .as_any()
                         .downcast_ref::<MapMemoryAsyncCommand>()
+                        .unwrap(),
+                ),
+                ServiceFunction::OpenProcess => open_process_sync(
+                    command
+                        .as_any()
+                        .downcast_ref::<OpenProcessAsyncCommand>()
                         .unwrap(),
                 ),
                 _ => unreachable!("Forgot to implement this one!"),

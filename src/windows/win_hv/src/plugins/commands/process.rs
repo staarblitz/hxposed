@@ -34,6 +34,7 @@ pub struct OpenProcessAsyncCommand {
 pub struct GetProcessThreadsAsyncCommand {
     pub command: GetProcessThreadsRequest,
     pub async_info: UnsafeAsyncInfo,
+    pub uuid: Uuid,
 }
 
 impl AsyncCommand for GetProcessThreadsAsyncCommand {

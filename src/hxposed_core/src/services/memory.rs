@@ -14,18 +14,10 @@ use core::ptr::copy_nonoverlapping;
 
 pub struct HxMemory {
     pub id: u32,
+    pub(crate) addr: u64,
 }
 
 impl HxMemory {
-    ///
-    /// # Current Memory
-    ///
-    /// Opens instance of HxMemory for current process.
-    pub fn current() -> HxMemory {
-        HxMemory {
-            id: unsafe { GetCurrentProcessId() },
-        }
-    }
 
     ///
     /// # Allocate<T>
@@ -110,7 +102,7 @@ impl HxMemory {
         protection: MemoryProtection,
     ) -> Result<MemoryProtection, HypervisorError> {
         let result = ProtectProcessMemoryRequest {
-            id: self.id,
+            addr: self.addr,
             address: address as _,
             protection,
         }
@@ -141,7 +133,7 @@ impl HxMemory {
         let mut raw = vec![0u8; count * size_of::<T>()];
 
         let result = RWProcessMemoryRequest {
-            id: self.id,
+            addr: self.addr,
             address: address as _,
             count: count * size_of::<T>(),
             data: raw.as_mut_ptr(),
@@ -188,7 +180,7 @@ impl HxMemory {
         count: usize,
     ) -> Result<usize, HypervisorError> {
         let result = RWProcessMemoryRequest {
-            id: self.id,
+            addr: self.addr,
             address: address as _,
             count: count * size_of::<T>(),
             data: data as _,
