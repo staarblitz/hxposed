@@ -17,7 +17,7 @@
     <BuildType Solution="StaticDbg|*" Project="Release" />
   </Project>
   <Project Path="libhxposed/libhxposed.vcxproj" Id="cf554df4-2e49-4c91-814a-1058abf4e44a" />
-  <Project Path="pocman/pocman.vcxproj" Id="b2f241f8-f3d6-4575-85a5-92295be14dfd">
+  <Project Path="pocman/pocman.vcxproj" Id="a4d59fef-2808-468d-b06e-01dc6ad6fdc6">
     <BuildType Solution="StaticDbg|*" Project="Release" />
   </Project>
 </Solution>

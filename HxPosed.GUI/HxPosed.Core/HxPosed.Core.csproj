@@ -5,7 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nito.AsyncEx.Interop.WaitHandles" Version="5.1.2" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\HxPosed.Plugins\HxPosed.Plugins.csproj" />

@@ -6,24 +6,29 @@ using System.Text;
 namespace HxPosed.Core.Exceptions
 {
     [StructLayout(LayoutKind.Sequential, Pack =1)]
-    internal struct HypervisorError
+    public struct HypervisorError
     {
         public ErrorSource Source;
         public ushort Error;
         public ushort Reason;
 
+        public void ThrowIfError()
+        {
+            if (IsError())
+                throw new HypervisorException(this);
+        }
         public readonly bool IsError() => !(Source == ErrorSource.Hx && (ErrorCode)Error == ErrorCode.Ok);
     }
 
 
-    internal enum ErrorSource : ushort
+    public enum ErrorSource : ushort
     {
         Nt = 0,
         Hv = 1,
         Hx = 2,
     }
 
-    internal enum ErrorCode: ushort
+    public enum ErrorCode: ushort
     {
         Unknown = 0,
         Ok = 1,
