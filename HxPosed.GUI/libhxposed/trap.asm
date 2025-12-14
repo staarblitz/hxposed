@@ -66,7 +66,7 @@ make_the_call:
 									; use esi instead of rsi, because HX_RESPONSE is 4 bytes long
 
 	cmp rdx, 0	; if not async, gett the regs immediately
-	jz end_fn
+	jnz end_fn
 
 	; save regs returned by hypervisor
 	mov qword ptr [rdi + 8], r8
