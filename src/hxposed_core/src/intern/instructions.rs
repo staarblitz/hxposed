@@ -48,6 +48,11 @@ pub(crate) fn vmcall(
         None => 0 as _,
     };
 
+    unsafe {
+        // save rsi and xmm4, since they are considered non-volatile
+        asm!("pinsrq xmm4, rsi, 0", "pinsrq xmm4, r12, 1")
+    }
+
     let mut leaf = 0x2009;
     if request.call.extended_args_present() {
         unsafe {
@@ -79,6 +84,11 @@ pub(crate) fn vmcall(
             inout("rsi") request.call.into_bits() => result,
             inout("rcx") leaf);
         }
+    }
+
+    unsafe {
+        // fetch them back from xmm4
+        asm!("pextrq rsi, xmm4, 0", "pextrq r12, xmm4, 1")
     }
 
     // that means hypervisor did not handle our cpuid trap.
