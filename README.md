@@ -86,6 +86,32 @@ let mut allocation = match HxMemory::alloc::<u64>(MemoryPool::NonPaged).await.un
 allocation.free().await;
 ```
 
+### And no, its not just Rust.
+It works for C, too.
+```c
+HXR_OPEN_PROCESS open = {
+    .Id = 6892,
+    .OpenType = HxOpenHandle,
+};
+
+HX_ASYNC_INFO async = {
+    .Handle = HxpCreateEventHandle()
+};
+
+PHX_REQUEST_RESPONSE raw = HxpRawFromRequest(HxSvcOpenProcess, &open); // get raw request type
+HxpTrap(raw, &async); // call the hypervisor
+
+WaitForSingleObject(async.Handle, INFINITE); // wait for async task to complete
+
+HXS_OPEN_OBJECT_RESPONSE process;
+HX_ERROR error = HxpResponseFromAsync(&async, &process); // get result from async task
+if (HxIsError(&error)) {
+    printf("fail");
+}
+
+TerminateProcess(process.Address, 0); // now Address is handle with full op access rights
+```
+
 Hope you got our point. We are trying to make things easier, not harder.
 From now on, you'll never worry about:
 - Memory ownership,
@@ -94,9 +120,6 @@ From now on, you'll never worry about:
 - Digging out offsets and byte patterns.
 
 It *just works*. Because we know how frustrating it is when it *just doesn't*.
-
-### The Documentation
-We are documenting whatever we are doing. We guarantee you, you will never have questions about what you can expect from HxPosed. (wait for API stabilization to provide docs. Until then, you can read the inline documentation at hxposed_core)
 
 Easy. Powerful. No-nonsense.
 
