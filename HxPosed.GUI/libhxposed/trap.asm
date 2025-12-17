@@ -91,6 +91,7 @@ end_fn:
 	pextrq rsi, xmm4, 0
 	pextrq rdi, xmm4, 1
 	pextrq r12, xmm5, 0
+ ret
 
 
 HxpTrap endp
