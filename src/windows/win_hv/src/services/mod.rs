@@ -56,11 +56,16 @@ pub fn authorize_plugin(
     let plugin = plugin.unwrap();
     let permissions = plugin.permissions.bitand(request.permissions);
 
-    plugin.integrate(unsafe { IoGetCurrentProcess() }, permissions);
-
-    write_response(guest, AuthorizationResponse { permissions }.into_raw());
-
-    Some(plugin)
+    match plugin.integrate(unsafe { IoGetCurrentProcess() }, permissions) {
+        None => {
+            write_response(guest, HypervisorResponse::not_allowed(NotAllowedReason::MissingPermissions));
+            None
+        }
+        Some(_) => {
+            write_response(guest, AuthorizationResponse { permissions }.into_raw());
+            Some(plugin)
+        }
+    }
 }
 
 pub fn handle_thread_services(
