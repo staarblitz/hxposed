@@ -9,7 +9,12 @@ use wdk_sys::ntddk::{
     ExAllocatePool2, RtlCompareMemory, RtlCopyUnicodeString, RtlInitUTF8String,
     RtlUTF8StringToUnicodeString,
 };
-use wdk_sys::{BOOLEAN, CHAR, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID, PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PSECURITY_DESCRIPTOR, PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T, TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING, _KPROCESS};
+use wdk_sys::{
+    BOOLEAN, CHAR, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID,
+    PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PSECURITY_DESCRIPTOR,
+    PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T, STATUS_SUCCESS, TRUE, ULONG,
+    UNICODE_STRING, USHORT, UTF8_STRING, _KPROCESS,
+};
 
 pub(crate) mod alloc;
 pub(crate) mod danger;
@@ -35,50 +40,68 @@ pub(crate) static NT_PS_TERMINATE_THREAD: AtomicPtr<PsTerminateThreadType> =
     AtomicPtr::new(null_mut());
 
 #[allow(non_snake_case, unused)]
-#[unsafe(naked)]
-/// To use, set r15 to your desired address :)
 pub(crate) unsafe extern "C" fn PsTerminateProcess(
     Process: PEPROCESS,
     ExitCode: NTSTATUS,
 ) -> NTSTATUS {
-    naked_asm!("jmp r15")
+    asm!("call _PsTerminateProcess",
+        "ret", in("rax") NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed), options(nomem, nostack, preserves_flags));
+
+    STATUS_SUCCESS // dummy
 }
 
 #[allow(non_snake_case, unused)]
-#[unsafe(naked)]
-/// To use, set r15 to your desired address :)
 pub(crate) unsafe extern "C" fn PspTerminateThread(
     Thread: PETHREAD,
     ExitCode: NTSTATUS,
     SomethingElse: CHAR,
 ) -> NTSTATUS {
-    naked_asm!("jmp r15")
+    asm!("call _PspTerminateThread",
+    "ret", in("rax") NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed), options(nomem, nostack, preserves_flags));
+
+    STATUS_SUCCESS // dummy
 }
 
 #[allow(non_snake_case, unused)]
 #[unsafe(naked)]
-/// To use, set r15 to your desired address :)
-pub(crate) unsafe extern "C" fn PspGetSetContextThreadInternal(
+#[unsafe(no_mangle)]
+unsafe extern "C" fn _PsTerminateProcess(Process: PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
+    naked_asm!("jmp rax")
+}
+
+#[allow(non_snake_case, unused)]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+unsafe extern "C" fn _PspTerminateThread(
+    Thread: PETHREAD,
+    ExitCode: NTSTATUS,
+    SomethingElse: CHAR,
+) -> NTSTATUS {
+    naked_asm!("jmp rax")
+}
+
+#[allow(non_snake_case, unused)]
+#[unsafe(naked)]
+unsafe extern "C" fn _PspGetSetContextThreadInternal(
     Thread: PETHREAD,
     Context: PCONTEXT,
     Mode1: KPROCESSOR_MODE,
     Mode2: KPROCESSOR_MODE,
     Mode3: KPROCESSOR_MODE,
 ) -> NTSTATUS {
-    naked_asm!("jmp r15")
+    naked_asm!("jmp rax")
 }
 
 #[allow(non_snake_case, unused)]
 #[unsafe(naked)]
-/// To use, set r15 to your desired address :)
-pub(crate) unsafe extern "C" fn PspSetSetContextThreadInternal(
+unsafe extern "C" fn _PspSetSetContextThreadInternal(
     Thread: PETHREAD,
     Context: PCONTEXT,
     Mode1: KPROCESSOR_MODE,
     Mode2: KPROCESSOR_MODE,
     Mode3: KPROCESSOR_MODE,
 ) -> NTSTATUS {
-    naked_asm!("jmp r15")
+    naked_asm!("jmp rax")
 }
 
 pub(crate) const NT_CURRENT_PROCESS: HANDLE = -1 as _;
