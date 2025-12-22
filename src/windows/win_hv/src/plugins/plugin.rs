@@ -1,3 +1,4 @@
+use crate::nt::process::KernelProcess;
 use crate::plugins::commands::AsyncCommand;
 use crate::win::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
@@ -6,22 +7,28 @@ use alloc::boxed::Box;
 use alloc::collections::VecDeque;
 use alloc::format;
 use alloc::vec::Vec;
+use core::ptr::slice_from_raw_parts_mut;
+use core::sync::atomic::Ordering;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
 use wdk::println;
-use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::ntddk::{IoAllocateMdl, PsGetProcessId, PsGetThreadId, ZwClose, ZwOpenKey, ZwQueryValueKey};
-use wdk_sys::{_KPROCESS, MDL, PEPROCESS, PVOID, PACCESS_TOKEN};
-use wdk_sys::{
-    FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE,
-    OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PETHREAD, PIRP, STATUS_SUCCESS,
+use wdk_sys::ntddk::{
+    IoAllocateMdl, RtlCompareUnicodeString, RtlInitUnicodeString,
+    ZwClose, ZwOpenKey, ZwQueryValueKey,
 };
+use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
+use wdk_sys::{
+    FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJECT_ATTRIBUTES,
+    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PETHREAD, PIRP, STATUS_SUCCESS,
+};
+use wdk_sys::{MDL, PACCESS_TOKEN, PEPROCESS, PVOID, UNICODE_STRING, _KPROCESS};
 
 #[derive(Default)]
 pub(crate) struct Plugin {
     pub uuid: Uuid,
     pub permissions: PluginPermissions,
     pub authorized_permissions: PluginPermissions,
+    pub plugin_path: Box<UNICODE_STRING>,
     pub process: PEPROCESS,
     pub object_table: PluginObjectTable,
     pub awaiting_commands: VecDeque<Box<dyn AsyncCommand>>,
@@ -36,6 +43,18 @@ pub(crate) struct PluginObjectTable {
 }
 
 impl PluginObjectTable {
+
+    ///
+    /// # Allocate MDL
+    ///
+    /// Allocates an MDL object on behalf of the plugin.
+    ///
+    /// ## Arguments
+    /// * `ptr` - Virtual address MDL describes.
+    /// * `length` - Length of the virtual address to describe.
+    ///
+    /// ## Returns
+    /// * [`MDL`] - Object
     pub fn allocate_mdl(&mut self, ptr: PVOID, length: u32) -> &mut Box<MDL> {
         // uses ExAllocatePool. so it's safe for us to wrap it in our Box.
         let mdl = unsafe {
@@ -52,12 +71,34 @@ impl PluginObjectTable {
         self.allocated_mdls.last_mut().unwrap()
     }
 
+    ///
+    /// # Get Allocated MDL
+    ///
+    /// Gets an MDL opened by the plugin.
+    ///
+    /// ## Arguments
+    /// * `mapped_system_va` - [`MappedSystemVa`] field of the MDL object.
+    ///
+    /// ## Returns
+    /// * [`Some`] - MDL object.
+    /// * [`None`] - MDL was not found.
     pub fn get_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<&mut Box<MDL>> {
         self.allocated_mdls
             .iter_mut()
             .find(|m| m.MappedSystemVa as u64 == mapped_system_va)
     }
 
+    ///
+    /// # Pop Allocated Mdl
+    ///
+    /// Gets an MDL opened by the plugin. Then "closes" it.
+    ///
+    /// ## Arguments
+    /// * `mapped_system_va` - [`MappedSystemVa`] field of the MDL object.
+    ///
+    /// ## Returns
+    /// * [`Some`] - MDL object.
+    /// * [`None`] - MDL was not found.
     pub fn pop_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<Box<MDL>> {
         if let Some(pos) = self
             .allocated_mdls
@@ -70,6 +111,17 @@ impl PluginObjectTable {
         }
     }
 
+    ///
+    /// # Pop Open Thread
+    ///
+    /// Gets a thread opened by the plugin. Then "closes" it.
+    ///
+    /// ## Arguments
+    /// * `addr` - Address of the thread object in NT kernel.
+    ///
+    /// ## Returns
+    /// * [`Some`] - Pointer to thread object.
+    /// * [`None`] - Thread was not found.
     pub fn pop_open_thread(&mut self, addr: PETHREAD) -> Option<PETHREAD> {
         if let Some(pos) = self
             .open_threads
@@ -82,6 +134,17 @@ impl PluginObjectTable {
         }
     }
 
+    ///
+    /// # Pop Open Process
+    ///
+    /// Gets a process opened by the plugin. Then "closes" it.
+    ///
+    /// ## Arguments
+    /// * `addr` - Address of the process object in NT kernel.
+    ///
+    /// ## Returns
+    /// * [`Some`] - Pointer to process object.
+    /// * [`None`] - Process was not found.
     pub fn pop_open_process(&mut self, addr: PEPROCESS) -> Option<PEPROCESS> {
         if let Some(pos) = self
             .open_processes
@@ -93,7 +156,18 @@ impl PluginObjectTable {
             None
         }
     }
-    
+
+    ///
+    /// # Pop Open Token
+    ///
+    /// Gets a token opened by the plugin. Then "closes" it.
+    ///
+    /// ## Arguments
+    /// * `addr` - Address of the token object in NT kernel.
+    ///
+    /// ## Returns
+    /// * [`Some`] - Pointer to token object.
+    /// * [`None`] - Token was not found.
     pub fn pop_open_token(&mut self, addr: PACCESS_TOKEN) -> Option<PACCESS_TOKEN> {
         if let Some(pos) = self
             .open_tokens
@@ -106,10 +180,18 @@ impl PluginObjectTable {
         }
     }
 
-    pub fn get_open_token(
-        &self,
-        addr: PACCESS_TOKEN
-    ) -> Option<PACCESS_TOKEN> {
+    ///
+    /// # Get Open Token
+    ///
+    /// Gets a token opened by the plugin.
+    ///
+    /// ## Arguments
+    /// * `addr` - Address of the token object in NT kernel.
+    ///
+    /// ## Returns
+    /// * [`Some`] - Pointer to token object.
+    /// * [`None`] - Token was not found.
+    pub fn get_open_token(&self, addr: PACCESS_TOKEN) -> Option<PACCESS_TOKEN> {
         let ptr = self.open_tokens.iter().find(|p| {
             if (**p).addr() == addr as u64 as usize {
                 return true;
@@ -124,10 +206,18 @@ impl PluginObjectTable {
         }
     }
 
-    pub fn get_open_thread(
-        &self,
-        addr: PETHREAD,
-    ) -> Option<PETHREAD> {
+    ///
+    /// # Get Open Thread
+    ///
+    /// Gets a thread opened by the plugin.
+    ///
+    /// ## Arguments
+    /// * `addr` - Address of the thread object in NT kernel.
+    ///
+    /// ## Returns
+    /// * [`Some`] - Pointer to thread object.
+    /// * [`None`] - Thread was not found.
+    pub fn get_open_thread(&self, addr: PETHREAD) -> Option<PETHREAD> {
         let ptr = self.open_threads.iter().find(|p| {
             if (**p).addr() == addr as u64 as usize {
                 return true;
@@ -145,7 +235,7 @@ impl PluginObjectTable {
     ///
     /// # Get Open Process
     ///
-    /// Gets a process open in the [self.open_processes]
+    /// Gets a process open by the plugin.
     ///
     /// ## Arguments
     /// * `id` - If [`Some`], the id is compared for result.
@@ -155,12 +245,9 @@ impl PluginObjectTable {
     /// - Arguments are *not* compared together.
     ///
     /// ## Returns
-    /// * [`Some`] - Pointer to [`_KPROCESS`].
+    /// * [`Some`] - Pointer to process object.
     /// * [`None`] - Process was not found.
-    pub fn get_open_process(
-        &self,
-        addr: PEPROCESS,
-    ) -> Option<PEPROCESS> {
+    pub fn get_open_process(&self, addr: PEPROCESS) -> Option<PEPROCESS> {
         let ptr = self.open_processes.iter().find(|p| {
             if (**p).addr() == addr as u64 as usize {
                 return true;
@@ -225,9 +312,27 @@ impl Plugin {
     /// ## Arguments
     /// * `process` - Pointer to NT executive process object.
     /// * `permissions` - Permission mask that plugin will utilize.
-    pub fn integrate(&mut self, process: PEPROCESS, permissions: PluginPermissions) {
-        self.process = process;
-        self.permissions = permissions;
+    ///
+    /// ## Return
+    /// * [`None`] - Plugin does not meet specifications.
+    /// * [`Some`] - Ok.
+    pub fn integrate(&mut self, process: PEPROCESS, permissions: PluginPermissions) -> Option<()> {
+        let kprocess = KernelProcess::from_ptr(process);
+
+        match unsafe {
+            RtlCompareUnicodeString(
+                kprocess.nt_path.load(Ordering::Relaxed),
+                self.plugin_path.as_mut(),
+                FALSE as _,
+            )
+        } {
+            0 => {
+                self.process = process;
+                self.permissions = permissions;
+                Some(())
+            }
+            _ => None,
+        }
     }
 
     ///
@@ -266,9 +371,11 @@ impl Plugin {
         }
 
         let mut permissions = "Permissions".to_unicode_string();
+        let mut path = "Path".to_unicode_string();
         let mut return_length = 0; // dummy
         let mut info = KEY_VALUE_FULL_INFORMATION::alloc_sized(64);
-        let status = unsafe {
+
+        let permissions = match unsafe {
             ZwQueryValueKey(
                 key_handle,
                 permissions.as_mut(),
@@ -277,14 +384,45 @@ impl Plugin {
                 64,
                 &mut return_length,
             )
+        } {
+            STATUS_SUCCESS => unsafe { *get_data!(info, PluginPermissions) },
+            err => {
+                println!("Error querying key: {}", err);
+                return None;
+            }
         };
 
-        if status != STATUS_SUCCESS {
-            println!("Error querying key: {}", status);
-            return None;
+        unsafe {
+            // zero it out
+            core::ptr::write_bytes(info.as_mut(), 0, 64);
         }
 
-        let permissions = unsafe { *get_data!(info, PluginPermissions) };
+        let path = match unsafe {
+            ZwQueryValueKey(
+                key_handle,
+                path.as_mut(),
+                KeyValueFullInformation,
+                as_pvoid!(info),
+                64,
+                &mut return_length,
+            )
+        } {
+            STATUS_SUCCESS => unsafe {
+                &mut *slice_from_raw_parts_mut::<u16>(
+                    (info.as_mut() as *mut KEY_VALUE_FULL_INFORMATION)
+                        .byte_offset(info.DataOffset as _) as *mut _,
+                    info.DataLength as _,
+                )
+            },
+            err => {
+                println!("Error querying key: {}", err);
+                return None;
+            }
+        };
+
+        let mut path_str = UNICODE_STRING::default();
+
+        unsafe { RtlInitUnicodeString(&mut path_str, path.as_mut_ptr() as _) }
 
         let _ = unsafe { ZwClose(key_handle) };
 
@@ -293,7 +431,7 @@ impl Plugin {
             permissions,
             authorized_permissions: permissions,
             awaiting_commands: VecDeque::with_capacity(32),
-
+            plugin_path: Box::new(path_str),
             ..Default::default()
         })
     }
