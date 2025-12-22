@@ -60,7 +60,7 @@ static LOGGER: NtLogger = NtLogger;
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
 extern "C" fn driver_entry(
-    driver: &mut DRIVER_OBJECT,
+    _driver: &mut DRIVER_OBJECT,
     _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
     log::set_logger(&LOGGER).unwrap();
@@ -103,13 +103,11 @@ extern "C" fn driver_entry(
 
     load_plugins();
 
-    driver.DriverUnload = Some(driver_unload);
-
     let mut cookie = LARGE_INTEGER::default();
     match unsafe {
         CmRegisterCallback(
             Some(registry_callback),
-            PVOID::default(), /* What lol */
+            PVOID::default(),
             &mut cookie,
         )
     } {
@@ -147,25 +145,25 @@ extern "C" fn driver_entry(
 ///
 /// # Called when a CPUID with RCX = 2009 is executed.
 ///
-/// # Arguments
+/// ## Arguments
 /// guest - The trait of guest. Intel or AMD.
 ///
 /// info - Information about the call. See [HypervisorCall].
 ///
-/// # Return
+/// ## Return
 /// There is no return value of this function, however, the return value of the vmcall will be in RSI.
 /// Which you *may* want to utilize. See documentation on GitHub page for more information about trap ABI.
 ///
-/// # Warning
+/// ## Warning
 ///
-/// ## We are in context of the thread that made the vmcall.
+/// ### We are in context of the thread that made the vmcall.
 /// Functions like "IoGetCurrentProcess" returns the process that made the vmcall, not the system process.
 /// (that is a good thing)
 ///
-/// ## IRQL is above sane.
+/// ### IRQL is above sane.
 /// IRQL is 255, all interrupts are disabled. Using Zw* and other functions that ask for PASSIVE_LEVEL will only result in tears.
 ///
-/// ## This is a VMEXIT handler
+/// ### This is a VMEXIT handler
 /// Don't you dare to "take your time". This interrupts the whole CPU and making the kernel scheduler forget its purpose.
 ///
 fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
@@ -279,16 +277,6 @@ pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse
     guest.regs().r10 = response.arg3;
     guest.regs().rsi = response.result.into_bits() as _;
 }
-
-///
-/// # Driver Unload
-///
-/// ## Warning
-/// 1. The system WILL stay virtualized!
-/// 2. Unloading the driver is unstable and most likely will end in tears.
-///
-/// TODO: Fix issues above
-pub(crate) unsafe extern "C" fn driver_unload(_driver_object: PDRIVER_OBJECT) {}
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
