@@ -1,6 +1,5 @@
 ﻿using HxPosed.Plugins.Permissions;
 using Microsoft.Win32;
-using System;
 
 namespace HxPosed.Plugins
 {
@@ -15,6 +14,8 @@ namespace HxPosed.Plugins
         public required string Url { get; init; }
         public required string Author { get; init; }
         public required string Icon { get; init; }
+
+        public required string Path { get; init; }
 
         private PluginStatus _status;
         public PluginStatus Status
@@ -49,9 +50,10 @@ namespace HxPosed.Plugins
         /// <param name="url">Url of the plugin.</param>
         /// <param name="author">Author of the plugin.</param>
         /// <param name="icon">Icon of the plugin.</param>
+        /// <param name="path">DOS (classic) path of plugin.</param>
         /// <returns>New instance of <see cref="Plugin"/></returns>
         /// <exception cref="ArgumentNullException">Throws if OpenSubKey returns null.</exception>
-        public static Plugin New(Guid guid, string name, string description, uint version, string url, string author, string icon)
+        public static Plugin New(Guid guid, string name, string description, uint version, string url, string author, string icon, string path)
         {
             using var key = Registry.LocalMachine.OpenSubKey($"Software\\HxPosed\\Plugins", true);
             if (key is null)
@@ -69,6 +71,7 @@ namespace HxPosed.Plugins
                 Author = author,
                 Icon = icon,
                 Error = PluginError.None,
+                Path = Win32.DosPathToDevicePath(path),
 
                 // Use the private fields since the setters call SetStatus when the registry key isn't prepared yet.
                 _status = PluginStatus.Ready,
@@ -116,7 +119,8 @@ namespace HxPosed.Plugins
                 Icon = key.GetValue("Icon").ToString(),
                 _status = (PluginStatus)(uint.Parse(key.GetValue("Status").ToString())),
                 Error = (PluginError)(uint.Parse(key.GetValue("Error").ToString())),
-                _permissions = (PluginPermissions)(ulong.Parse(key.GetValue("Permissions").ToString()))
+                _permissions = (PluginPermissions)(ulong.Parse(key.GetValue("Permissions").ToString())),
+                Path = key.GetValue("Path").ToString()
             };
         }
 
