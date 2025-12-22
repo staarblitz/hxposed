@@ -75,7 +75,7 @@ call_ok:
 	cmp rdx, 0	; if not async, gett the regs immediately
 	jz fetch_regs
 
-	mov rax, 0
+	xor rax, rax
 	jmp end_fn
 
 fetch_regs:
@@ -91,6 +91,7 @@ end_fn:
 	pextrq rsi, xmm4, 0
 	pextrq rdi, xmm4, 1
 	pextrq r12, xmm5, 0
+ ret
 
 
 HxpTrap endp
