@@ -5,6 +5,10 @@ use wdk_sys::ntddk::{
 };
 use wdk_sys::{PEPROCESS, STATUS_SUCCESS, UNICODE_STRING, _KPROCESS};
 
+///
+/// # Kernel Process
+///
+/// Abstraction over [`PEPROCESS`] to make the life easier.
 pub struct KernelProcess {
     pub nt_process: AtomicPtr<_KPROCESS>,
     pub nt_path: AtomicPtr<UNICODE_STRING>,
