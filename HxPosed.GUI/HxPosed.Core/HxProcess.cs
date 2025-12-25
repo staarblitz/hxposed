@@ -2,7 +2,6 @@
 using HxPosed.Core.Request;
 using HxPosed.Core.Response;
 using Microsoft.Win32.SafeHandles;
-using Nito.AsyncEx.Interop;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
