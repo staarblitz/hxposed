@@ -21,7 +21,15 @@ use wdk_sys::{FALSE, LARGE_INTEGER, LOW_REALTIME_PRIORITY, PVOID};
 /// Dequeues commands from each plugin's async command queue, "works" them, fires the result callback.
 pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
     let mut interval = timing::relative(timing::milliseconds(20));
-    let plugins = unsafe { &mut *PLUGINS.load(Ordering::Relaxed) };
+
+    let plugins_ptr = PLUGINS.load(Ordering::Relaxed);
+
+    if plugins_ptr.is_null() {
+        log::warn!("No plugins found. Worker thread will exit.");
+        return;
+    }
+
+    let plugins = unsafe { &mut *plugins_ptr};
 
     // KeGetCurrentThread is not export by bindgen. lmao
     unsafe { KeSetPriorityThread(KeGetCurrentThread(), LOW_REALTIME_PRIORITY as _) };
