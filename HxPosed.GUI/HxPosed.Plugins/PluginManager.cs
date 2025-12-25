@@ -1,7 +1,10 @@
-﻿using Microsoft.Win32;
+﻿using HxPosed.Plugins.Config;
+using Microsoft.Win32;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO.Pipelines;
 
 namespace HxPosed.Plugins
 {
@@ -25,9 +28,6 @@ namespace HxPosed.Plugins
                 if (!mainKey.GetSubKeyNames().Contains("Plugins"))
                 {
                     mainKey.CreateSubKey("Plugins").Dispose();
-#if DEBUG
-                    Plugin.New(Guid.NewGuid(), "Test Plugin", "Showcases how the UI looks", 1, "https://github.com/Staarblitz", "Staarblitz", "App24");
-#endif
                 }
 
 
@@ -62,6 +62,29 @@ namespace HxPosed.Plugins
                 }
                 _plugins.Add(Plugin.Load(guid));
             }
+        }
+
+        public static async Task<Plugin> LoadFromConfig(PluginConfig config, CancellationToken cancellationToken)
+        {
+            using var client = new HttpClient();
+            await Parallel.ForEachAsync(config.Downloads, cancellationToken, async (download, token) =>
+            {
+                var bytes = await client.GetStreamAsync(download.Url, cancellationToken);
+                using var fs = new FileStream(Environment.ExpandEnvironmentVariables(download.SaveLocation), FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read);
+                await bytes.CopyToAsync(fs, cancellationToken);
+
+                if (download.ShellExecuteAfter)
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        UseShellExecute = true,
+                        FileName = download.SaveLocation
+                    });
+                }
+            });
+
+            return Plugin.New(config.Guid.HasValue ? config.Guid.Value : Guid.NewGuid(), config.Name,
+                config.Description, config.Version, config.Url, config.Author, config.Icon, config.Path, config.Permissions);
         }
 
         private static ObservableCollection<Plugin> _plugins = [];
