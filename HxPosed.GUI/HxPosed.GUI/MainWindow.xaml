@@ -15,31 +15,34 @@
         <ui:TitleBar DockPanel.Dock="Top" Title="HxPosed" Height="30">
             
         </ui:TitleBar>
-        <ui:NavigationView IsBackButtonVisible="Collapsed" IsPaneToggleVisible="False" OpenPaneLength="200">
-            <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem Content="Dashboard" TargetPageType="{x:Type pages:Dashboard}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Home24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="Plugins" TargetPageType="{x:Type pages:Plugins}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Apps24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="Developer Mode" TargetPageType="{x:Type pages:DeveloperMode}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="DeveloperBoard24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-            </ui:NavigationView.MenuItems>
-            <ui:NavigationView.FooterMenuItems>
-                <ui:NavigationViewItem Content="Settings">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Settings24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-            </ui:NavigationView.FooterMenuItems>
-        </ui:NavigationView>
+        <Grid>
+            <ContentPresenter Panel.ZIndex="1" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" x:Name="presenter"/>
+            <ui:NavigationView Panel.ZIndex="0" IsBackButtonVisible="Collapsed" IsPaneToggleVisible="False" OpenPaneLength="200">
+                <ui:NavigationView.MenuItems>
+                    <ui:NavigationViewItem Content="Dashboard" TargetPageType="{x:Type pages:Dashboard}">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:SymbolIcon Symbol="Home24" />
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                    <ui:NavigationViewItem Content="Plugins" TargetPageType="{x:Type pages:Plugins}">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:SymbolIcon Symbol="Apps24" />
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                    <ui:NavigationViewItem Content="Developer Mode" TargetPageType="{x:Type pages:DeveloperMode}">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:SymbolIcon Symbol="DeveloperBoard24" />
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                </ui:NavigationView.MenuItems>
+                <ui:NavigationView.FooterMenuItems>
+                    <ui:NavigationViewItem Content="Settings">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:SymbolIcon Symbol="Settings24" />
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                </ui:NavigationView.FooterMenuItems>
+            </ui:NavigationView>
+        </Grid>
     </DockPanel>
 </ui:FluentWindow>
