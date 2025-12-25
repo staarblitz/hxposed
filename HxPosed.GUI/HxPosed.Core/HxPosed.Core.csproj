@@ -9,10 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Nito.AsyncEx.Interop.WaitHandles" Version="5.1.2" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\HxPosed.Plugins\HxPosed.Plugins.csproj" />
   </ItemGroup>
 
