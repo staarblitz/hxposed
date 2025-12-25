@@ -4,6 +4,7 @@ use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use crate::{PLUGINS, as_pvoid, panic};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use core::arch::asm;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::Ordering;
 use uuid::Uuid;
@@ -145,7 +146,7 @@ pub(crate) fn load_plugins() {
         } {
             STATUS_SUCCESS => {}
             status => {
-                println!("ZwEnumerateKey failed with status {}", status);
+                log::warn!("ZwEnumerateKey failed with status {}", status);
                 index += 1;
                 continue;
             }
@@ -192,8 +193,10 @@ pub(crate) fn load_plugins() {
             }
         };
 
-        let plugin = Plugin::open(uuid);
-        list.push(Box::leak(Box::new(plugin.unwrap())));
+        match Plugin::open(uuid) {
+            Some(plugin) => list.push(Box::leak(Box::new(plugin))),
+            None => log::error!("Queried plugin not found."),
+        }
 
         index += 1;
     }
