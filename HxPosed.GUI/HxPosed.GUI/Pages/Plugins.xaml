@@ -14,6 +14,14 @@
     <Page.DataContext>
         <vm:PluginsViewModel/>
     </Page.DataContext>
+    <Page.Resources>
+        <Grid x:Key="progress" Margin="15,15,15,15">
+            <StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Center">
+                <ui:TextBlock FontTypography="BodyStrong" Appearance="Primary" Text="Downloading file..."/>
+                <ui:TextBlock x:Name="currentFileTxt" FontTypography="BodyStrong" Appearance="Secondary" Text="Current File"/>
+            </StackPanel>
+        </Grid>
+    </Page.Resources>
     <Grid>
         <Grid Visibility="{Binding LoadingVisibility}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="20">
@@ -30,7 +38,10 @@
 
             <Grid Grid.Row="1">
                 <StackPanel Margin="20">
-                    <ui:CardExpander Margin="0,5,0,12" Icon="{ui:SymbolIcon AppsAddIn24}" IsExpanded="False">
+                    <ui:CardAction Click="CardAction_Click"  Margin="0,5,0,12" Icon="{ui:SymbolIcon WindowApps24}">
+                        <ctrls:CardControl Header="Install Plugin" Subtitle="Install a preconfigured plugin to system. Requires restart."/>
+                    </ui:CardAction>
+                    <ui:CardExpander Margin="0,5,0,12" Icon="{ui:SymbolIcon AppsAddIn24}" IsExpanded="False" Visibility="Collapsed">
                         <ui:CardExpander.Header>
                             <ctrls:CardControl Header="Load Plugin" Subtitle="Load a new plugin to system. Requires restart."/>
                         </ui:CardExpander.Header>
@@ -60,6 +71,11 @@
                             <ui:CardControl Margin="0,5,0,5">
                                 <ui:CardControl.Header>
                                     <ui:TextBox x:Name="authTxt" PlaceholderText="Author"/>
+                                </ui:CardControl.Header>
+                            </ui:CardControl>
+                            <ui:CardControl Margin="0,5,0,5">
+                                <ui:CardControl.Header>
+                                    <ui:TextBox x:Name="pathText" PlaceholderText="Path"/>
                                 </ui:CardControl.Header>
                             </ui:CardControl>
                             <ui:CardControl Margin="0,5,0,5">
