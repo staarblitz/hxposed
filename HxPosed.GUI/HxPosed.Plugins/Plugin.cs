@@ -51,9 +51,10 @@ namespace HxPosed.Plugins
         /// <param name="author">Author of the plugin.</param>
         /// <param name="icon">Icon of the plugin.</param>
         /// <param name="path">DOS (classic) path of plugin.</param>
+        /// <param name="permissions">Permissions of the plugin to allow.</param>
         /// <returns>New instance of <see cref="Plugin"/></returns>
         /// <exception cref="ArgumentNullException">Throws if OpenSubKey returns null.</exception>
-        public static Plugin New(Guid guid, string name, string description, uint version, string url, string author, string icon, string path)
+        public static Plugin New(Guid guid, string name, string description, uint version, string url, string author, string icon, string path, PluginPermissions permissions)
         {
             using var key = Registry.LocalMachine.OpenSubKey($"Software\\HxPosed\\Plugins", true);
             if (key is null)
@@ -71,11 +72,11 @@ namespace HxPosed.Plugins
                 Author = author,
                 Icon = icon,
                 Error = PluginError.None,
-                Path = Win32.DosPathToDevicePath(path),
+                Path = Win32.DosPathToDevicePath(Environment.ExpandEnvironmentVariables(path)),
 
                 // Use the private fields since the setters call SetStatus when the registry key isn't prepared yet.
                 _status = PluginStatus.Ready,
-                _permissions = PluginPermissions.None,
+                _permissions = permissions,
             };
 
             using var pluginKey = key.CreateSubKey(guid.ToString());
@@ -86,10 +87,11 @@ namespace HxPosed.Plugins
             pluginKey.SetValue("URL", url, RegistryValueKind.String);
             pluginKey.SetValue("Author", author, RegistryValueKind.String);
             pluginKey.SetValue("Icon", icon, RegistryValueKind.String);
+            pluginKey.SetValue("Path", plugin.Path, RegistryValueKind.String);
 
             pluginKey.SetValue("Error", (uint)PluginError.None, RegistryValueKind.DWord);
             pluginKey.SetValue("Status", (uint)PluginStatus.Ready, RegistryValueKind.DWord);
-            pluginKey.SetValue("Permissions", (uint)PluginPermissions.None, RegistryValueKind.QWord);
+            pluginKey.SetValue("Permissions", (uint)plugin.Permissions, RegistryValueKind.QWord);
 
             return plugin;
         }
