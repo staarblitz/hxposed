@@ -89,10 +89,10 @@ pub(crate) fn get_system_token() {
 /// * `proc` - Procedure to get pointer of. See [NtProcedure]
 ///
 /// ## Panic
-/// - This function panics if the NT version is not supported.
+/// * This function panics if the NT version is not supported.
 ///
 /// ## Return
-/// - An absolute pointer to [`T`], if found.
+/// * An absolute pointer to [`T`], if found.
 ///
 pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
