@@ -6,6 +6,7 @@ use crate::{as_pvoid, get_data};
 use alloc::boxed::Box;
 use alloc::collections::VecDeque;
 use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::ptr::slice_from_raw_parts_mut;
 use core::sync::atomic::Ordering;
@@ -363,11 +364,12 @@ impl Plugin {
             )
         };
 
-        let status = unsafe { ZwOpenKey(&mut key_handle, KEY_ALL_ACCESS, &mut attributes) };
-
-        if status != STATUS_SUCCESS {
-            println!("Error opening key: {}", status);
-            return None;
+        match unsafe { ZwOpenKey(&mut key_handle, KEY_ALL_ACCESS, &mut attributes) } {
+            STATUS_SUCCESS => {},
+            err => {
+                log::error!("Error opening key: {}", err);
+                return None;
+            }
         }
 
         let mut permissions = "Permissions".to_unicode_string();
@@ -387,15 +389,12 @@ impl Plugin {
         } {
             STATUS_SUCCESS => unsafe { *get_data!(info, PluginPermissions) },
             err => {
-                println!("Error querying key: {}", err);
+                log::error!("Error querying key: {}", err);
                 return None;
             }
         };
 
-        unsafe {
-            // zero it out
-            core::ptr::write_bytes(info.as_mut(), 0, 64);
-        }
+        let mut info = KEY_VALUE_FULL_INFORMATION::alloc_sized(64 + 500); // 500 for path
 
         let path = match unsafe {
             ZwQueryValueKey(
@@ -403,7 +402,7 @@ impl Plugin {
                 path.as_mut(),
                 KeyValueFullInformation,
                 as_pvoid!(info),
-                64,
+                64 + 500,
                 &mut return_length,
             )
         } {
@@ -415,15 +414,10 @@ impl Plugin {
                 )
             },
             err => {
-                println!("Error querying key: {}", err);
+                log::error!("Error querying key: {}", err);
                 return None;
             }
         };
-
-        let mut path_str = UNICODE_STRING::default();
-
-        unsafe { RtlInitUnicodeString(&mut path_str, path.as_mut_ptr() as _) }
-
         let _ = unsafe { ZwClose(key_handle) };
 
         Some(Self {
@@ -431,7 +425,7 @@ impl Plugin {
             permissions,
             authorized_permissions: permissions,
             awaiting_commands: VecDeque::with_capacity(32),
-            plugin_path: Box::new(path_str),
+            plugin_path: String::from_utf16_lossy(path).to_unicode_string(),
             ..Default::default()
         })
     }
