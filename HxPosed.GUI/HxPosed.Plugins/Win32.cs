@@ -11,7 +11,7 @@ namespace HxPosed.Plugins
     internal static class Win32
     {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        private static extern uint QueryDosDevice(
+        private static extern int QueryDosDevice(
          string lpDeviceName,
          StringBuilder lpTargetPath,
          int ucchMax
@@ -26,9 +26,9 @@ namespace HxPosed.Plugins
             string rest = dosPath.Substring(2);
 
             var sb = new StringBuilder(260);
-            uint result = QueryDosDevice(drive, sb, sb.Capacity);
+            int result = QueryDosDevice(drive, sb, sb.Capacity);
             if (result == 0)
-                throw new Win32Exception();
+                throw new Win32Exception(result);
 
             return sb.ToString() + rest;
         }
