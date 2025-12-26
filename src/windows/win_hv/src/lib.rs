@@ -199,6 +199,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
             ProbeForRead(guest.regs().r12 as _, 16, 1);
         }) {
             Ok(_) => {
+                // TODO: Validate this handle? How?
                 async_info = UnsafeAsyncInfo {
                     handle: guest.regs().r11,
                     result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
