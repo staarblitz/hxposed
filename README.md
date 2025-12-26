@@ -128,7 +128,13 @@ Easy. Powerful. No-nonsense.
 > [!IMPORTANT]
 > Bindings for C# and C are on the way!
 
-## Technichal Details
+## Technical Details
+Here is a diagram of how a guest (the plugin) makes a call.
+![Diagram showing how it works](assets/Diagram.png)
+
+And here is a diagram how HxPosed processes it.
+![Diagram showing how it works](assets/Diagram2.png)
+
 Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
 
 ## Repo structure
