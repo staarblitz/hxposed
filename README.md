@@ -88,6 +88,8 @@ allocation.free().await;
 
 ### And no, its not just Rust.
 It works for C, too.
+- All in one header file.
+- NT-style naming to feel right at home.
 ```c
 HXR_OPEN_PROCESS open = {
     .Id = 6892,
