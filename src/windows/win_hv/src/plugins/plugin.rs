@@ -1,6 +1,6 @@
 use crate::nt::process::KernelProcess;
 use crate::plugins::commands::AsyncCommand;
-use crate::win::alloc::PoolAllocSized;
+use crate::utils::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use crate::{as_pvoid, get_data};
 use alloc::boxed::Box;
@@ -12,9 +12,8 @@ use core::ptr::slice_from_raw_parts_mut;
 use core::sync::atomic::Ordering;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
-use wdk::println;
 use wdk_sys::ntddk::{
-    IoAllocateMdl, RtlCompareUnicodeString, RtlInitUnicodeString,
+    IoAllocateMdl, RtlCompareUnicodeString,
     ZwClose, ZwOpenKey, ZwQueryValueKey,
 };
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
@@ -22,12 +21,13 @@ use wdk_sys::{
     FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJECT_ATTRIBUTES,
     OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PETHREAD, PIRP, STATUS_SUCCESS,
 };
-use wdk_sys::{MDL, PACCESS_TOKEN, PEPROCESS, PVOID, UNICODE_STRING, _KPROCESS};
+use wdk_sys::{MDL, PACCESS_TOKEN, PEPROCESS, PVOID, UNICODE_STRING};
 
 #[derive(Default)]
 pub(crate) struct Plugin {
     pub uuid: Uuid,
     pub permissions: PluginPermissions,
+    #[allow(dead_code)]
     pub authorized_permissions: PluginPermissions,
     pub plugin_path: Box<UNICODE_STRING>,
     pub process: PEPROCESS,
@@ -292,6 +292,7 @@ impl Plugin {
     ///
     /// Quick permission check for [self.authorized_permissions]
     #[cfg(debug_assertions)]
+    #[allow(unused_variables)]
     pub fn perm_check(&self, permissions: PluginPermissions) -> bool {
         true
     }

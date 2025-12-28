@@ -1,14 +1,11 @@
 pub(crate) use crate::plugins::plugin::Plugin;
-use crate::win::alloc::PoolAllocSized;
+use crate::utils::alloc::PoolAllocSized;
 use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{PLUGINS, as_pvoid, panic};
+use crate::{PLUGINS, as_pvoid};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use core::arch::asm;
-use core::ops::{Deref, DerefMut};
 use core::sync::atomic::Ordering;
 use uuid::Uuid;
-use wdk::println;
 use wdk_sys::_KEY_INFORMATION_CLASS::KeyBasicInformation;
 use wdk_sys::ntddk::{IoGetCurrentProcess, RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
 use wdk_sys::{
@@ -126,7 +123,6 @@ pub(crate) fn load_plugins() {
             )
         } {
             STATUS_NO_MORE_ENTRIES => {
-                index = 0;
                 break;
             }
             _ => {}

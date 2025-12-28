@@ -1,10 +1,11 @@
 use crate::nt::context::ApcProcessContext;
 use crate::plugins::commands::memory::*;
 use crate::plugins::plugin::Plugin;
+use crate::plugins::PluginTable;
+use crate::utils::blanket::OpenHandle;
 use crate::win::{MmCopyVirtualMemory, ZwProtectVirtualMemory};
 use alloc::boxed::Box;
 use core::ops::{BitAnd, DerefMut};
-use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
@@ -16,15 +17,19 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::memory_fields::MemoryProtection;
+use wdk_sys::ntddk::{
+    IoFreeMdl, MmAllocateContiguousMemorySpecifyCache, MmBuildMdlForNonPagedPool,
+    MmFreeContiguousMemory, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages
+    ,
+};
 use wdk_sys::_MEMORY_CACHING_TYPE::MmCached;
 use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
 use wdk_sys::_MODE::{KernelMode, UserMode};
-use wdk_sys::ntddk::{IoFreeMdl, MmAllocateContiguousMemorySpecifyCache, MmBuildMdlForNonPagedPool, MmFreeContiguousMemory, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages, ObOpenObjectByPointer, ZwClose};
 use wdk_sys::{
-    FALSE, HANDLE, OBJ_KERNEL_HANDLE, PHYSICAL_ADDRESS, PROCESS_ALL_ACCESS, PsProcessType, SIZE_T,
-    STATUS_INVALID_PAGE_PROTECTION, STATUS_MEMORY_NOT_ALLOCATED, STATUS_SUCCESS, ULONG,
+    FALSE, PHYSICAL_ADDRESS
+    , SIZE_T, STATUS_INVALID_PAGE_PROTECTION, STATUS_MEMORY_NOT_ALLOCATED,
+    STATUS_SUCCESS, ULONG,
 };
-use crate::plugins::PluginTable;
 
 pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorResponse {
     let plugin = match PluginTable::lookup(request.uuid) {
@@ -32,14 +37,17 @@ pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorRespo
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let mut mdl = match plugin.object_table.pop_allocated_mdl(request.command.mdl_address) {
+    let mut mdl = match plugin
+        .object_table
+        .pop_allocated_mdl(request.command.mdl_address)
+    {
         Some(mdl) => mdl,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
     };
 
     let _ctx = ApcProcessContext::begin(plugin.process);
 
-    unsafe{
+    unsafe {
         MmFreeContiguousMemory(mdl.MappedSystemVa);
         IoFreeMdl(mdl.deref_mut());
     }
@@ -84,7 +92,10 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
 
     let process = plugin.process;
 
-    let mdl = match plugin.object_table.get_allocated_mdl(request.command.mdl_address) {
+    let mdl = match plugin
+        .object_table
+        .get_allocated_mdl(request.command.mdl_address)
+    {
         Some(mdl) => mdl,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
     };
@@ -105,7 +116,9 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
                     )
                 }) {
                     Ok(ptr) => ptr,
-                    Err(_) => return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
+                    Err(_) => {
+                        return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
+                    }
                 }
             };
 
@@ -179,7 +192,9 @@ pub(crate) fn allocate_mdl_sync(request: &AllocateMemoryAsyncCommand) -> Hypervi
         return HypervisorResponse::nt_error(STATUS_MEMORY_NOT_ALLOCATED as _);
     }
 
-    let mdl = plugin.object_table.allocate_mdl(alloc, request.command.size);
+    let mdl = plugin
+        .object_table
+        .allocate_mdl(alloc, request.command.size);
 
     unsafe { MmBuildMdlForNonPagedPool(mdl.deref_mut()) }
 
@@ -270,13 +285,7 @@ pub(crate) fn protect_vm_async(
         return HypervisorResponse::nt_error(STATUS_INVALID_PAGE_PROTECTION as _);
     }
 
-    let process = match plugin.object_table.get_open_process(request.addr as _) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
-    };
-
     plugin.queue_command(Box::new(ProtectProcessMemoryAsyncCommand {
-        process,
         uuid: plugin.uuid,
         command: request,
         async_info,
@@ -300,29 +309,30 @@ pub(crate) fn protect_vm_async(
 /// * [`HypervisorResponse::nt_error`] - An error occurred in `ZwProtectVirtualMemory`.
 /// * [`ProtectProcessMemoryResponse`] - Number of bytes processed.
 pub(crate) fn protect_vm_sync(request: &ProtectProcessMemoryAsyncCommand) -> HypervisorResponse {
+    let plugin = match PluginTable::lookup(request.uuid) {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
+    };
+
+    let process = match plugin
+        .object_table
+        .get_open_process(request.command.addr as _)
+    {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+    };
     let mut base = request.command.address;
     let mut bytes_processed = 4096u64;
     let mut protection = ULONG::default();
-    let mut handle = HANDLE::default();
 
-    match unsafe {
-        ObOpenObjectByPointer(
-            request.process as _,
-            OBJ_KERNEL_HANDLE,
-            Default::default(),
-            PROCESS_ALL_ACCESS,
-            *PsProcessType,
-            KernelMode as _,
-            &mut handle,
-        )
-    } {
-        STATUS_SUCCESS => {}
-        err => return HypervisorResponse::nt_error(err as _),
+    let handle = match process.get_handle() {
+        Ok(handle) => handle,
+        Err(err) => return HypervisorResponse::nt_error(err as _),
     };
 
     let result = match unsafe {
         ZwProtectVirtualMemory(
-            handle,
+            handle.get_danger(),
             &mut base as *mut _ as u64 as _,
             &mut bytes_processed as *mut _ as _,
             request.command.protection.bits(),
@@ -337,8 +347,6 @@ pub(crate) fn protect_vm_sync(request: &ProtectProcessMemoryAsyncCommand) -> Hyp
         .into_raw(),
         err => HypervisorResponse::nt_error(err as _),
     };
-
-    let _ = unsafe { ZwClose(handle) };
 
     result
 }
