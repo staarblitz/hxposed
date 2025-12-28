@@ -1,7 +1,7 @@
 use wdk_sys::{PsProcessType, PsThreadType, ACCESS_MASK, HANDLE, NTSTATUS, PEPROCESS, PETHREAD, POBJECT_TYPE, PROCESS_ALL_ACCESS, PVOID, STATUS_SUCCESS, THREAD_ALL_ACCESS};
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::ObOpenObjectByPointer;
-use crate::nt::handlebox::HandleBox;
+use crate::utils::handlebox::HandleBox;
 
 pub trait OpenHandle {
     fn get_handle(&self) -> Result<HandleBox, NTSTATUS>;
