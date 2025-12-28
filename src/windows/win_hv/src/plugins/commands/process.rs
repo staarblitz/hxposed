@@ -5,7 +5,6 @@ use hxposed_core::hxposed::requests::process::{GetProcessFieldRequest, GetProces
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use uuid::Uuid;
-use wdk_sys::PEPROCESS;
 
 pub struct GetProcessFieldAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
