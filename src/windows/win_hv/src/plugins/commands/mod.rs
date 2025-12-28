@@ -1,7 +1,5 @@
-use alloc::boxed::Box;
 use core::any::Any;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::VmcallRequest;
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use wdk::println;
 use wdk_sys::{HANDLE, STATUS_SUCCESS};
