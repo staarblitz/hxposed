@@ -142,6 +142,7 @@ Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
 ## Repo structure
 `src` contains the code written in Rust.
 - `hvcore` the hypervisor core.
+- `hxloader` a "bootkit" that patches the Windows boot process so you can load HxPosed.
 - `hxposed_core` core API providing access to hypervisor.
 - `uefi` UEFI driver. Unusued.
 - `windows` Windows driver of hxposed.
@@ -156,7 +157,7 @@ Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
 ### How to use?
 - Grab the latest release (I'll put it Soon™️)
 - Unpack it. (7-zip is nice)
-- Disable DSE through some bootkit or whatever. Or use the bootposed bootkit I plan to make just for that purpose.
+- Disable DSE through some bootkit or whatever. Or use the HxLoader.
 - Load the driver.
 - Idk? Load plugins and enjoy them.
 ### How to contribute?
