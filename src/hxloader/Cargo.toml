@@ -1,0 +1,18 @@
+[package]
+name = "hxloader"
+version = "0.1.0"
+edition = "2024"
+
+[toolchain]
+targets = ["x86_64-unknown-uefi"]
+
+[profile.dev]
+panic = "abort"
+[profile.release]
+panic = "abort"
+
+[dependencies]
+uefi = { version = "0.36.1", features = [ "panic_handler", "alloc", "global_allocator" ] }
+log = "0.4.29"
+spin = "0.10.0"
+com_logger = {version = "0.1.2", default-features = false}
