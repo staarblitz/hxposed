@@ -15,7 +15,6 @@ pub struct RWProcessMemoryAsyncCommand {
 }
 
 pub struct ProtectProcessMemoryAsyncCommand {
-    pub process: PEPROCESS,
     pub uuid: Uuid,
     pub command: ProtectProcessMemoryRequest,
     pub async_info: UnsafeAsyncInfo,
