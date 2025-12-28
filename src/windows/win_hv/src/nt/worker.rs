@@ -8,12 +8,13 @@ use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::services::security_services::*;
 use crate::services::thread_services::*;
-use crate::win::{timing, KeGetCurrentThread};
+use crate::win::KeGetCurrentThread;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{__readgsqword, KeDelayExecutionThread, KeSetPriorityThread};
+use wdk_sys::ntddk::{KeDelayExecutionThread, KeSetPriorityThread};
 use wdk_sys::{FALSE, LARGE_INTEGER, LOW_REALTIME_PRIORITY, PVOID};
+use crate::utils::timing;
 
 ///
 /// # Async Worker Thread
@@ -139,6 +140,9 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .as_any()
                         .downcast_ref::<MapMemoryAsyncCommand>()
                         .unwrap(),
+                ),
+                ServiceFunction::FreeMemory => free_mdl_sync(
+                    command.as_any().downcast_ref::<FreeMemoryAsyncCommand>().unwrap()
                 ),
                 ServiceFunction::OpenProcess => open_process_sync(
                     command
