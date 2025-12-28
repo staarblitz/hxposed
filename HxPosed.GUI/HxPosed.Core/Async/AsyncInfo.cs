@@ -1,4 +1,5 @@
 ﻿using HxPosed.Core.Exceptions;
+using HxPosed.Core.PInvoke;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,11 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace HxPosed.Core.Request
+namespace HxPosed.Core.Async
 {
-    public enum ObjectOpenType : uint
-    {
-        Handle = 0,
-        Hypervisor = 1
-    }
+    // c# is garbage
 }

@@ -1,4 +1,4 @@
-﻿using HxPosed.Core.Exceptions;
+﻿using HxPosed.Core.Request;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace HxPosed.Core.Request
+namespace HxPosed.Core.PInvoke
 {
-    public enum ObjectOpenType : uint
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HxCall
     {
-        Handle = 0,
-        Hypervisor = 1
+        
     }
 }
