@@ -1,14 +1,12 @@
-use crate::nt::blanket::OpenHandle;
+use crate::utils::blanket::OpenHandle;
 use crate::nt::*;
 use crate::plugins::commands::process::*;
 use crate::plugins::{Plugin, PluginTable};
 use crate::win::PsTerminateProcess;
-use crate::win::danger::DangerPtr;
+use crate::utils::danger::DangerPtr;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use bit_field::BitField;
 use core::arch::asm;
-use core::ops::{BitAnd, BitXor};
 use core::ptr::copy_nonoverlapping;
 use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;

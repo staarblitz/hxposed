@@ -1,4 +1,4 @@
-use crate::nt::blanket::OpenHandle;
+use crate::utils::blanket::OpenHandle;
 use crate::nt::{EThreadField, get_ethread_field};
 use crate::plugins::commands::thread::*;
 use crate::plugins::{Plugin, PluginTable};
@@ -19,10 +19,10 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk_sys::ntddk::{
-    PsLookupThreadByThreadId, PsReferenceImpersonationToken, PsReferencePrimaryToken,
+    PsLookupThreadByThreadId, PsReferenceImpersonationToken,
 };
 use wdk_sys::{
-    BOOLEAN, PBOOLEAN, PETHREAD, PSECURITY_IMPERSONATION_LEVEL, SECURITY_IMPERSONATION_LEVEL,
+    BOOLEAN, PETHREAD, SECURITY_IMPERSONATION_LEVEL,
     STATUS_SUCCESS, ULONG,
 };
 
@@ -228,7 +228,6 @@ pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> Hyp
         _ => HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
     }
 }
-
 pub(crate) fn set_thread_field_async(
     _guest: &mut dyn Guest,
     request: SetThreadFieldRequest,

@@ -73,7 +73,7 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
 }
 
 pub(crate) fn set_token_field_async(
-    guest: &mut dyn Guest,
+    _guest: &mut dyn Guest,
     request: SetTokenFieldRequest,
     plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
@@ -218,7 +218,7 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
 }
 
 pub(crate) fn get_token_field_async(
-    guest: &mut dyn Guest,
+    _guest: &mut dyn Guest,
     request: GetTokenFieldRequest,
     plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
@@ -295,7 +295,7 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
 }
 
 pub(crate) fn open_token_async(
-    guest: &mut dyn Guest,
+    _guest: &mut dyn Guest,
     request: OpenTokenRequest,
     plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
@@ -314,7 +314,7 @@ pub(crate) fn open_token_async(
 }
 
 pub(crate) fn close_token_sync(
-    guest: &mut dyn Guest,
+    _guest: &mut dyn Guest,
     request: CloseTokenRequest,
     plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
