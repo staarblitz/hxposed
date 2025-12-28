@@ -9,6 +9,7 @@ use wdk_sys::{PEPROCESS, STATUS_SUCCESS, UNICODE_STRING, _KPROCESS};
 /// # Kernel Process
 ///
 /// Abstraction over [`PEPROCESS`] to make the life easier.
+#[allow(dead_code)]
 pub struct KernelProcess {
     pub nt_process: AtomicPtr<_KPROCESS>,
     pub nt_path: AtomicPtr<UNICODE_STRING>,
@@ -16,6 +17,7 @@ pub struct KernelProcess {
 }
 
 impl KernelProcess {
+    #[allow(dead_code)]
     pub fn from_id(id: u32) -> Option<KernelProcess> {
         let mut process = PEPROCESS::default();
         let status = unsafe { PsLookupProcessByProcessId(id as _, &mut process) };

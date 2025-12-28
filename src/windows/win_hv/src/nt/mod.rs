@@ -2,7 +2,6 @@
 
 pub(crate) mod context;
 pub(crate) mod mdl;
-pub(crate) mod pe;
 pub(crate) mod process;
 pub(crate) mod worker;
 

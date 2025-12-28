@@ -17,9 +17,7 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::cback::registry_callback;
 use crate::plugins::PluginTable;
-use crate::win::NT_CURRENT_PROCESS;
 use alloc::boxed::Box;
-use core::arch::asm;
 use core::mem;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
