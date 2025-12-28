@@ -9,20 +9,18 @@ mod nt;
 mod ops;
 mod plugins;
 mod services;
+mod utils;
 mod win;
 
 #[global_allocator]
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::cback::registry_callback;
-use crate::nt::{get_nt_info, get_system_token};
-use crate::plugins::plugin::Plugin;
-use crate::plugins::{PluginTable, load_plugins};
-use crate::win::Utf8ToUnicodeString;
-use alloc::borrow::ToOwned;
+use crate::plugins::PluginTable;
+use crate::win::NT_CURRENT_PROCESS;
 use alloc::boxed::Box;
-use core::ops::{BitAnd, DerefMut};
-use core::panic::Location;
+use core::arch::asm;
+use core::mem;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hv::SharedHostData;
@@ -38,20 +36,21 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use log::LevelFilter;
-use wdk::println;
 
+use utils::logger::NtLogger;
 use crate::nt::worker::async_worker_thread;
 use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
 use wdk_sys::ntddk::{
-    CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwClose,
+    CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwAllocateVirtualMemory,
+    ZwClose,
 };
 use wdk_sys::{
-    DRIVER_OBJECT, HANDLE, LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT,
-    POOL_FLAG_NON_PAGED, PVOID, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_TOO_LATE,
-    THREAD_ALL_ACCESS, ntddk::ExAllocatePool2,
+    BOOLEAN, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, MEM_COMMIT, MEM_RESERVE, NTSTATUS,
+    PAGE_READWRITE, PUNICODE_STRING, PVOID, SIZE_T, STATUS_SUCCESS, STATUS_TOO_LATE,
+    THREAD_ALL_ACCESS,
 };
-use crate::nt::logger::NtLogger;
+use crate::nt::mdl::{MapStatus, MemoryDescriptor};
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 static PLUGINS: AtomicPtr<PluginTable> = AtomicPtr::new(null_mut());
@@ -61,14 +60,24 @@ static LOGGER: NtLogger = NtLogger;
 #[unsafe(export_name = "DriverEntry")]
 extern "C" fn driver_entry(
     _driver: &mut DRIVER_OBJECT,
-    _registry_path: PCUNICODE_STRING,
+    _registry_path: PUNICODE_STRING,
+    hxloader: BOOLEAN,
 ) -> NTSTATUS {
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(LevelFilter::Trace);
     log::info!("Welcome to HxPosed!");
 
-    get_nt_info();
-    get_system_token();
+    match hxloader == 1 {
+        true => {
+            log::info!("Loaded from HxLoader!");
+            nt::get_nt_info(Some(26200)); // for some reason, its 26100. but since its from HxLoader, we know its 25h2.
+        }
+        false => {
+            nt::get_nt_info(None);
+        }
+    }
+
+    nt::get_system_token();
 
     if nt::NT_BUILD.load(Ordering::Relaxed) != 26200 {
         log::error!("Unsupported version");
@@ -77,21 +86,30 @@ extern "C" fn driver_entry(
 
     log::info!("HxPosed Initialized.");
     log::info!("NT Version: {:x}", nt::NT_BUILD.load(Ordering::Relaxed));
-    log::info!("SYSTEM Token: {:x}", nt::SYSTEM_TOKEN.load(Ordering::Relaxed) as u64);
+    log::info!(
+        "SYSTEM Token: {:x}",
+        nt::SYSTEM_TOKEN.load(Ordering::Relaxed) as u64
+    );
 
-    // Initialize the global allocator with allocated buffer.
-    let ptr = unsafe {
-        ExAllocatePool2(
-            POOL_FLAG_NON_PAGED,
-            hv::allocator::ALLOCATION_BYTES as _,
-            0x2009,
-        )
+    log::info!("Allocating memory for the hypervisor...");
+
+    let mut hv_mem = MemoryDescriptor::new(hv::allocator::ALLOCATION_BYTES);
+    hv_mem.map(None);
+
+    let ptr = match hv_mem.status {
+        MapStatus::Mapped(ptr) => ptr,
+        MapStatus::Allocated => {
+            log::error!("Failed to allocate memory for hypervisor.");
+            panic!();
+        }
+        MapStatus::NotInitialized => unreachable!()
     };
-    if ptr.is_null() {
-        println!("Memory allocation failed");
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-    hv::allocator::init(ptr.cast::<u8>());
+
+    log::info!("Allocated {:x} bytes and mapped to {:x}", hv_mem.length, ptr);
+
+    hv::allocator::init(ptr as _);
+
+    mem::forget(hv_mem); // this memory should not be dropped. it will live as long as the system does
 
     hv::platform_ops::init(Box::new(ops::WindowsOps));
 
@@ -101,16 +119,10 @@ extern "C" fn driver_entry(
 
     hv::virtualize_system(host_data);
 
-    load_plugins();
+    plugins::load_plugins();
 
     let mut cookie = LARGE_INTEGER::default();
-    match unsafe {
-        CmRegisterCallback(
-            Some(registry_callback),
-            PVOID::default(),
-            &mut cookie,
-        )
-    } {
+    match unsafe { CmRegisterCallback(Some(registry_callback), PVOID::default(), &mut cookie) } {
         STATUS_SUCCESS => unsafe { CM_COOKIE.store(cookie.QuadPart as _, Ordering::Relaxed) },
         err => {
             log::error!("Error registering registry callbacks: {:?}", err);
@@ -204,10 +216,19 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
                     handle: guest.regs().r11,
                     result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
                 };
+
+                log::trace!(
+                    "Async Handle: {:x}. Result values: {:x}",
+                    async_info.handle,
+                    async_info.result_values.addr()
+                )
             }
             Err(_) => {
                 log::warn!("Invalid async buffer provided by user.");
-                write_response(guest, HypervisorResponse::invalid_params(ServiceParameter::BufferByUser));
+                write_response(
+                    guest,
+                    HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
+                );
                 return;
             }
         }
@@ -256,7 +277,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::ProtectProcessMemory
         | ServiceFunction::AllocateMemory
         | ServiceFunction::MapMemory
-        | ServiceFunction::FreeMemory=> {
+        | ServiceFunction::FreeMemory => {
             services::handle_memory_services(guest, &request, plugin, async_info);
         }
         ServiceFunction::OpenToken
@@ -267,7 +288,10 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         }
         _ => {
             log::warn!("Unsupported vmcall: {:?}", info.func());
-            write_response(guest, HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction))
+            write_response(
+                guest,
+                HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
+            )
         }
     }
 }
@@ -281,26 +305,16 @@ pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
-    println!("Panic occurred: {:?}", _info);
+    log::error!("Panic occurred: {:?}", _info);
+    log::error!("Take a moment and report this to us in GitHub.");
+    log::error!("- Yours truly.");
 
     let param1 = _info
         .message()
         .as_str()
         .unwrap_or("Could not unwrap message");
-    let param2 = _info.location().unwrap_or(Location::caller());
-
-    // first parameter is the message.
-    // second parameter is the column and line encoded. First 32 bits (LSB) is column, next 32 bits are the line.
-    // third parameter is the file location.
-    // fourth parameter is reserved.
 
     unsafe {
-        KeBugCheckEx(
-            0x2009,
-            param1.as_ptr() as _,
-            (param2.column() as u64 | ((param2.line() as u64) << 31)) as _,
-            param2.file().as_ptr() as _,
-            0,
-        )
-    };
+        KeBugCheckEx(0x2009, param1.as_ptr() as _, 0, 0, 0);
+    }
 }
