@@ -1,5 +1,6 @@
+#![allow(dead_code)]
+
 use alloc::boxed::Box;
-use core::alloc::Layout;
 use wdk_sys::POOL_FLAG_NON_PAGED;
 use wdk_sys::ntddk::ExAllocatePool2;
 
