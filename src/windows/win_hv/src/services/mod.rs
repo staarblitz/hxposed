@@ -101,6 +101,12 @@ pub fn handle_thread_services(
             plugin,
             async_info,
         ),
+        ServiceFunction::SetThreadField => set_thread_field_async(
+            guest,
+            SetThreadFieldRequest::from_raw(request),
+            plugin,
+            async_info,
+        ),
         ServiceFunction::CloseThread => {
             close_thread(guest, CloseThreadRequest::from_raw(request), plugin)
         }
