@@ -1,8 +1,8 @@
 use crate::nt::process::KernelProcess;
-use crate::win::alloc::PoolAllocSized;
+use crate::utils::alloc::PoolAllocSized;
 use crate::win::{_RtlDuplicateUnicodeString, Utf8ToUnicodeString, RtlBufferContainsBuffer};
 use core::sync::atomic::Ordering;
-use wdk::{dbg_break, println};
+use wdk::println;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::*;
 use wdk_sys::*;
