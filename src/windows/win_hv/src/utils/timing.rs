@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub(crate) fn absolute(wait: i64) -> i64 {
     wait
 }
