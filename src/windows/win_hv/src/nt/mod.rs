@@ -1,17 +1,17 @@
-pub(crate) mod blanket;
+#![allow(dead_code)]
+
 pub(crate) mod context;
-pub(crate) mod handlebox;
-pub(crate) mod logger;
+pub(crate) mod mdl;
+pub(crate) mod pe;
 pub(crate) mod process;
 pub(crate) mod worker;
 
 use crate::win::*;
-use bitfield_struct::bitfield;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hxposed_core::services::types::security_fields::TokenPrivilege;
 use wdk_sys::ntddk::{PsLookupProcessByProcessId, PsReferencePrimaryToken, RtlGetVersion};
-use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, RTL_OSVERSIONINFOW};
+use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
@@ -30,22 +30,26 @@ pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 ///
 /// ## Arguments
 ///
-/// * `driver_section` - `DRIVER_OBJECT.DriverSection`
+/// * `custom` - If [`Some`], used. If not, nt version is dynamically fetched.
 ///
 /// ## Return
 ///
-/// - No values returned. [NT_BASE] and [NT_BUILD] are changed accordingly.
-pub(crate) fn get_nt_info() {
-    let mut info = RTL_OSVERSIONINFOW::default();
-    let _ = unsafe { RtlGetVersion(&mut info) };
+/// - No values returned. [`NT_BASE`] and [`NT_BUILD`] are changed accordingly.
+pub(crate) fn get_nt_info(custom: Option<u64>) {
+    let build_number = {
+        if let Some(build_number) = custom {
+            build_number
+        } else {
+            let mut info = RTL_OSVERSIONINFOW::default();
+            let _ = unsafe { RtlGetVersion(&mut info) };
+            info.dwBuildNumber as u64
+        }
+    };
 
-    NT_BUILD.store(info.dwBuildNumber as _, Ordering::Relaxed);
+    NT_BUILD.store(build_number as _, Ordering::Relaxed);
 
     unsafe {
-        let entry = &mut *(PsLoadedModuleList);
-        // first entry is always ntoskrnl
-        let nt = &mut *(entry.InLoadOrderLinks.Flink as *mut _LDR_DATA_TABLE_ENTRY);
-        NT_BASE.store(nt.DllBase as *mut u64, Ordering::Relaxed);
+        NT_BASE.store(get_nt_base() as _, Ordering::Relaxed);
 
         NT_PS_TERMINATE_PROCESS.store(
             get_nt_proc::<PsTerminateProcessType>(NtProcedure::PsTerminateProcessProc),
@@ -66,6 +70,14 @@ pub(crate) fn get_nt_info() {
             get_nt_proc::<PsTerminateThreadType>(NtProcedure::PspTerminateThreadByPointer),
             Ordering::Relaxed,
         )
+    }
+}
+pub(crate) fn get_nt_base() -> PVOID {
+    unsafe {
+        let entry = &mut *(PsLoadedModuleList);
+        // first entry is always ntoskrnl
+        let nt = &mut *(entry.InLoadOrderLinks.Flink as *mut _LDR_DATA_TABLE_ENTRY);
+        nt.DllBase
     }
 }
 
