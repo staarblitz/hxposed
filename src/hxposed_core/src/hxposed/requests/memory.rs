@@ -8,7 +8,7 @@ use core::mem;
 
 #[derive(Default, Debug)]
 pub struct RWProcessMemoryRequest {
-    pub addr: u64,
+    pub process: u64,
     pub address: *mut u8,
     pub count: usize,
     pub data: *mut u8,
@@ -18,7 +18,7 @@ pub struct RWProcessMemoryRequest {
 
 #[derive(Default, Debug)]
 pub struct ProtectProcessMemoryRequest {
-    pub addr: u64,
+    pub process: u64,
     pub address: *mut u8,
     pub protection: MemoryProtection,
 }
@@ -32,14 +32,15 @@ pub struct AllocateMemoryRequest {
 
 #[derive(Default, Debug)]
 pub struct MapMemoryRequest {
-    pub mdl_address: u64,
+    pub original_system_va: u64,
     pub map_address: u64,
     pub operation: MapMemoryOperation,
+    pub process: u64
 }
 
 #[derive(Default, Debug)]
 pub struct FreeMemoryRequest {
-    pub mdl_address: u64,
+    pub original_system_va: u64,
 }
 
 impl VmcallRequest for FreeMemoryRequest {
@@ -48,7 +49,7 @@ impl VmcallRequest for FreeMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::free_mem(),
-            arg1: self.mdl_address,
+            arg1: self.original_system_va,
 
             ..Default::default()
         });
@@ -60,7 +61,7 @@ impl VmcallRequest for FreeMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            mdl_address: request.arg1,
+            original_system_va: request.arg1,
         }
     }
 }
@@ -71,9 +72,10 @@ impl VmcallRequest for MapMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::mem_map(),
-            arg1: self.mdl_address,
+            arg1: self.original_system_va,
             arg2: self.map_address,
             arg3: self.operation.clone().into_bits() as _,
+            extended_arg1: self.process as _,
 
             ..Default::default()
         });
@@ -85,9 +87,10 @@ impl VmcallRequest for MapMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            mdl_address: request.arg1,
+            original_system_va: request.arg1,
             map_address: request.arg2,
             operation: MapMemoryOperation::from_bits(request.arg3 as _),
+            process: request.extended_arg1 as _,
         }
     }
 }
@@ -125,7 +128,7 @@ impl VmcallRequest for RWProcessMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::process_vm_op(),
-            arg1: self.addr as _,
+            arg1: self.process as _,
             arg2: self.address as _,
             arg3: self.count as _,
 
@@ -143,7 +146,7 @@ impl VmcallRequest for RWProcessMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            process: request.arg1 as _,
             address: request.arg2 as *mut u8,
             count: request.arg3 as _,
 
@@ -160,7 +163,7 @@ impl VmcallRequest for ProtectProcessMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::process_vm_protect(),
-            arg1: self.addr as _,
+            arg1: self.process as _,
             arg2: self.address as _,
             arg3: self.protection.bits() as _,
 
@@ -174,7 +177,7 @@ impl VmcallRequest for ProtectProcessMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            process: request.arg1 as _,
             address: request.arg2 as _,
             protection: MemoryProtection::from_bits(request.arg3 as _).unwrap(),
         }

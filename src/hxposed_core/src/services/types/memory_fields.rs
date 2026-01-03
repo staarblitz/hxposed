@@ -44,6 +44,7 @@ impl MemoryPool {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum KernelMemoryState {
     None,
     Allocated,
