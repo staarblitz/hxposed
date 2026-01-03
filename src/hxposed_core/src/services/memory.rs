@@ -3,26 +3,24 @@ use crate::hxposed::call::ServiceParameter;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::memory::*;
 use crate::hxposed::responses::HypervisorResponse;
-use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::memory_map::HxMemoryDescriptor;
 use crate::services::types::memory_fields::{KernelMemoryState, MemoryPool, MemoryProtection};
 use alloc::vec;
 use alloc::vec::Vec;
-use core::marker::PhantomData;
 use core::ptr::copy_nonoverlapping;
 
+#[derive(Debug)]
 pub struct HxMemory {
-    pub id: u32,
-    pub(crate) addr: u64,
+    pub process: u64
 }
 
 impl HxMemory {
-
     ///
     /// # Allocate<T>
     ///
-    /// Allocates memory from kernel non-paged pool enough to hold an instance of [`T`].
+    /// Allocates memory from kernel big enough to hold an instance of [`T`] in **system address space** process.
+    /// - To allocate memory on address space of another process, see [`Self::alloc_on_behalf`].
     ///
     /// ## Arguments
     /// * `pool` - Kind of pool to allocate from. See [`MemoryPool`].
@@ -53,29 +51,57 @@ impl HxMemory {
     ///
     /// ```
     pub async fn alloc<T>(pool: MemoryPool) -> Result<HxMemoryDescriptor<T>, HypervisorError> {
-        let size = size_of::<T>();
-        if size > u32::MAX as usize {
-            return Err(HypervisorError::from_response(
-                HypervisorResponse::invalid_params(ServiceParameter::Arg2),
-            ));
+        if size_of::<T>() > u32::MAX as usize {
+            return Err(
+                HypervisorError::from_response(HypervisorResponse::invalid_params(ServiceParameter::Arg2))
+            );
         }
 
-        let align = align_of::<T>();
+        let result =
+            Self::alloc_raw(pool, size_of::<T>() as _, align_of::<T>()).await?;
 
+        Ok(HxMemoryDescriptor::<T>::new(
+            result.0,
+            result.1,
+            pool,
+            KernelMemoryState::Allocated,
+        ))
+    }
+
+    ///
+    /// # Alloc Raw
+    ///
+    /// Makes a raw kernel allocation.
+    ///
+    /// Do not use this function unless you have to. See [`Self::alloc`].
+    ///
+    /// ## Arguments
+    /// * `pool` - Kind of pool to allocate from. See [`MemoryPool`].
+    /// * `size` - Number of bytes to allocate.
+    /// * `align` - Discarded. But it is **guaranteed** to be 16-byte aligned.
+    ///
+    /// ## Remarks
+    /// - All remarks that apply to other alloc* functions.
+    /// - This does NOT return a HxMemoryGuard. You are on your own.
+    ///
+    /// ## Return
+    /// * [`(u64, u32)`] - A tuple. First value contains the mapped system address (this does NOT mean the memory is mapped to your address space),
+    /// second one is how many bytes allocated.
+    /// * [`HypervisorError`] - Most likely an NT error telling there is not enough memory caused by your blunders using this framework.
+    pub async fn alloc_raw(
+        pool: MemoryPool,
+        size: u32,
+        align: usize,
+    ) -> Result<(u64, u32), HypervisorError> {
         let alloc = AllocateMemoryRequest {
-            size: size as u32,
+            size,
             align,
             pool,
         }
         .send_async()
         .await?;
 
-        Ok(HxMemoryDescriptor::<T>::new(
-            alloc.address,
-            alloc.bytes_allocated,
-            pool,
-            KernelMemoryState::Allocated,
-        ))
+        Ok((alloc.address, alloc.bytes_allocated))
     }
 
     ///
@@ -102,7 +128,7 @@ impl HxMemory {
         protection: MemoryProtection,
     ) -> Result<MemoryProtection, HypervisorError> {
         let result = ProtectProcessMemoryRequest {
-            addr: self.addr,
+            process: self.process,
             address: address as _,
             protection,
         }
@@ -133,7 +159,7 @@ impl HxMemory {
         let mut raw = vec![0u8; count * size_of::<T>()];
 
         let result = RWProcessMemoryRequest {
-            addr: self.addr,
+            process: self.process,
             address: address as _,
             count: count * size_of::<T>(),
             data: raw.as_mut_ptr(),
@@ -180,7 +206,7 @@ impl HxMemory {
         count: usize,
     ) -> Result<usize, HypervisorError> {
         let result = RWProcessMemoryRequest {
-            addr: self.addr,
+            process: self.process,
             address: address as _,
             count: count * size_of::<T>(),
             data: data as _,
