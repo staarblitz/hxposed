@@ -11,6 +11,7 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+#[derive(Debug)]
 pub struct HxToken {
     pub(crate) addr: u64,
 }

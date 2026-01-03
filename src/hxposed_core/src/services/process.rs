@@ -14,12 +14,12 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::pin::Pin;
 use core::ptr::null_mut;
-use core::sync::atomic::{AtomicU64, Ordering};
 
+#[derive(Debug)]
 pub struct HxProcess {
     pub id: u32,
     pub memory: HxMemory,
-    addr: u64,
+    pub(crate) addr: u64,
 }
 
 impl Drop for HxProcess {
@@ -128,7 +128,6 @@ impl HxProcess {
     /// ## Permissions
     /// * [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
-
     pub async fn set_mitigation_options(
         &self,
         options: MitigationOptions,
@@ -232,7 +231,7 @@ impl HxProcess {
 
         Ok(Self {
             id,
-            memory: HxMemory { addr: call.addr, id },
+            memory: HxMemory { process: call.addr },
             addr: call.addr,
         })
     }
@@ -453,7 +452,7 @@ impl HxProcess {
     ///
     /// # Kill
     ///
-    /// Uses *PspTerminateProcess* internally to terminate the process object.
+    /// Uses [`PspTerminateProces`] internally to terminate the process object.
     ///
     /// Consumes the object.
     ///
@@ -464,7 +463,7 @@ impl HxProcess {
     /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
     /// ## Returns
-    /// - [Result] with most likely an NT error.
+    /// - [`Result`] with most likely an NT error.
     ///
     /// ## Example
     /// ```rust
