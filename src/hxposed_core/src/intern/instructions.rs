@@ -25,35 +25,32 @@ pub fn vmcall_typed<R: VmcallRequest>(
     R::Response::from_raw(raw_resp)
 }
 
+
+
 pub(crate) fn vmcall(
     request: *mut HypervisorRequest,
     mut async_info: Option<&mut AsyncInfo>,
 ) -> HypervisorResponse {
+    // SAFETY:we know it's a valid pointer.
     let mut request = unsafe { &mut *request };
 
-    match async_info {
-        Some(_) => request.call.set_is_async(true),
-        None => request.call.set_is_async(false),
-    }
+    let (handle, shared_mem, is_async) = match async_info {
+        Some(info) => (info.handle, info.result_values.lock().as_mut_ptr(), true),
+        None => (0, core::ptr::null_mut(), false),
+    };
+
+    request.call.set_is_async(is_async);
 
     let mut response = HypervisorResponse::default();
-    let mut result = 0;
-
-    let handle = match async_info {
-        Some(ref async_info) => async_info.handle,
-        None => 0,
-    };
-    let shared_mem = match async_info {
-        Some(ref mut async_info) => async_info.result_values.lock().as_mut_ptr(),
-        None => 0 as _,
-    };
+    let mut result = 0u32;
+    let mut leaf = 0x2009u64;
 
     unsafe {
         // save rsi and xmm4, since they are considered non-volatile
+        // must be done in seperate because will interfere with "inouts"
         asm!("pinsrq xmm4, rsi, 0", "pinsrq xmm4, r12, 1")
     }
 
-    let mut leaf = 0x2009;
     if request.call.extended_args_present() {
         unsafe {
             asm!(
@@ -91,11 +88,11 @@ pub(crate) fn vmcall(
         asm!("pextrq rsi, xmm4, 0", "pextrq r12, xmm4, 1")
     }
 
-    // that means hypervisor did not handle our cpuid trap.
+
     if leaf != 0x2009 {
-        response.result = HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotLoaded)
+        response.result = HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotLoaded);
     } else {
-        response.result = HypervisorResult::from_bits(result)
+        response.result = HypervisorResult::from_bits(result);
     }
 
     response
