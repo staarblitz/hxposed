@@ -27,7 +27,7 @@ namespace HxPosed.GUI.ViewModels
 
                 return HypervisorManager.GetHypervisorStatus();
             }
-            catch(HypervisorException ex)
+            catch (HypervisorException ex)
             {
                 return new HxStatus { Status = HypervisorStatus.Unknown, Version = 0 };
             }
@@ -41,7 +41,6 @@ namespace HxPosed.GUI.ViewModels
         {
             get
             {
-                _hvStatus = GetHypervisorStatus();
                 return _hvStatus.Status switch
                 {
                     HypervisorStatus.SystemVirtualized => "Locked and loaded",
@@ -59,7 +58,6 @@ namespace HxPosed.GUI.ViewModels
         {
             get
             {
-                _hvStatus = GetHypervisorStatus();
                 return _hvStatus.Status switch
                 {
                     HypervisorStatus.SystemVirtualized => "Everything is good to go",
