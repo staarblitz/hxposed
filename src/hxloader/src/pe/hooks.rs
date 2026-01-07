@@ -1,13 +1,14 @@
-use core::arch::asm;
 use crate::nt::winload::Winload;
 use crate::nt::*;
 use crate::pe::map::manually_map;
 use crate::pe::{BASIC_CALL, BASIC_CALL_PROLOGUE};
 use crate::*;
+use core::arch::asm;
 use core::mem;
 use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
-use uefi::{CStr16, Char16, Status};
+use uefi::runtime::{VariableAttributes, VariableVendor};
+use uefi::{CStr16, Char16, Guid, Status};
 
 pub extern "C" fn img_arch_start_boot_application(
     app_entry: *mut u8,
@@ -178,7 +179,9 @@ pub extern "C" fn osl_fwp_kernel_setup_phase1(loader: *mut _LOADER_PARAMETER_BLO
 
         core::ptr::copy_nonoverlapping(
             BASIC_CALL_PROLOGUE.as_ptr(),
-            acpi_entry.EntryPoint.byte_offset((BASIC_CALL.len() + 5) as _) as _,
+            acpi_entry
+                .EntryPoint
+                .byte_offset((BASIC_CALL.len() + 5) as _) as _,
             BASIC_CALL_PROLOGUE.len(),
         );
     }
