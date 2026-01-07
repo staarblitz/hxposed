@@ -4,7 +4,6 @@ extern crate alloc;
 extern crate bit_field;
 extern crate hv;
 
-mod cback;
 mod nt;
 mod ops;
 mod plugins;
@@ -15,12 +14,19 @@ mod win;
 #[global_allocator]
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
-use crate::cback::registry_callback;
+use nt::cback::registry_callback;
+use crate::nt::mdl::{MapStatus, MemoryDescriptor};
+use crate::nt::thread::NtThread;
+use crate::nt::worker::async_worker_thread;
 use crate::plugins::PluginTable;
+use crate::services::authorize_plugin;
+use crate::utils::logger::NtLogger;
 use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::ToString;
 use core::mem;
 use core::ptr::null_mut;
-use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU64, Ordering};
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
@@ -33,56 +39,65 @@ use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use log::LevelFilter;
-
-use utils::logger::NtLogger;
-use crate::nt::worker::async_worker_thread;
-use crate::services::authorize_plugin;
 use wdk_alloc::WdkAllocator;
-use wdk_sys::ntddk::{
-    CmRegisterCallback, KeBugCheckEx, ProbeForRead, PsCreateSystemThread, ZwAllocateVirtualMemory,
-    ZwClose,
-};
+use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx, KeDelayExecutionThread};
 use wdk_sys::{
-    BOOLEAN, DRIVER_OBJECT, HANDLE, LARGE_INTEGER, MEM_COMMIT, MEM_RESERVE, NTSTATUS,
-    PAGE_READWRITE, PUNICODE_STRING, PVOID, SIZE_T, STATUS_SUCCESS, STATUS_TOO_LATE,
-    THREAD_ALL_ACCESS,
+    BOOLEAN, DRIVER_OBJECT, FALSE, LARGE_INTEGER, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS,
+    STATUS_TOO_LATE,
 };
-use crate::nt::mdl::{MapStatus, MemoryDescriptor};
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
-static PLUGINS: AtomicPtr<PluginTable> = AtomicPtr::new(null_mut());
-static LOGGER: NtLogger = NtLogger;
+static mut LOGGER: NtLogger = NtLogger::default();
 
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
+#[allow(static_mut_refs)]
 extern "C" fn driver_entry(
-    _driver: &mut DRIVER_OBJECT,
+    _driver: *mut DRIVER_OBJECT,
     _registry_path: PUNICODE_STRING,
     hxloader: BOOLEAN,
 ) -> NTSTATUS {
-    log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(LevelFilter::Trace);
+    // SAFETY: we know there is no other accessor currently
+    unsafe {
+        if !LOGGER.is_init {
+            LOGGER.init();
+
+            log::set_logger(&LOGGER).unwrap();
+            log::set_max_level(log::LevelFilter::Trace);
+        }
+    }
+
+    log::trace!("driver_entry");
     log::info!("Welcome to HxPosed!");
 
     match hxloader == 1 {
         true => {
             log::info!("Loaded from HxLoader!");
-            nt::get_nt_info(Some(26200)); // for some reason, its 26100. but since its from HxLoader, we know its 25h2.
+            log::info!("Delaying startup....");
+            nt::get_nt_info(Some(26200));
+
+            return STATUS_SUCCESS;
         }
         false => {
-            nt::get_nt_info(None);
+            com_logger::builder()
+                .base(0x3f8)
+                .filter(log::LevelFilter::Trace)
+                .setup();
+            match nt::get_nt_info(None) {
+                Ok(_) => {}
+                Err(_) => {
+                    log::error!("System is not virtualized.");
+                    return STATUS_TOO_LATE;
+                }
+            }
         }
     }
+
+    log::info!("Initializing HxPosed");
 
     nt::get_system_token();
 
-    if nt::NT_BUILD.load(Ordering::Relaxed) != 26200 {
-        log::error!("Unsupported version");
-        return STATUS_TOO_LATE;
-    }
-
-    log::info!("HxPosed Initialized.");
     log::info!("NT Version: {:x}", nt::NT_BUILD.load(Ordering::Relaxed));
     log::info!(
         "SYSTEM Token: {:x}",
@@ -100,10 +115,14 @@ extern "C" fn driver_entry(
             log::error!("Failed to allocate memory for hypervisor.");
             panic!();
         }
-        MapStatus::NotInitialized => unreachable!()
+        MapStatus::NotInitialized => unreachable!(),
     };
 
-    log::info!("Allocated {:x} bytes and mapped to {:x}", hv_mem.length, ptr);
+    log::info!(
+        "Allocated {:x} bytes and mapped to {:x}",
+        hv_mem.length,
+        ptr
+    );
 
     hv::allocator::init(ptr as _);
 
@@ -123,29 +142,14 @@ extern "C" fn driver_entry(
     match unsafe { CmRegisterCallback(Some(registry_callback), PVOID::default(), &mut cookie) } {
         STATUS_SUCCESS => unsafe { CM_COOKIE.store(cookie.QuadPart as _, Ordering::Relaxed) },
         err => {
-            log::error!("Error registering registry callbacks: {:?}", err);
-            panic!("Panicking for your own good");
+            panic!("Error registering registry callbacks: {:?}", err);
         }
     }
 
-    let mut handle = HANDLE::default();
-    match unsafe {
-        PsCreateSystemThread(
-            &mut handle,
-            THREAD_ALL_ACCESS,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Some(async_worker_thread),
-            Default::default(),
-        )
-    } {
-        STATUS_SUCCESS => unsafe {
-            let _ = ZwClose(handle);
-        },
-        err => {
-            log::error!("Error creating worker thread: {:?}", err);
-            panic!("Panicking for your own good");
+    match NtThread::create(Some(async_worker_thread), None) {
+        STATUS_SUCCESS => {}
+        _ => {
+            panic!();
         }
     }
 
@@ -205,9 +209,7 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     };
 
     if info.is_async() {
-        match microseh::try_seh(|| unsafe {
-            ProbeForRead(guest.regs().r12 as _, 16, 1);
-        }) {
+        match nt::probe::probe_for_write(guest.regs().r12 as _, 16, 1) {
             Ok(_) => {
                 // TODO: Validate this handle? How?
                 async_info = UnsafeAsyncInfo {
@@ -307,12 +309,9 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     log::error!("Take a moment and report this to us in GitHub.");
     log::error!("- Yours truly.");
 
-    let param1 = _info
-        .message()
-        .as_str()
-        .unwrap_or("Could not unwrap message");
+    let param1 = format!("{:?}", _info);
 
     unsafe {
         KeBugCheckEx(0x2009, param1.as_ptr() as _, 0, 0, 0);
-    }
+    };
 }
