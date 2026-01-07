@@ -1,4 +1,4 @@
-use crate::PLUGINS;
+use crate::plugins::PLUGINS;
 use crate::nt::context::ApcProcessContext;
 use crate::plugins::commands::memory::*;
 use crate::plugins::commands::process::*;
