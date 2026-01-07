@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Wpf.Ui;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -21,6 +22,7 @@ namespace HxPosed.GUI
         public MainWindow()
         {
             InitializeComponent();
+            App.ContentDialogService.SetDialogHost(presenter);
         }
     }
 }
