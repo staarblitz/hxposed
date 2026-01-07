@@ -10,15 +10,15 @@ use wdk_sys::{PEPROCESS, STATUS_SUCCESS, UNICODE_STRING, _KPROCESS};
 ///
 /// Abstraction over [`PEPROCESS`] to make the life easier.
 #[allow(dead_code)]
-pub struct KernelProcess {
+pub struct NtProcess {
     pub nt_process: AtomicPtr<_KPROCESS>,
     pub nt_path: AtomicPtr<UNICODE_STRING>,
     pub id: u32,
 }
 
-impl KernelProcess {
+impl NtProcess {
     #[allow(dead_code)]
-    pub fn from_id(id: u32) -> Option<KernelProcess> {
+    pub fn from_id(id: u32) -> Option<NtProcess> {
         let mut process = PEPROCESS::default();
         let status = unsafe { PsLookupProcessByProcessId(id as _, &mut process) };
 
@@ -29,11 +29,11 @@ impl KernelProcess {
         Some(Self::open_process(process))
     }
 
-    pub fn from_ptr(ptr: PEPROCESS) -> KernelProcess {
+    pub fn from_ptr(ptr: PEPROCESS) -> NtProcess {
         Self::open_process(ptr)
     }
 
-    pub fn current() -> KernelProcess {
+    pub fn current() -> NtProcess {
         Self::open_process(unsafe { IoGetCurrentProcess() })
     }
 
