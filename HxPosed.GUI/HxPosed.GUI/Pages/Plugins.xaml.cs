@@ -127,20 +127,13 @@ namespace HxPosed.GUI.Pages
                 if (dlg.ShowDialog() is not true)
                     return;
 
-                ContentDialogService svc = null;
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    svc = new ContentDialogService();
-                    svc.SetDialogHost((Application.Current.MainWindow as MainWindow).presenter);
-                });
-
                 using var fs = File.OpenRead(dlg.FileName);
                 var config = await JsonSerializer.DeserializeAsync<PluginConfig>(fs);
                 if (config == null)
                 {
                     await Application.Current.Dispatcher.InvokeAsync(async () =>
                     {
-                        await svc.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
+                        await App.ContentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
                         {
                             Title = "Malformed Config",
                             Content = "This config is malformed and cannnot be loaded",
@@ -158,7 +151,7 @@ namespace HxPosed.GUI.Pages
                     fuckingLock.Wait(); // we can enter it right away
                     await Application.Current.Dispatcher.InvokeAsync(async () =>
                     {
-                        switch(await svc.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
+                        switch(await App.ContentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
                         {
                             Title = "HxPosed Plugins",
                             Content = "This plugin contains downloads. Which can harm your computer. Continue?",
@@ -184,13 +177,30 @@ namespace HxPosed.GUI.Pages
                     ctx.IsLoading = true;
                 });
 
-                await PluginManager.LoadFromConfig(config, _cts.Token).ContinueWith((x)=>
+                await PluginManager.LoadFromConfig(config, _cts.Token).ContinueWith((_)=>
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         var ctx = DataContext;
                         DataContext = null;
                         DataContext = ctx;
+                    });
+                }).ContinueWith(async (_) =>
+                {
+                    await Application.Current.Dispatcher.Invoke(async () =>
+                    {
+                        switch (await App.ContentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
+                        {
+                            Title = "HxPosed Plugins",
+                            Content = "For changes to take effect, you must restart your computer. Restart now?",
+                            CloseButtonText = "Cancel",
+                            PrimaryButtonText = "Yes",
+                        }))
+                        {
+                            case ContentDialogResult.Primary:
+                                Process.Start("shutdown", "/r /t 0");
+                                break;
+                        }
                     });
                 });
             }).Start();
