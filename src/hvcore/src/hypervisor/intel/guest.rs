@@ -106,8 +106,11 @@ impl Guest for VmxGuest {
         self.registers.rsp = vmread(vmcs::guest::RSP);
         self.registers.rflags = vmread(vmcs::guest::RFLAGS);
 
+        let reason = vmread(vmcs::ro::EXIT_REASON) as u16;
+        log::trace!("VMEXIT reason: {}", reason);
+
         // Return VM-exit reason.
-        match vmread(vmcs::ro::EXIT_REASON) as u16 {
+        match reason {
             VMX_EXIT_REASON_INIT => {
                 self.handle_init_signal();
                 VmExitReason::InitSignal
@@ -196,15 +199,16 @@ impl VmxGuest {
                     .bits() as _,
             ),
         );
+        // ENABLE_USER_WAIT_PAUSE is required for win11+
         vmwrite(
             vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS,
             Self::adjust_vmx_control(
                 VmxControl::ProcessorBased2,
                 (vmcs::control::SecondaryControls::ENABLE_EPT
-                    | vmcs::control::SecondaryControls::UNRESTRICTED_GUEST
                     | vmcs::control::SecondaryControls::ENABLE_RDTSCP
                     | vmcs::control::SecondaryControls::ENABLE_INVPCID
-                    | vmcs::control::SecondaryControls::ENABLE_XSAVES_XRSTORS)
+                    | vmcs::control::SecondaryControls::ENABLE_XSAVES_XRSTORS
+                | vmcs::control::SecondaryControls::ENABLE_USER_WAIT_PAUSE)
                     .bits() as _,
             ),
         );
@@ -296,7 +300,7 @@ impl VmxGuest {
             rdmsr(x86::msr::IA32_SYSENTER_ESP),
         );
 
-        // "If the "VMCS shadowing" VM-execution control is 1, (...). Otherwise,
+        // If the "VMCS shadowing" VM-execution control is 1, (...). Otherwise,
         //  software should set this field to FFFFFFFF_FFFFFFFFH to avoid VM-entry
         //  failures."
         // See: 25.4.2 Guest Non-Register State
