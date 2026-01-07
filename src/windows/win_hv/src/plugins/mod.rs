@@ -1,10 +1,10 @@
 pub(crate) use crate::plugins::plugin::Plugin;
 use crate::utils::alloc::PoolAllocSized;
-use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
-use crate::{PLUGINS, as_pvoid};
+use crate::{as_pvoid};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use core::sync::atomic::Ordering;
+use core::ptr::null_mut;
+use core::sync::atomic::{AtomicPtr, Ordering};
 use uuid::Uuid;
 use wdk_sys::_KEY_INFORMATION_CLASS::KeyBasicInformation;
 use wdk_sys::ntddk::{IoGetCurrentProcess, RtlUnicodeToUTF8N, ZwEnumerateKey, ZwOpenKey};
@@ -12,9 +12,13 @@ use wdk_sys::{
     HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
     OBJECT_ATTRIBUTES, PVOID, STATUS_NO_MORE_ENTRIES, STATUS_SUCCESS,
 };
+use crate::win::utf_to_unicode::Utf8ToUnicodeString;
+use crate::win::utils::InitializeObjectAttributes;
 
 pub(crate) mod plugin;
 pub(crate) mod commands;
+
+pub static PLUGINS: AtomicPtr<PluginTable> = AtomicPtr::new(null_mut());
 
 
 // TODO: Fix ownership semantics
