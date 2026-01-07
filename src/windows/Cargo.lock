@@ -437,6 +437,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
+name = "com_logger"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f713ce10b416e9eeb3ac64b155a2e98d98aa04c873bc60671ff7011803c1b18"
+dependencies = [
+ "log",
+ "spin 0.9.8",
+ "uart_16550",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -642,7 +653,7 @@ dependencies = [
  "log",
  "num-derive",
  "num-traits",
- "spin",
+ "spin 0.10.0",
  "thiserror",
  "x86",
 ]
@@ -654,7 +665,7 @@ dependencies = [
  "atomic_enum",
  "bitfield-struct",
  "bitflags 2.10.0",
- "spin",
+ "spin 0.10.0",
  "static_assertions",
  "uuid",
  "x86",
@@ -1074,6 +1085,15 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "spin"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+dependencies = [
+ "lock_api",
+]
+
+[[package]]
+name = "spin"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
@@ -1209,6 +1229,17 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "uart_16550"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e492212ac378a5e00da953718dafb1340d9fbaf4f27d6f3c5cab03d931d1c049"
+dependencies = [
+ "bitflags 2.10.0",
+ "rustversion",
+ "x86",
 ]
 
 [[package]]
@@ -1413,10 +1444,12 @@ version = "0.0.0"
 dependencies = [
  "bit_field",
  "bitfield-struct",
+ "com_logger",
  "hv",
  "hxposed_core",
  "log",
  "microseh",
+ "spin 0.10.0",
  "uuid",
  "wdk",
  "wdk-alloc",
