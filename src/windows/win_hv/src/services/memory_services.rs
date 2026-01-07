@@ -1,11 +1,11 @@
 use crate::nt::context::ApcProcessContext;
+use crate::plugins::PluginTable;
 use crate::plugins::commands::memory::*;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::PluginTable;
 use crate::utils::blanket::OpenHandle;
 use crate::win::{MmCopyVirtualMemory, ZwProtectVirtualMemory};
 use alloc::boxed::Box;
-use core::ops::{BitAnd, DerefMut};
+use core::ops::BitAnd;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
@@ -17,17 +17,15 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::memory_fields::MemoryProtection;
-use wdk_sys::ntddk::{
-    IoFreeMdl, MmAllocateContiguousMemorySpecifyCache, MmBuildMdlForNonPagedPool,
-    MmFreeContiguousMemory, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages
-    ,
-};
 use wdk_sys::_MEMORY_CACHING_TYPE::MmCached;
 use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
 use wdk_sys::_MODE::{KernelMode, UserMode};
+use wdk_sys::ntddk::{
+    IoFreeMdl, MmAllocateContiguousMemorySpecifyCache, MmBuildMdlForNonPagedPool,
+    MmFreeContiguousMemory, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages,
+};
 use wdk_sys::{
-    FALSE, PHYSICAL_ADDRESS
-    , SIZE_T, STATUS_INVALID_PAGE_PROTECTION, STATUS_MEMORY_NOT_ALLOCATED,
+    FALSE, PHYSICAL_ADDRESS, SIZE_T, STATUS_INVALID_PAGE_PROTECTION, STATUS_MEMORY_NOT_ALLOCATED,
     STATUS_SUCCESS, ULONG,
 };
 
@@ -37,22 +35,18 @@ pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorRespo
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let mut mdl = match plugin
+    let mdl = match plugin
         .object_table
-        .pop_allocated_mdl(request.command.mdl_address)
+        .pop_allocated_mdl(request.command.original_system_va)
     {
         Some(mdl) => mdl,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
     };
 
-    let _ctx = ApcProcessContext::begin(plugin.process);
-
     unsafe {
         MmFreeContiguousMemory(mdl.MappedSystemVa);
-        IoFreeMdl(mdl.deref_mut());
+        IoFreeMdl(mdl.ptr);
     }
-
-    drop(_ctx);
 
     EmptyResponse::with_service(ServiceFunction::FreeMemory)
 }
@@ -90,14 +84,20 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let process = plugin.process;
-
     let mdl = match plugin
         .object_table
-        .get_allocated_mdl(request.command.mdl_address)
+        .get_allocated_mdl(request.command.original_system_va)
     {
         Some(mdl) => mdl,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+    };
+
+    let process = match plugin
+        .object_table
+        .get_open_process(request.command.process as _)
+    {
+        None => plugin.process,
+        Some(x) => x,
     };
 
     let _ctx = ApcProcessContext::begin(process);
@@ -107,7 +107,7 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
             let ptr = unsafe {
                 match microseh::try_seh(|| {
                     MmMapLockedPagesSpecifyCache(
-                        mdl.deref_mut(),
+                        mdl.ptr,
                         UserMode as _,
                         MmCached,
                         request.command.map_address as _,
@@ -132,7 +132,7 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
             .into_raw()
         }
         MapMemoryOperation::Unmap => {
-            unsafe { MmUnmapLockedPages(request.command.map_address as _, mdl.deref_mut()) }
+            unsafe { MmUnmapLockedPages(request.command.map_address as _, mdl.ptr) }
             EmptyResponse::with_service(ServiceFunction::MapMemory)
         }
     };
@@ -196,7 +196,8 @@ pub(crate) fn allocate_mdl_sync(request: &AllocateMemoryAsyncCommand) -> Hypervi
         .object_table
         .allocate_mdl(alloc, request.command.size);
 
-    unsafe { MmBuildMdlForNonPagedPool(mdl.deref_mut()) }
+    // this function maps the mdl. so MappedSystemVa is a valid field now.
+    unsafe { MmBuildMdlForNonPagedPool(mdl.ptr) }
 
     AllocateMemoryResponse {
         address: mdl.MappedSystemVa as _,
@@ -233,7 +234,7 @@ pub(crate) fn allocate_mdl_async(
 }
 
 ///
-/// # Process Virtual Memory
+/// # Protect Virtual Memory
 ///
 /// Queues command for [`ProtectProcessMemoryAsyncCommand`] on specified plugin.
 ///
@@ -250,6 +251,7 @@ pub(crate) fn allocate_mdl_async(
 /// * [`HypervisorResponse::not_found`] - The specified process does not exist.
 /// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
 /// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
+/// * [`HypervisorResponse::nt_error`] - Invalid page protection specified.
 pub(crate) fn protect_vm_async(
     _guest: &mut dyn Guest,
     mut request: ProtectProcessMemoryRequest,
@@ -272,16 +274,19 @@ pub(crate) fn protect_vm_async(
         .protection
         .bitand(!(MemoryProtection::GUARD | MemoryProtection::NO_CACHE));
 
-    if request.protection.bits() != MemoryProtection::NO_CACHE.bits() && // there must be a better way to do it tbh
-        request.protection.bits() != MemoryProtection::READONLY.bits() &&
-        request.protection.bits() != MemoryProtection::READWRITE.bits() &&
-        request.protection.bits() != MemoryProtection::WRITECOPY.bits() &&
-        request.protection.bits() != MemoryProtection::EXECUTE.bits() &&
-        request.protection.bits() != MemoryProtection::EXECUTE_READ.bits() &&
-        request.protection.bits() != MemoryProtection::EXECUTE_READWRITE.bits() &&
-        request.protection.bits() != MemoryProtection::EXECUTE_WRITECOPY.bits() &&
-        request.protection.bits() != MemoryProtection::READONLY.bits()
-    {
+    let prot = request.protection.bits();
+
+    if !matches!(
+        prot,
+        x if x == MemoryProtection::NO_CACHE.bits()
+            || x == MemoryProtection::READONLY.bits()
+            || x == MemoryProtection::READWRITE.bits()
+            || x == MemoryProtection::WRITECOPY.bits()
+            || x == MemoryProtection::EXECUTE.bits()
+            || x == MemoryProtection::EXECUTE_READ.bits()
+            || x == MemoryProtection::EXECUTE_READWRITE.bits()
+            || x == MemoryProtection::EXECUTE_WRITECOPY.bits()
+    ) {
         return HypervisorResponse::nt_error(STATUS_INVALID_PAGE_PROTECTION as _);
     }
 
@@ -295,7 +300,7 @@ pub(crate) fn protect_vm_async(
 }
 
 ///
-/// # Protect Virtual Memory
+/// # Protect Virtual Memory (sync)
 ///
 /// Sets the protection of virtual memory
 ///
@@ -316,7 +321,7 @@ pub(crate) fn protect_vm_sync(request: &ProtectProcessMemoryAsyncCommand) -> Hyp
 
     let process = match plugin
         .object_table
-        .get_open_process(request.command.addr as _)
+        .get_open_process(request.command.process as _)
     {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
@@ -381,14 +386,8 @@ pub(crate) fn process_vm_operation_async(
         );
     }
 
-    let process = match plugin.object_table.get_open_process(request.addr as _) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
-    };
-
     plugin.queue_command(Box::new(RWProcessMemoryAsyncCommand {
         uuid: plugin.uuid,
-        process,
         command: request,
         async_info,
     }));
@@ -422,32 +421,31 @@ pub(crate) fn process_vm_operation_sync(
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
+    let process = match plugin
+        .object_table
+        .get_open_process(request.command.process as _)
+    {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+    };
+
     let mut return_size = SIZE_T::default();
 
-    // this is gross but also amazing.
-    match match request.command.operation {
-        ProcessMemoryOperation::Read => unsafe {
-            MmCopyVirtualMemory(
-                request.process,
-                request.command.address as _,
-                plugin.process,
-                request.command.data as _,
-                request.command.data_len as _,
-                KernelMode as _,
-                &mut return_size,
-            )
-        },
-        ProcessMemoryOperation::Write => unsafe {
-            MmCopyVirtualMemory(
-                plugin.process,
-                request.command.data as _,
-                request.process,
-                request.command.address as _,
-                request.command.data_len as _,
-                KernelMode as _,
-                &mut return_size,
-            )
-        },
+    let (source, target) = match request.command.operation {
+        ProcessMemoryOperation::Read => (process, plugin.process),
+        ProcessMemoryOperation::Write => (plugin.process, process),
+    };
+
+    match unsafe {
+        MmCopyVirtualMemory(
+            source,
+            request.command.address as _,
+            target,
+            request.command.data as _,
+            request.command.data_len as _,
+            KernelMode as _,
+            &mut return_size,
+        )
     } {
         STATUS_SUCCESS => RWProcessMemoryResponse {
             bytes_processed: return_size as _,
