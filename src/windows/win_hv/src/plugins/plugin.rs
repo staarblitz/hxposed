@@ -1,7 +1,6 @@
-use crate::nt::process::KernelProcess;
+use crate::nt::process::NtProcess;
 use crate::plugins::commands::AsyncCommand;
 use crate::utils::alloc::PoolAllocSized;
-use crate::win::{InitializeObjectAttributes, Utf8ToUnicodeString};
 use crate::{as_pvoid, get_data};
 use alloc::boxed::Box;
 use alloc::collections::VecDeque;
@@ -17,11 +16,11 @@ use wdk_sys::ntddk::{
     ZwClose, ZwOpenKey, ZwQueryValueKey,
 };
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::{
-    FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJECT_ATTRIBUTES,
-    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PETHREAD, PIRP, STATUS_SUCCESS,
-};
+use wdk_sys::{FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PETHREAD, PIRP, PMDL, STATUS_SUCCESS};
 use wdk_sys::{MDL, PACCESS_TOKEN, PEPROCESS, PVOID, UNICODE_STRING};
+use crate::utils::danger::DangerPtr;
+use crate::win::utf_to_unicode::Utf8ToUnicodeString;
+use crate::win::utils::InitializeObjectAttributes;
 
 #[derive(Default)]
 pub(crate) struct Plugin {
@@ -40,7 +39,7 @@ pub(crate) struct PluginObjectTable {
     pub open_processes: Vec<PEPROCESS>,
     pub open_threads: Vec<PETHREAD>,
     pub open_tokens: Vec<PACCESS_TOKEN>,
-    pub allocated_mdls: Vec<Box<MDL>>,
+    pub allocated_mdls: Vec<DangerPtr<MDL>>,
 }
 
 impl PluginObjectTable {
@@ -56,37 +55,34 @@ impl PluginObjectTable {
     ///
     /// ## Returns
     /// * [`MDL`] - Object
-    pub fn allocate_mdl(&mut self, ptr: PVOID, length: u32) -> &mut Box<MDL> {
+    pub fn allocate_mdl(&mut self, ptr: PVOID, length: u32) -> &DangerPtr<MDL> {
         // uses ExAllocatePool. so it's safe for us to wrap it in our Box.
         let mdl = unsafe {
-            Box::from_raw(IoAllocateMdl(
+            IoAllocateMdl(
                 ptr,
                 length,
                 FALSE as _,
                 FALSE as _,
                 PIRP::default(),
-            ))
+            )
         };
-        self.allocated_mdls.push(mdl);
+        self.allocated_mdls.push(DangerPtr {
+            ptr: mdl
+        });
 
-        self.allocated_mdls.last_mut().unwrap()
+        self.allocated_mdls.last().unwrap()
     }
 
-    ///
-    /// # Get Allocated MDL
-    ///
-    /// Gets an MDL opened by the plugin.
-    ///
-    /// ## Arguments
-    /// * `mapped_system_va` - [`MappedSystemVa`] field of the MDL object.
-    ///
-    /// ## Returns
-    /// * [`Some`] - MDL object.
-    /// * [`None`] - MDL was not found.
-    pub fn get_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<&mut Box<MDL>> {
-        self.allocated_mdls
-            .iter_mut()
-            .find(|m| m.MappedSystemVa as u64 == mapped_system_va)
+    pub fn add_open_process(&mut self, process: PEPROCESS) {
+        self.open_processes.push(process);
+    }
+
+    pub fn add_open_thread(&mut self, process: PETHREAD) {
+        self.open_threads.push(process);
+    }
+
+    pub fn add_open_token(&mut self, process: PACCESS_TOKEN) {
+        self.open_tokens.push(process);
     }
 
     ///
@@ -100,7 +96,7 @@ impl PluginObjectTable {
     /// ## Returns
     /// * [`Some`] - MDL object.
     /// * [`None`] - MDL was not found.
-    pub fn pop_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<Box<MDL>> {
+    pub fn pop_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<DangerPtr<MDL>> {
         if let Some(pos) = self
             .allocated_mdls
             .iter()
@@ -262,6 +258,23 @@ impl PluginObjectTable {
             Some(x) => Some(*x),
         }
     }
+
+    ///
+    /// # Get Allocated MDL
+    ///
+    /// Gets an MDL opened by the plugin.
+    ///
+    /// ## Arguments
+    /// * `mapped_system_va` - [`MappedSystemVa`] field of the MDL object.
+    ///
+    /// ## Returns
+    /// * [`Some`] - MDL object.
+    /// * [`None`] - MDL was not found.
+    pub fn get_allocated_mdl(&self, mapped_system_va: u64) -> Option<&DangerPtr<MDL>> {
+        self.allocated_mdls
+            .iter()
+            .find(|m| m.MappedSystemVa as u64 == mapped_system_va)
+    }
 }
 
 impl Plugin {
@@ -319,7 +332,7 @@ impl Plugin {
     /// * [`None`] - Plugin does not meet specifications.
     /// * [`Some`] - Ok.
     pub fn integrate(&mut self, process: PEPROCESS, permissions: PluginPermissions) -> Option<()> {
-        let kprocess = KernelProcess::from_ptr(process);
+        let kprocess = NtProcess::from_ptr(process);
 
         match unsafe {
             RtlCompareUnicodeString(
