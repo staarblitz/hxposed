@@ -131,7 +131,7 @@ Subtitle="{Binding Subtitle}" />
                                                 <ui:Button Margin="5" Content="Enable" Click="Button_Click"/>
                                                 <ui:Button Margin="5" Content="Disable" Click="Button_Click"/>
                                                 <ui:Button Margin="5" Content="Remove" Click="Button_Click"/>
-                                                <ui:Button Margin="5" Content="Visit URL" Click="Button_Click_1"/>
+                                                <ui:Anchor Margin="5" Icon="{ui:SymbolIcon Link24}" Content="Visit URL" NavigateUri="{Binding Url}"/>
                                             </StackPanel>
                                         </ui:CardControl>
                                     </StackPanel>
