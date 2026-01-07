@@ -26,5 +26,10 @@ namespace HxPosed.GUI.Pages
             InitializeComponent();
             DataContext = new DashboardViewModel();
         }
+
+        private void CardAction_Click(object sender, RoutedEventArgs e)
+        {
+            App.MainWindowNavigationView.Navigate(typeof(Install));
+        }
     }
 }
