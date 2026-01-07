@@ -314,7 +314,7 @@ pub(crate) fn open_thread_sync(request: &OpenThreadAsyncCommand) -> HypervisorRe
         }
         .into_raw(),
         ObjectOpenType::Hypervisor => {
-            plugin.object_table.open_threads.push(thread);
+            plugin.object_table.add_open_thread(thread);
             OpenObjectResponse { addr: thread as _ }.into_raw()
         }
     }
