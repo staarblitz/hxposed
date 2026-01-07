@@ -1,5 +1,6 @@
 use core::ops::{Deref, DerefMut};
 
+/// Purely for convenience. Unsafe. Must not be used if caller doesn't guarantee ptr is valid.
 pub struct DangerPtr<T> {
     pub ptr: *mut T,
 }
