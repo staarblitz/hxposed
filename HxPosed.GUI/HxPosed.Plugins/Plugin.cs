@@ -1,4 +1,5 @@
 ﻿using HxPosed.Plugins.Permissions;
+using HxPosed.Plugins.PInvoke;
 using Microsoft.Win32;
 
 namespace HxPosed.Plugins
