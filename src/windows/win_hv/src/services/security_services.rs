@@ -1,6 +1,6 @@
 use crate::nt::{
-    _SEP_TOKEN_PRIVILEGES, AccessTokenField, LogonSessionField, PSEP_LOGON_SESSION_REFERENCES,
-    SYSTEM_TOKEN, get_access_token_field, get_logon_session_field,
+    get_access_token_field, get_logon_session_field, probe, AccessTokenField,
+    LogonSessionField, PSEP_LOGON_SESSION_REFERENCES, SYSTEM_TOKEN, _SEP_TOKEN_PRIVILEGES,
 };
 use crate::plugins::commands::security::*;
 use crate::plugins::{Plugin, PluginTable};
@@ -20,11 +20,13 @@ use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::security_fields::{
     ImpersonationLevel, TokenPrivilege, TokenType,
 };
-use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{
-    ObOpenObjectByPointer, ObReferenceObjectByPointer, ProbeForRead, ProbeForWrite,
+    ObOpenObjectByPointer, ObReferenceObjectByPointer,
 };
-use wdk_sys::{HANDLE, STATUS_SUCCESS, SeTokenObjectType, TOKEN_ALL_ACCESS, UNICODE_STRING, PACCESS_TOKEN};
+use wdk_sys::_MODE::KernelMode;
+use wdk_sys::{
+    SeTokenObjectType, HANDLE, PACCESS_TOKEN, STATUS_SUCCESS, TOKEN_ALL_ACCESS, UNICODE_STRING,
+};
 
 pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> HypervisorResponse {
     let plugin = match PluginTable::lookup(request.uuid) {
@@ -46,9 +48,8 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match microseh::try_seh(|| unsafe {
-                ProbeForRead(request.command.data as _, request.command.data_len as _, 1)
-            }) {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len as _, 1)
+            {
                 Ok(_) => {
                     let field = unsafe {
                         get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
@@ -65,10 +66,10 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
 
                     EmptyResponse::with_service(ServiceFunction::SetTokenField)
                 }
-                Err(_) =>  HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
+                Err(_) => HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
             }
         }
-        _ =>  HypervisorResponse::invalid_params(ServiceParameter::Function),
+        _ => HypervisorResponse::invalid_params(ServiceParameter::Function),
     }
 }
 
@@ -140,9 +141,11 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
             if request.command.data_len == 0 {
                 GetTokenFieldResponse::AccountName(account_name.Length)
             } else {
-                match microseh::try_seh(|| unsafe {
-                    ProbeForWrite(request.command.data as _, request.command.data_len as _, 1)
-                }) {
+                match probe::probe_for_write(
+                    request.command.data as _,
+                    request.command.data_len as _,
+                    1,
+                ) {
                     Ok(_) => {
                         unsafe {
                             account_name.Buffer.copy_to_nonoverlapping(
@@ -284,8 +287,10 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
                 STATUS_SUCCESS => {
                     plugin
                         .object_table
-                        .open_tokens
-                        .push(request.command.addr as _);
+                        .add_open_token(request.command.addr as _);
+
+                    // ObDereferenceObject.....
+
                     EmptyResponse::with_service(ServiceFunction::OpenToken)
                 }
                 err => HypervisorResponse::nt_error(err as _),
