@@ -4,6 +4,9 @@ pub(crate) mod context;
 pub(crate) mod mdl;
 pub(crate) mod process;
 pub(crate) mod worker;
+pub(crate) mod thread;
+pub(crate) mod probe;
+pub mod cback;
 
 use crate::win::*;
 use core::ptr::null_mut;
@@ -34,7 +37,7 @@ pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 /// ## Return
 ///
 /// - No values returned. [`NT_BASE`] and [`NT_BUILD`] are changed accordingly.
-pub(crate) fn get_nt_info(custom: Option<u64>) {
+pub(crate) fn get_nt_info(custom: Option<u64>) -> Result<(), ()> {
     let build_number = {
         if let Some(build_number) = custom {
             build_number
@@ -46,6 +49,14 @@ pub(crate) fn get_nt_info(custom: Option<u64>) {
     };
 
     NT_BUILD.store(build_number as _, Ordering::Relaxed);
+
+    match build_number {
+        26200 => {},
+        _ => {
+            log::error!("HxPosed does not support your Windows version: {}", build_number);
+            return Err(());
+        }
+    }
 
     unsafe {
         NT_BASE.store(get_nt_base() as _, Ordering::Relaxed);
@@ -70,6 +81,8 @@ pub(crate) fn get_nt_info(custom: Option<u64>) {
             Ordering::Relaxed,
         )
     }
+
+    Ok(())
 }
 pub(crate) fn get_nt_base() -> PVOID {
     unsafe {
