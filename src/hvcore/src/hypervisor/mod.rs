@@ -13,7 +13,6 @@ pub mod panic;
 pub mod platform_ops;
 mod registers;
 mod segment;
-pub(crate) mod serial_logger;
 mod support;
 mod switch_stack;
 mod x86_instructions;
@@ -32,7 +31,6 @@ use crate::{GdtTss, PagingStructures, hypervisor::registers::Registers};
 /// Hyperjacks the current system by virtualizing all logical processors on this
 /// system.
 pub fn virtualize_system(shared_host: SharedHostData) {
-    serial_logger::init(log::LevelFilter::Trace);
     log::info!("Virtualizing the all processors");
 
     apic_id::init();
