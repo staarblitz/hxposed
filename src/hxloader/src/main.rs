@@ -25,7 +25,6 @@ pub static BL_IMG_ALLOCATE_IMAGE_BUFFER_DETOUR: Mutex<Detour<BlImgAllocateImageB
 pub static NT_DRIVER_ALLOCATION: AtomicPtr<u8> = AtomicPtr::new(core::ptr::null_mut());
 pub static EFI_DRIVER_ALLOCATION: AtomicPtr<u8> = AtomicPtr::new(core::ptr::null_mut());
 pub static EFI_DRIVER_SIZE: AtomicU64 = AtomicU64::new(0);
-
 #[entry]
 fn main() -> Status {
     uefi::helpers::init().unwrap();
@@ -33,15 +32,14 @@ fn main() -> Status {
         .base(0x3f8)
         .filter(log::LevelFilter::Trace)
         .setup();
-    log::set_max_level(log::LevelFilter::Trace);
 
-    let proto = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle()).unwrap();
+    {
+        let proto = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle()).unwrap();
 
-    log::info!("Welcome to HxLoader!");
-    log::info!("HxLoader's image base: {:x}", proto.info().0 as u64);
-    log::info!("HxLoader's image size: {:x}", proto.info().1);
-
-    drop(proto);
+        log::info!("Welcome to HxLoader!");
+        log::info!("HxLoader's image base: {:x}", proto.info().0 as u64);
+        log::info!("HxLoader's image size: {:x}", proto.info().1);
+    }
 
     // this is not critical.
     let _ = NtVars::disable_vbs();
