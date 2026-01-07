@@ -95,9 +95,7 @@ pub(crate) fn get_process_threads_sync(
     unsafe { ExReleasePushLockExclusiveEx(lock, 0) }
 
     if !request.command.data.is_null() {
-        match microseh::try_seh(|| unsafe {
-            ProbeForWrite(request.command.data as _, request.command.data_len as _, 1)
-        }) {
+        match probe::probe_for_write(request.command.data, request.command.data_len, 1) {
             Ok(_) => {}
             Err(_) => return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
         }
@@ -239,9 +237,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 get_eprocess_field::<ProcessProtection>(EProcessField::Protection, process)
             };
 
-            match microseh::try_seh(|| unsafe {
-                ProbeForRead(request.command.data as _, request.command.data_len as _, 1)
-            }) {
+            match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
                 Ok(_) => {
                     let new_field = unsafe { *(request.command.data as *mut ProcessProtection) };
 
@@ -261,9 +257,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 get_eprocess_field::<ProcessSignatureLevel>(EProcessField::SignatureLevels, process)
             };
 
-            match microseh::try_seh(|| unsafe {
-                ProbeForRead(request.command.data as _, request.command.data_len as _, 2)
-            }) {
+            match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
                 Ok(_) => {
                     let new_field =
                         unsafe { *(request.command.data as *mut ProcessSignatureLevel) };
@@ -279,9 +273,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match microseh::try_seh(|| unsafe {
-                ProbeForRead(request.command.data as _, request.command.data_len as _, 2)
-            }) {
+            match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
                 Ok(_) => {
                     let mitigations = unsafe { *(request.command.data as *mut MitigationOptions) };
 
@@ -412,9 +404,7 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
             if request.command.data_len == 0 {
                 GetProcessFieldResponse::NtPath(field.Length)
             } else {
-                match microseh::try_seh(|| unsafe {
-                    ProbeForWrite(request.command.data as _, request.command.data_len as _, 1)
-                }) {
+                match probe::probe_for_write(request.command.data as _, request.command.data_len as _, 1) {
                     Ok(_) => {
                         unsafe {
                             field.Buffer.copy_to_nonoverlapping(
@@ -526,9 +516,6 @@ pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> Hypervisor
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    unsafe {
-        asm!("mov r15, r14", in("r14") crate::win::NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed));
-    }
     match unsafe { PsTerminateProcess(process, request.command.exit_code as _) } {
         STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillProcess),
         err => HypervisorResponse::nt_error(err as _),
@@ -623,7 +610,7 @@ pub(crate) fn open_process_sync(request: &OpenProcessAsyncCommand) -> Hypervisor
         }
         .into_raw(),
         ObjectOpenType::Hypervisor => {
-            plugin.object_table.open_processes.push(process);
+            plugin.object_table.add_open_process(process);
 
             OpenObjectResponse { addr: process as _ }.into_raw()
         }
