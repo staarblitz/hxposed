@@ -50,6 +50,26 @@ use wdk_sys::{
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 static mut LOGGER: NtLogger = NtLogger::default();
 
+extern "C" fn delayed_start(arg: PVOID) {
+    // im very sorry
+
+    log::trace!("delayed_start");
+
+    let mut time = utils::timing::relative(utils::timing::seconds(20));
+
+    unsafe{
+        KeDelayExecutionThread(
+            KernelMode as _,
+            FALSE as _,
+            &mut time as *mut _ as _
+        )
+    };
+
+    log::info!("Delayed! Executing real entry!");
+
+    driver_entry(null_mut(), null_mut(), 0);
+}
+
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
 #[allow(static_mut_refs)]
@@ -75,16 +95,13 @@ extern "C" fn driver_entry(
         true => {
             log::info!("Loaded from HxLoader!");
             log::info!("Delaying startup....");
-            nt::get_nt_info(Some(26200));
+
+            NtThread::create(Some(delayed_start), None);
 
             return STATUS_SUCCESS;
         }
         false => {
-            com_logger::builder()
-                .base(0x3f8)
-                .filter(log::LevelFilter::Trace)
-                .setup();
-            match nt::get_nt_info(None) {
+            match nt::get_nt_info(Some(26200)) {
                 Ok(_) => {}
                 Err(_) => {
                     log::error!("System is not virtualized.");
