@@ -1,4 +1,10 @@
 #![allow(dead_code)]
+#![allow(non_snake_case)]
+#![allow(unused)]
+#![allow(non_camel_case_types)]
+
+pub(crate) mod utils;
+pub(crate) mod utf_to_unicode;
 
 use ::alloc::boxed::Box;
 use ::alloc::vec::Vec;
@@ -30,18 +36,17 @@ pub(crate) static NT_PS_SET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextTh
 pub(crate) static NT_PS_TERMINATE_THREAD: AtomicPtr<PsTerminateThreadType> =
     AtomicPtr::new(null_mut());
 
-#[allow(non_snake_case, unused)]
 pub(crate) unsafe extern "C" fn PsTerminateProcess(
     Process: PEPROCESS,
     ExitCode: NTSTATUS,
-) -> NTSTATUS { unsafe {
-    asm!("call _PsTerminateProcess",
-    "ret", in("rax") NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed), options(nomem, nostack, preserves_flags));
-
+) -> NTSTATUS {
+    unsafe {
+        asm!("call _PsTerminateProcess",
+        "ret", in("rax") NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed), options(nomem, nostack, preserves_flags));
+    }
     STATUS_SUCCESS // dummy
-}}
+}
 
-#[allow(non_snake_case, unused)]
 pub(crate) unsafe extern "C" fn PspTerminateThread(
     Thread: PETHREAD,
     ExitCode: NTSTATUS,
@@ -53,14 +58,12 @@ pub(crate) unsafe extern "C" fn PspTerminateThread(
     STATUS_SUCCESS // dummy
 }}
 
-#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn _PsTerminateProcess(Process: PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
     naked_asm!("jmp rax")
 }
 
-#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn _PspTerminateThread(
@@ -71,7 +74,6 @@ unsafe extern "C" fn _PspTerminateThread(
     naked_asm!("jmp rax")
 }
 
-#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 unsafe extern "C" fn _PspGetSetContextThreadInternal(
     Thread: PETHREAD,
@@ -83,7 +85,6 @@ unsafe extern "C" fn _PspGetSetContextThreadInternal(
     naked_asm!("jmp rax")
 }
 
-#[allow(non_snake_case, unused)]
 #[unsafe(naked)]
 unsafe extern "C" fn _PspSetSetContextThreadInternal(
     Thread: PETHREAD,
@@ -98,7 +99,6 @@ unsafe extern "C" fn _PspSetSetContextThreadInternal(
 pub(crate) const NT_CURRENT_PROCESS: HANDLE = -1 as _;
 
 #[unsafe(naked)]
-#[allow(non_snake_case)]
 pub unsafe extern "C" fn KeGetCurrentThread() -> PETHREAD {
     naked_asm!("mov rax, gs:[0x188]", "ret")
 }
@@ -107,7 +107,6 @@ pub unsafe extern "C" fn KeGetCurrentThread() -> PETHREAD {
 unsafe extern "C" {
     pub static PsLoadedModuleList: *mut _LDR_DATA_TABLE_ENTRY;
 
-    #[allow(non_snake_case)]
     pub fn ZwQuerySystemInformation(
         SystemInformationClass: SYSTEM_INFORMATION_CLASS,
         SystemInformation: PVOID,
@@ -115,7 +114,6 @@ unsafe extern "C" {
         ReturnLength: PULONG,
     ) -> NTSTATUS;
 
-    #[allow(non_snake_case)]
     pub fn MmCopyVirtualMemory(
         SourceProcess: PEPROCESS,
         SourceAddress: PVOID,
@@ -126,10 +124,8 @@ unsafe extern "C" {
         ReturnSize: PSIZE_T,
     ) -> NTSTATUS;
 
-    #[allow(non_snake_case)]
     pub fn ZwSuspendThread(ThreadHandle: HANDLE, PreviousSuspendCount: PULONG) -> NTSTATUS;
 
-    #[allow(non_snake_case)]
     pub fn ZwProtectVirtualMemory(
         ProcessHandle: HANDLE,
         BaseAddress: *mut PVOID,
@@ -138,24 +134,20 @@ unsafe extern "C" {
         OldProtection: PULONG,
     ) -> NTSTATUS;
 
-    #[allow(non_snake_case)]
     pub fn ZwResumeThread(Thread: HANDLE, PreviousSuspendCount: PULONG) -> NTSTATUS;
 
-    #[allow(non_snake_case)]
     pub fn PsSetContextThread(
         Thread: PETHREAD,
         Context: PCONTEXT,
         AccessMode: KPROCESSOR_MODE,
     ) -> NTSTATUS;
 
-    #[allow(non_snake_case)]
     pub fn PsGetContextThread(
         Thread: PETHREAD,
         Context: PCONTEXT,
         AccessMode: KPROCESSOR_MODE,
     ) -> NTSTATUS;
 
-    #[allow(non_snake_case)]
     pub fn RtlCreateUserThread(
         ProcessHandle: HANDLE,
         ThreadSecurityDescriptor: PSECURITY_DESCRIPTOR,
@@ -170,115 +162,7 @@ unsafe extern "C" {
     ) -> NTSTATUS;
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn RtlGetLoadedModuleByName(name: &str) -> Option<*mut _LDR_DATA_TABLE_ENTRY> { unsafe {
-    let mut unicoded = name.to_unicode_string();
-    let list = DangerPtr {
-        ptr: PsLoadedModuleList,
-    };
-
-    let head = &list.InLoadOrderLinks as *const LIST_ENTRY;
-    let mut current = (*head).Flink;
-
-    let mut return_value: Option<*mut _LDR_DATA_TABLE_ENTRY> = None;
-
-    while current.addr() != head.addr() {
-        let entry = &mut *(current as *mut _LDR_DATA_TABLE_ENTRY);
-
-        match RtlCompareUnicodeString(&entry.BaseDllName, unicoded.as_mut(), FALSE as _) {
-            0 => {
-                return_value = Some(current as *mut _LDR_DATA_TABLE_ENTRY);
-                break;
-            },
-            _ => {}
-        }
-
-        current = (*current).Flink;
-    }
-
-    return_value
-}}
-
-#[allow(non_snake_case)]
-pub unsafe fn _RtlDuplicateUnicodeString(
-    first: &mut UNICODE_STRING,
-    length: u16,
-) -> Box<UNICODE_STRING> {
-    let mut result = UNICODE_STRING::default();
-
-    result.Buffer = unsafe {
-        ExAllocatePool2(
-            POOL_FLAG_NON_PAGED,
-            (first.MaximumLength + length) as _,
-            0xFFF,
-        )
-    } as _;
-
-    if result.Buffer.is_null() {
-        panic!("Failed to allocate unicode string");
-    }
-
-    result.MaximumLength = first.MaximumLength + length;
-    result.Length = first.Length + length;
-
-    unsafe {
-        RtlCopyUnicodeString(&mut result, first);
-    }
-
-    Box::new(result)
-}
-
-#[inline]
-#[allow(non_snake_case)]
-pub unsafe fn InitializeObjectAttributes(
-    p: POBJECT_ATTRIBUTES,
-    n: PUNICODE_STRING,
-    a: ULONG,
-    r: HANDLE,
-    s: PVOID,
-) {
-    use core::mem::size_of;
-    unsafe {
-        (*p).Length = size_of::<OBJECT_ATTRIBUTES>() as ULONG;
-        (*p).RootDirectory = r;
-        (*p).Attributes = a;
-        (*p).ObjectName = n;
-        (*p).SecurityDescriptor = s;
-        (*p).SecurityQualityOfService = s;
-    }
-}
-
-#[allow(non_snake_case)]
-pub unsafe fn RtlBufferContainsBuffer(
-    Buffer1: *const c_void,
-    Buffer1Length: usize,
-    Buffer2: *const c_void,
-    Buffer2Length: usize,
-) -> bool {
-    if Buffer1Length < Buffer2Length + 1 {
-        return false;
-    }
-
-    for i in 0..(Buffer1Length - Buffer2Length + 1) {
-        let result = unsafe {
-            RtlCompareMemory(
-                (Buffer1 as *const u8).add(i) as *const c_void,
-                Buffer2,
-                Buffer2Length as _,
-            )
-        };
-
-        if result == Buffer2Length as u64 {
-            return true;
-        }
-    }
-
-    false
-}
-
 #[repr(C)]
-#[allow(non_snake_case)]
-#[allow(non_camel_case_types)]
 pub struct _LDR_DATA_TABLE_ENTRY {
     pub InLoadOrderLinks: LIST_ENTRY,
     pub InMemoryOrderLinks: LIST_ENTRY,
@@ -295,7 +179,6 @@ pub struct _LDR_DATA_TABLE_ENTRY {
     pub TimeDateStamp: ULONG,
 }
 
-#[allow(non_camel_case_types)]
 #[repr(u32)]
 pub enum SYSTEM_INFORMATION_CLASS {
     SystemBasicInformation,                                 // q: SYSTEM_BASIC_INFORMATION
@@ -555,39 +438,4 @@ pub enum SYSTEM_INFORMATION_CLASS {
     SystemRuntimeAttestationReport,                         // q: // since 26H1
     SystemPoolTagInformation2,                              // q: SYSTEM_POOLTAG_INFORMATION2
     MaxSystemInfoClass
-}
-
-pub trait Utf8ToUnicodeString {
-    fn to_unicode_string(&self) -> Box<UNICODE_STRING>;
-}
-
-impl Utf8ToUnicodeString for str {
-    ///
-    /// # To Unicode String
-    ///
-    /// Allocates a new UNICODE_STRING on heap. Does weird stuff that takes null termination into consideration.
-    ///
-    /// ## Return
-    /// [Box] containing [UNICODE_STRING].
-    fn to_unicode_string(&self) -> Box<UNICODE_STRING> {
-        let mut str = UTF8_STRING::default();
-        let mut ustr = UNICODE_STRING::default();
-
-        // +1 for null terminator since the self might NOT be null terminated. you would never know ;)
-        let mut vec = Vec::<u8>::with_capacity(self.chars().count());
-
-        unsafe {
-            vec.set_len(self.len());
-            core::ptr::copy(self.as_ptr(), vec.as_mut_ptr(), self.chars().count());
-        }
-
-        // !
-        vec.push(0);
-
-        unsafe {
-            RtlInitUTF8String(&mut str, vec.as_ptr() as _);
-            let _ = RtlUTF8StringToUnicodeString(&mut ustr, &mut str, TRUE as _);
-        }
-        Box::new(ustr)
-    }
 }
