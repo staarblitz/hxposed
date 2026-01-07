@@ -5,10 +5,8 @@ use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use uuid::Uuid;
-use wdk_sys::PEPROCESS;
 
 pub struct RWProcessMemoryAsyncCommand {
-    pub process: PEPROCESS,
     pub uuid: Uuid,
     pub command: RWProcessMemoryRequest,
     pub async_info: UnsafeAsyncInfo,
