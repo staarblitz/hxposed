@@ -5,7 +5,7 @@ using System.Text;
 
 namespace HxPosed.Core.Exceptions
 {
-    [StructLayout(LayoutKind.Sequential, Pack =1)]
+    [StructLayout(LayoutKind.Sequential)]
     public struct HypervisorError
     {
         public ErrorSource Source;
@@ -21,14 +21,14 @@ namespace HxPosed.Core.Exceptions
     }
 
 
-    public enum ErrorSource : ushort
+    public enum ErrorSource : uint
     {
         Nt = 0,
         Hv = 1,
         Hx = 2,
     }
 
-    public enum ErrorCode: ushort
+    public enum ErrorCode : ushort
     {
         Unknown = 0,
         Ok = 1,
