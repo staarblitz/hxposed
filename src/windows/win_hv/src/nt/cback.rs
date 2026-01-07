@@ -1,11 +1,12 @@
-use crate::nt::process::KernelProcess;
+use crate::nt::process::NtProcess;
 use crate::utils::alloc::PoolAllocSized;
-use crate::win::{_RtlDuplicateUnicodeString, Utf8ToUnicodeString, RtlBufferContainsBuffer};
 use core::sync::atomic::Ordering;
 use wdk::println;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::*;
 use wdk_sys::*;
+use crate::win::utf_to_unicode::Utf8ToUnicodeString;
+use crate::win::utils::{RtlBufferContainsBuffer, _RtlDuplicateUnicodeString};
 
 ///
 /// # Registry Callback (work in progress)
@@ -53,6 +54,7 @@ pub(crate) extern "C" fn registry_callback(
 
             let mut alloc = OBJECT_NAME_INFORMATION::alloc_sized(ret_len as _);
 
+            // get full registry path
             let status = unsafe {
                 ObQueryNameString(op_info.RootObject, alloc.as_mut(), ret_len, &mut ret_len)
             };
@@ -61,6 +63,8 @@ pub(crate) extern "C" fn registry_callback(
                 println!("Failed to query object name");
                 return STATUS_SUCCESS;
             }
+
+            // UNICODE_STRING boilerplate to get absolute path for the registry notification
 
             let mut dup = unsafe { _RtlDuplicateUnicodeString(&mut alloc.as_mut().Name, 256) };
 
@@ -71,6 +75,7 @@ pub(crate) extern "C" fn registry_callback(
 
             let path = "SOFTWARE\\HxPosed".to_unicode_string();
 
+            // RtlCompareUnicodeString won't work, because "target" is inside "source", but unknown where.
             let result = unsafe {
                 RtlBufferContainsBuffer(
                     dup.as_ref().Buffer as _,
@@ -84,7 +89,7 @@ pub(crate) extern "C" fn registry_callback(
                 return STATUS_SUCCESS;
             }
 
-            let process = KernelProcess::current();
+            let process = NtProcess::current();
 
             // we need to convert this to a DOS path. Otherwise, it will be vulnerable to attacks from other drives. like F:\Program Files\\HxPosed\\HxPosed.GUI.exe
             let path = "HxPosed.GUI.exe"
