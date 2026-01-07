@@ -1,0 +1,51 @@
+﻿<Page x:Class="HxPosed.GUI.Pages.Install"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:HxPosed.GUI.Pages"
+      xmlns:ctrls="clr-namespace:HxPosed.GUI.Controls"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      mc:Ignorable="d" 
+      d:DesignHeight="450" d:DesignWidth="800"
+      Title="Install">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="150"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <ui:SymbolIcon FontSize="80" Foreground="{ui:ThemeResource TextFillColorPrimaryBrush}" Symbol="{Binding Icon}"/>
+            <Grid Grid.Column="1">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <ui:TextBlock FontTypography="Title" Appearance="Secondary" Text="{Binding StatusText}"/>
+                    <ui:TextBlock FontTypography="Subtitle" Appearance="Tertiary" Text="{Binding DescriptorText}"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+        <Grid Grid.Row="1">
+            <StackPanel Margin="20">
+                <ui:InfoBar Title="UEFI Support" Content="Message" IsOpen="True" Message="HxLoader only supports UEFI systems." IsClosable="False" Severity="{Binding UefiSeverity}"/>
+                <ui:InfoBar Title="Secure Boot" Content="Message" IsOpen="True" Message="Secure boot must be disabled for HxLoader to work." IsClosable="False" Severity="{Binding SecureBootSeverity}"/>
+                <ui:InfoBar Title="Windows Version" Content="Message" IsOpen="True" Message="HxPosed only supports 25H2 or above." IsClosable="False" Severity="{Binding WindowsSeverity}"/>
+                <ui:InfoBar Title="Virtualization Extensions" Content="Message" IsOpen="True" Message="HxPosed requires CPUs with VTx/SVM support." IsClosable="False" Severity="{Binding VTxSeverity}"/>
+                <ui:InfoBar Title="Admin Privileges" Content="Message" IsOpen="True" Message="HxPosed needs to be run as admin for installation." IsClosable="False" Severity="{Binding AdminPrivilegesSeverity}"/>
+                <Grid HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="160"/>
+                    </Grid.ColumnDefinitions>
+                    <ProgressBar IsIndeterminate="True" Visibility="{Binding ProgressBarVisibility}"></ProgressBar>
+                    <ui:Button Grid.Column="1" x:Name="btnInstall" Click="Button_Click" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="5" Appearance="Primary" Icon="{ui:SymbolIcon WindowDevTools24}" IsEnabled="{Binding CanInstall}">Install HxPosed</ui:Button>
+                </Grid>
+                
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
