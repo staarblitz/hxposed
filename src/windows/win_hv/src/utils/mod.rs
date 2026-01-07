@@ -6,3 +6,4 @@ pub(crate) mod macros;
 pub(crate) mod alloc;
 pub(crate) mod scanner;
 pub(crate) mod logger;
+mod sehptr;
