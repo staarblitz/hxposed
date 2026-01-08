@@ -11,7 +11,7 @@ namespace HxPosed.Core.Uefi
     public class BootOrder
     {
         /// <summary>
-        /// Sets boot order. The first item in the enumerable is the first item to be shown.
+        /// Sets boot order. The first item in the enumerable is the first item to be shown. In <b>HEX</b>
         /// </summary>
         /// <param name="newOrder">New order</param>
         /// <exception cref="Win32Exception"><see cref="Variables.SetFirmwareEnvironmentVariableEx(string, string, nint, uint, uint)" Fails/></exception>
