@@ -45,7 +45,7 @@ namespace HxPosed.Core.Uefi
             writer.Write(pathBytes);
 
             writer.Write(description.ToCharArray());
-            writer.Write((ushort)0);
+            writer.Write((ushort)0); // null terminate
 
             foreach (var p in list)
             {
