@@ -61,40 +61,7 @@ namespace HxPosed.GUI.Pages
             {
                 SetInstallStatus(false, "Installing...", Visibility.Visible, SymbolRegular.ArrowAutofitDown24, "Installing HxPosed...", "Hold tight...");
 
-            reshow:
-                switch (await App.ContentDialogService.ShowSimpleDialogAsync(new Wpf.Ui.SimpleContentDialogCreateOptions
-                {
-                    CloseButtonText = "Cancel Installation",
-                    Content = "Follow this guide to mount the UEFI partition. Click 'Ok' when done.\nhttps://github.com/staarblitz/hxposed/wiki/Automated-Setup",
-                    PrimaryButtonText = "Done!",
-                    SecondaryButtonText = "Open Link",
-                    Title = "HxPosed Installer"
-                }))
-                {
-                    case ContentDialogResult.Primary:
-
-                        if (!Directory.EnumerateDirectories("U:\\").Contains("U:\\EFI"))
-                        {
-                            await App.ContentDialogService.ShowSimpleDialogAsync(new Wpf.Ui.SimpleContentDialogCreateOptions
-                            {
-                                CloseButtonText = "Ok",
-                                Title = "HxPosed Installer",
-                                Content = "Could not find EFI directory for the given mount."
-                            });
-                            SetInstallStatus(false, "Install", Visibility.Hidden, SymbolRegular.Prohibited24, "Installation Failed", "Something went wrong.");
-                        }
-                        break;
-                    case ContentDialogResult.Secondary:
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = "https://github.com/staarblitz/hxposed/wiki/Automated-Setup",
-                            UseShellExecute = true, // required for newer .NET versions.
-                        });
-                        goto reshow;
-                    case ContentDialogResult.None:
-                        SetInstallStatus(true, "Install", Visibility.Hidden, SymbolRegular.Prohibited24, "Installation Failed", "Something went wrong.");
-                        return;
-                }
+                Partition.MountEfiPartition("U:");
 
                 _ctx.DescriptorText = "Downloading HxPosed....";
                 using var httpClient = new HttpClient();
@@ -117,7 +84,7 @@ namespace HxPosed.GUI.Pages
 
                 if ((entry = archive.GetEntry("hxloader.efi")) is not null)
                     await ExtractToFile(entry, "U:\\HxLoader.efi");
-                else throw new NullReferenceException("Package is corrupted. HxLoader.efi is not found!");
+                else throw new BadImageFormatException("Package is corrupted. HxLoader.efi is not found!");
 
                 if ((entry = archive.GetEntry("win_hv.sys")) is not null)
                 {
@@ -126,7 +93,7 @@ namespace HxPosed.GUI.Pages
 
                     await ExtractToFile(entry, "U:\\EFI\\Staarblitz\\HxPosed.sys");
                 }
-                else throw new NullReferenceException("Package is corrupted. win_hv.sys is not found!");
+                else throw new BadImageFormatException("Package is corrupted. win_hv.sys is not found!");
 
                 _ctx.DescriptorText = "Adjusting your system settings...";
 
@@ -185,6 +152,9 @@ namespace HxPosed.GUI.Pages
                     SetInstallStatus(true, "Install", Visibility.Hidden, SymbolRegular.Prohibited24, "Installation Failed", "Something went wrong.");
                 else
                     SetInstallStatus(true, "Reboot!", Visibility.Hidden, SymbolRegular.Checkmark24, "All good!", "Restart your computer. Choose HxLoader from boot options. Have fun!");
+
+                // goodbye
+                Partition.DismountEfiPartition();
             }
 
         }
