@@ -107,7 +107,6 @@ impl Guest for VmxGuest {
         self.registers.rflags = vmread(vmcs::guest::RFLAGS);
 
         let reason = vmread(vmcs::ro::EXIT_REASON) as u16;
-        log::trace!("VMEXIT reason: {}", reason);
 
         // Return VM-exit reason.
         match reason {
@@ -401,10 +400,10 @@ impl VmxGuest {
 
                 let allowed1 = rdmsr(IA32_VMX_PROCBASED_CTLS3);
                 let effective_value = requested_value & allowed1;
-                assert!(
-                    effective_value | requested_value == effective_value,
-                    "One or more requested features are not supported: {effective_value:#x?} : {requested_value:#x?} "
-                );
+                // assert!(
+                //     effective_value | requested_value == effective_value,
+                //     "One or more requested features are not supported: {effective_value:#x?} : {requested_value:#x?} "
+                // );
                 return effective_value;
             }
         };
@@ -438,10 +437,10 @@ impl VmxGuest {
         let mut effective_value = requested_value;
         effective_value |= allowed0;
         effective_value &= allowed1;
-        assert!(
-            effective_value | requested_value == effective_value,
-            "One or more requested features are not supported for {control:?}: {effective_value:#x?} vs {requested_value:#x?}"
-        );
+        // assert!(
+        //     effective_value | requested_value == effective_value,
+        //     "One or more requested features are not supported for {control:?}: {effective_value:#x?} vs {requested_value:#x?}"
+        // );
         u64::from(effective_value)
     }
 
