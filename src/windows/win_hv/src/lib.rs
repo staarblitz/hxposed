@@ -41,11 +41,8 @@ use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk_alloc::WdkAllocator;
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{CmRegisterCallback, KeBugCheckEx, KeDelayExecutionThread};
-use wdk_sys::{
-    BOOLEAN, DRIVER_OBJECT, FALSE, LARGE_INTEGER, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS,
-    STATUS_TOO_LATE,
-};
+use wdk_sys::ntddk::{CmRegisterCallback, ExAllocatePool2, KeBugCheckEx, KeDelayExecutionThread};
+use wdk_sys::{BOOLEAN, DRIVER_OBJECT, FALSE, LARGE_INTEGER, NTSTATUS, POOL_FLAG_NON_PAGED, PUNICODE_STRING, PVOID, STATUS_SUCCESS, STATUS_TOO_LATE};
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 static mut LOGGER: NtLogger = NtLogger::default();
@@ -57,7 +54,7 @@ extern "C" fn delayed_start(arg: PVOID) {
 
     let mut time = utils::timing::relative(utils::timing::seconds(20));
 
-    unsafe{
+    let _ = unsafe{
         KeDelayExecutionThread(
             KernelMode as _,
             FALSE as _,
@@ -83,7 +80,8 @@ extern "C" fn driver_entry(
         if !LOGGER.is_init {
             LOGGER.init();
 
-            log::set_logger(&LOGGER).unwrap();
+            //log::set_logger_force(|| &LOGGER);
+            let _ = log::set_logger(&LOGGER);
             log::set_max_level(log::LevelFilter::Trace);
         }
     }
@@ -123,27 +121,11 @@ extern "C" fn driver_entry(
 
     log::info!("Allocating memory for the hypervisor...");
 
-    let mut hv_mem = MemoryDescriptor::new(hv::allocator::ALLOCATION_BYTES);
-    hv_mem.map(None);
-
-    let ptr = match hv_mem.status {
-        MapStatus::Mapped(ptr) => ptr,
-        MapStatus::Allocated => {
-            log::error!("Failed to allocate memory for hypervisor.");
-            panic!();
-        }
-        MapStatus::NotInitialized => unreachable!(),
+    let mem = unsafe {
+        ExAllocatePool2(POOL_FLAG_NON_PAGED, hv::allocator::ALLOCATION_BYTES as _, 0x2009)
     };
 
-    log::info!(
-        "Allocated {:x} bytes and mapped to {:x}",
-        hv_mem.length,
-        ptr
-    );
-
-    hv::allocator::init(ptr as _);
-
-    mem::forget(hv_mem); // this memory should not be dropped. it will live as long as the system does
+    hv::allocator::init(mem as _);
 
     hv::platform_ops::init(Box::new(ops::WindowsOps));
 
