@@ -7,15 +7,7 @@ use crate::services::async_service::AsyncInfo;
 use core::arch::asm;
 use core::arch::x86_64::_mm_load_si128;
 use core::ops::BitAnd;
-use core::sync::atomic::Ordering;
 
-// my dear Rust, you are beautiful. but also so annoying.
-fn u128_to_sliced(value: u128) -> [i64; 2] {
-    [
-        value.bitand(u64::MAX as u128) as u64 as i64,
-        (value >> 64) as u64 as i64,
-    ]
-}
 
 pub fn vmcall_typed<R: VmcallRequest>(
     req: R,
@@ -24,8 +16,6 @@ pub fn vmcall_typed<R: VmcallRequest>(
     let raw_resp = vmcall(req.into_raw(), async_info);
     R::Response::from_raw(raw_resp)
 }
-
-
 
 pub(crate) fn vmcall(
     request: *mut HypervisorRequest,
