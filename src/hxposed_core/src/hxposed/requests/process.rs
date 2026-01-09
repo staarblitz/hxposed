@@ -6,6 +6,7 @@ use crate::services::types::memory_fields::MemoryProtection;
 use crate::services::types::process_fields::*;
 use alloc::boxed::Box;
 use core::mem;
+use crate::hxposed::ProcessObject;
 
 #[derive(Clone, Default, Debug)]
 pub struct OpenProcessRequest {
@@ -15,19 +16,19 @@ pub struct OpenProcessRequest {
 
 #[derive(Clone, Default, Debug)]
 pub struct CloseProcessRequest {
-    pub addr: u64,
+    pub process: ProcessObject,
     pub open_type: ObjectOpenType,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct KillProcessRequest {
-    pub addr: u64,
+    pub process: ProcessObject,
     pub exit_code: u32,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct GetProcessFieldRequest {
-    pub addr: u64,
+    pub process: ProcessObject,
     pub field: ProcessField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -35,7 +36,7 @@ pub struct GetProcessFieldRequest {
 
 #[derive(Default, Debug)]
 pub struct SetProcessFieldRequest {
-    pub addr: u64,
+    pub process: ProcessObject,
     pub field: ProcessField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -44,7 +45,7 @@ pub struct SetProcessFieldRequest {
 ///TODO: Maybe merge with [GetProcessFieldRequest]?
 #[derive(Default, Debug)]
 pub struct GetProcessThreadsRequest {
-    pub addr: u64,
+    pub process: ProcessObject,
     pub data: *mut u8,
     pub data_len: usize,
 }
@@ -55,7 +56,7 @@ impl VmcallRequest for GetProcessThreadsRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_process_threads(),
-            arg1: self.addr as _,
+            arg1: self.process as _,
             arg2: self.data as _,
             arg3: self.data_len as _,
 
@@ -69,7 +70,7 @@ impl VmcallRequest for GetProcessThreadsRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            process: request.arg1 as _,
             data: request.arg2 as _,
             data_len: request.arg3 as _,
         }
@@ -109,7 +110,7 @@ impl VmcallRequest for CloseProcessRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::close_process(),
-            arg1: self.addr.clone() as _,
+            arg1: self.process.clone() as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
         });
@@ -121,7 +122,7 @@ impl VmcallRequest for CloseProcessRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            process: request.arg1 as _,
             open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }
@@ -133,7 +134,7 @@ impl VmcallRequest for KillProcessRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::kill_process(),
-            arg1: self.addr as _,
+            arg1: self.process as _,
             arg2: self.exit_code as _,
             ..Default::default()
         });
@@ -145,7 +146,7 @@ impl VmcallRequest for KillProcessRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            process: request.arg1 as _,
             exit_code: request.arg2 as _,
         }
     }
@@ -157,7 +158,7 @@ impl VmcallRequest for GetProcessFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_process_field(),
-            arg1: self.addr as _,
+            arg1: self.process as _,
             arg2: self.field.clone() as _,
 
             extended_arg1: self.data as _,
@@ -172,7 +173,7 @@ impl VmcallRequest for GetProcessFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            process: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as *mut u8,
             data_len: request.extended_arg2 as _,
@@ -186,7 +187,7 @@ impl VmcallRequest for SetProcessFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::set_process_field(),
-            arg1: self.addr as _,
+            arg1: self.process as _,
             arg2: self.field.clone() as _,
 
             extended_arg1: self.data as _,
@@ -202,7 +203,7 @@ impl VmcallRequest for SetProcessFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            process: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as _,
             data_len: request.extended_arg2 as _,
@@ -213,7 +214,7 @@ impl VmcallRequest for SetProcessFieldRequest {
 impl SetProcessFieldRequest {
     pub(crate) fn set_protection(addr: u64, new_protection: &mut ProcessProtection) -> Self {
         Self {
-            addr,
+            process: addr,
             field: ProcessField::Protection,
             data: new_protection as *mut _ as _,
             data_len: size_of::<ProcessProtection>(), // 1 byte
@@ -222,7 +223,7 @@ impl SetProcessFieldRequest {
 
     pub(crate) fn set_signature_levels(addr: u64, new_levels: &mut ProcessSignatureLevels) -> Self {
         Self {
-            addr,
+            process: addr,
             field: ProcessField::Signers,
             data: new_levels as *mut _ as _,
             data_len: size_of::<ProcessSignatureLevels>(),
@@ -231,7 +232,7 @@ impl SetProcessFieldRequest {
 
     pub(crate) fn set_mitigation_options(addr: u64, new_options: &mut MitigationOptions) -> Self {
         Self {
-            addr,
+            process: addr,
             field: ProcessField::MitigationFlags,
             data: new_options as *mut _ as _,
             data_len: size_of::<MitigationOptions>(),

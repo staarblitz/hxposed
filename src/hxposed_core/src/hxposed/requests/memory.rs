@@ -5,10 +5,11 @@ use crate::hxposed::responses::memory::*;
 use crate::services::types::memory_fields::{MemoryPool, MemoryProtection};
 use alloc::boxed::Box;
 use core::mem;
+use crate::hxposed::ProcessObject;
 
 #[derive(Default, Debug)]
 pub struct RWProcessMemoryRequest {
-    pub process: u64,
+    pub process: ProcessObject,
     pub address: *mut u8,
     pub count: usize,
     pub data: *mut u8,
@@ -18,7 +19,7 @@ pub struct RWProcessMemoryRequest {
 
 #[derive(Default, Debug)]
 pub struct ProtectProcessMemoryRequest {
-    pub process: u64,
+    pub process: ProcessObject,
     pub address: *mut u8,
     pub protection: MemoryProtection,
 }
@@ -35,7 +36,7 @@ pub struct MapMemoryRequest {
     pub original_system_va: u64,
     pub map_address: u64,
     pub operation: MapMemoryOperation,
-    pub process: u64
+    pub process: ProcessObject,
 }
 
 #[derive(Default, Debug)]

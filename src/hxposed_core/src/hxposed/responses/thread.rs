@@ -1,7 +1,6 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
-use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
 #[derive(Clone, Debug, Default)]
@@ -9,13 +8,28 @@ pub struct SuspendThreadResponse {
     pub previous_count: u32,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 #[repr(u16)]
 pub enum GetThreadFieldResponse {
-    #[default]
-    Unknown = 0,
     ActiveImpersonationInfo(bool) = 1,
     AdjustedClientToken(u64) = 2,
+}
+
+impl GetThreadFieldResponse {
+    pub fn into_raw_enum(self) -> (u64, u64) {
+        match self {
+            GetThreadFieldResponse::ActiveImpersonationInfo(info) => (0, info as u64),
+            GetThreadFieldResponse::AdjustedClientToken(token) => (1, token),
+        }
+    }
+
+    pub fn from_raw_enum(object: u64, value: u64) -> Self {
+        match object {
+            0 => GetThreadFieldResponse::ActiveImpersonationInfo(value == 1),
+            1 => GetThreadFieldResponse::AdjustedClientToken(value),
+            _ => panic!("Invalid object id: {}", object),
+        }
+    }
 }
 
 impl VmcallResponse for GetThreadFieldResponse {
@@ -24,24 +38,16 @@ impl VmcallResponse for GetThreadFieldResponse {
             return Err(HypervisorError::from_response(raw));
         }
 
-        Ok(match raw.arg1 {
-            1 => Self::ActiveImpersonationInfo(raw.arg2 == 1),
-            _ => unreachable!("Developer forgot to implement this one."),
-        })
+        Ok(GetThreadFieldResponse::from_raw_enum(raw.arg1, raw.arg2))
     }
 
     fn into_raw(self) -> HypervisorResponse {
-        let (arg1, arg2, arg3) = match self {
-            Self::ActiveImpersonationInfo(arg) => (1, arg as u64, 0),
-            Self::AdjustedClientToken(arg) => (2, arg, 0),
-            Self::Unknown => unreachable!(), // didn't use _ => on purpose, so I never forget implementing new ones
-        };
-
+        let args = self.into_raw_enum();
         HypervisorResponse {
             result: HypervisorResult::ok(ServiceFunction::GetThreadField),
-            arg1,
-            arg2,
-            arg3,
+            arg1: args.0,
+            arg2: args.1,
+            arg3: 0,
         }
     }
 }

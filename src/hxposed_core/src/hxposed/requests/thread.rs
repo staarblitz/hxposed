@@ -5,6 +5,8 @@ use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::thread::*;
 use alloc::boxed::Box;
 use core::mem;
+use crate::hxposed::ThreadObject;
+
 #[derive(Clone, Default, Debug)]
 pub struct OpenThreadRequest {
     pub pid: u32,
@@ -14,25 +16,25 @@ pub struct OpenThreadRequest {
 
 #[derive(Clone, Default, Debug)]
 pub struct CloseThreadRequest {
-    pub addr: u64,
+    pub thread: ThreadObject,
     pub open_type: ObjectOpenType,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct SuspendResumeThreadRequest {
-    pub addr: u64,
+    pub thread: ThreadObject,
     pub operation: SuspendResumeThreadOperation,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct KillThreadRequest {
-    pub addr: u64,
+    pub thread: ThreadObject,
     pub exit_code: u32,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct GetSetThreadContextRequest {
-    pub addr: u64,
+    pub thread: ThreadObject,
     pub operation: ThreadContextOperation,
     pub data: *mut u8,
     pub data_len: usize,
@@ -40,7 +42,7 @@ pub struct GetSetThreadContextRequest {
 
 #[derive(Default, Debug, Clone)]
 pub struct GetThreadFieldRequest {
-    pub addr: u64,
+    pub thread: ThreadObject,
     pub field: ThreadField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -48,7 +50,7 @@ pub struct GetThreadFieldRequest {
 
 #[derive(Default, Debug)]
 pub struct SetThreadFieldRequest {
-    pub addr: u64,
+    pub thread: ThreadObject,
     pub field: ThreadField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -60,7 +62,7 @@ impl VmcallRequest for GetThreadFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_thread_field(),
-            arg1: self.addr as _,
+            arg1: self.thread as _,
             arg2: self.field.clone() as _,
 
             extended_arg1: self.data as _,
@@ -75,7 +77,7 @@ impl VmcallRequest for GetThreadFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            thread: request.arg1 as _,
             field: ThreadField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as *mut u8,
             data_len: request.extended_arg2 as _,
@@ -89,7 +91,7 @@ impl VmcallRequest for SetThreadFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::set_thread_field(),
-            arg1: self.addr as _,
+            arg1: self.thread as _,
             arg2: self.field.clone() as _,
 
             extended_arg1: self.data as _,
@@ -105,7 +107,7 @@ impl VmcallRequest for SetThreadFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            thread: request.arg1 as _,
             field: ThreadField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as _,
             data_len: request.extended_arg2 as _,
@@ -119,7 +121,7 @@ impl VmcallRequest for GetSetThreadContextRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_set_thread_context(),
-            arg1: self.addr as _,
+            arg1: self.thread as _,
             arg2: self.operation.clone().into_bits() as _,
 
             extended_arg1: self.data as _,
@@ -135,7 +137,7 @@ impl VmcallRequest for GetSetThreadContextRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            thread: request.arg1 as _,
             operation: ThreadContextOperation::from_bits(request.arg2 as _),
             data: request.extended_arg1 as _,
             data_len: request.extended_arg2 as _,
@@ -149,7 +151,7 @@ impl VmcallRequest for KillThreadRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::kill_thread(),
-            arg1: self.addr as _,
+            arg1: self.thread as _,
             arg2: self.exit_code as _,
 
             ..Default::default()
@@ -162,7 +164,7 @@ impl VmcallRequest for KillThreadRequest {
 
     fn from_raw(raw: &HypervisorRequest) -> Self {
         Self {
-            addr: raw.arg1 as _,
+            thread: raw.arg1 as _,
             exit_code: raw.arg2 as _,
         }
     }
@@ -174,7 +176,7 @@ impl VmcallRequest for SuspendResumeThreadRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::suspend_resume_thread(),
-            arg1: self.addr as _,
+            arg1: self.thread as _,
             arg2: self.operation.clone().into_bits() as _,
 
             ..Default::default()
@@ -187,7 +189,7 @@ impl VmcallRequest for SuspendResumeThreadRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            thread: request.arg1 as _,
             operation: SuspendResumeThreadOperation::from_bits(request.arg2 as _),
         }
     }
@@ -199,7 +201,7 @@ impl VmcallRequest for CloseThreadRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::close_thread(),
-            arg1: self.addr.clone() as _,
+            arg1: self.thread.clone() as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
         });
@@ -211,7 +213,7 @@ impl VmcallRequest for CloseThreadRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1 as _,
+            thread: request.arg1 as _,
             open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }

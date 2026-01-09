@@ -6,19 +6,20 @@ use crate::hxposed::responses::security::*;
 use crate::services::types::security_fields::TokenPrivilege;
 use alloc::boxed::Box;
 use core::mem;
+use crate::hxposed::TokenObject;
 
 pub struct OpenTokenRequest {
-    pub addr: u64,
+    pub token: TokenObject,
     pub open_type: ObjectOpenType,
 }
 
 pub struct CloseTokenRequest {
-    pub addr: u64,
+    pub token: TokenObject,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct GetTokenFieldRequest {
-    pub addr: u64,
+    pub token: TokenObject,
     pub field: TokenField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -26,7 +27,7 @@ pub struct GetTokenFieldRequest {
 
 #[derive(Debug, Default, Clone)]
 pub struct SetTokenFieldRequest {
-    pub addr: u64,
+    pub token: TokenObject,
     pub field: TokenField,
     pub data: *mut u8,
     pub data_len: usize,
@@ -35,7 +36,7 @@ pub struct SetTokenFieldRequest {
 impl SetTokenFieldRequest {
     pub(crate) fn set_enabled_privileges(addr: u64, new_privileges: &mut TokenPrivilege) -> Self {
         Self {
-            addr,
+            token: addr,
             field: TokenField::EnabledPrivileges,
             data: new_privileges as *mut _ as _,
             data_len: size_of::<TokenPrivilege>(),
@@ -49,7 +50,7 @@ impl VmcallRequest for SetTokenFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::set_token_field(),
-            arg1: self.addr,
+            arg1: self.token,
             arg2: self.field.clone().into_bits() as _,
 
             extended_arg1: self.data as _,
@@ -65,7 +66,7 @@ impl VmcallRequest for SetTokenFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1,
+            token: request.arg1,
             field: TokenField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as _,
             data_len: request.extended_arg2 as _,
@@ -79,7 +80,7 @@ impl VmcallRequest for GetTokenFieldRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::get_token_field(),
-            arg1: self.addr,
+            arg1: self.token,
             arg2: self.field.clone().into_bits() as _,
 
             extended_arg1: self.data as _,
@@ -95,7 +96,7 @@ impl VmcallRequest for GetTokenFieldRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1,
+            token: request.arg1,
             field: TokenField::from_bits(request.arg2 as _),
             data: request.extended_arg1 as _,
             data_len: request.extended_arg2 as _,
@@ -109,7 +110,7 @@ impl VmcallRequest for CloseTokenRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::close_token(),
-            arg1: self.addr,
+            arg1: self.token,
 
             ..Default::default()
         });
@@ -120,7 +121,7 @@ impl VmcallRequest for CloseTokenRequest {
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
-        Self { addr: request.arg1 }
+        Self { token: request.arg1 }
     }
 }
 
@@ -130,7 +131,7 @@ impl VmcallRequest for OpenTokenRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::open_token(),
-            arg1: self.addr,
+            arg1: self.token,
             arg2: self.open_type.clone().to_bits() as _,
 
             ..Default::default()
@@ -143,7 +144,7 @@ impl VmcallRequest for OpenTokenRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr: request.arg1,
+            token: request.arg1,
             open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }

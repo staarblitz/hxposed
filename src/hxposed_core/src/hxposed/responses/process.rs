@@ -3,16 +3,37 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 #[repr(u16)]
 pub enum GetProcessFieldResponse {
-    #[default]
-    Unknown = 0,
     NtPath(u16) = 1,
     Protection(u32) = 2,
     Signers(u16) = 3,
     Mitigation(u64) = 4,
     Token(u64) = 5,
+}
+
+impl GetProcessFieldResponse {
+    pub fn into_raw_enum(self) -> (u64, u64) {
+        match self {
+            GetProcessFieldResponse::NtPath(ntpath) => (1, ntpath as u64),
+            GetProcessFieldResponse::Protection(protection) => (2, protection as u64),
+            GetProcessFieldResponse::Signers(signers) => (3, signers as u64),
+            GetProcessFieldResponse::Mitigation(mitigation) => (4, mitigation),
+            GetProcessFieldResponse::Token(token) => (5, token),
+        }
+    }
+
+    pub fn from_raw_enum(object: u64, value: u64) -> GetProcessFieldResponse {
+        match object {
+            1 => GetProcessFieldResponse::NtPath(value as _),
+            2 => GetProcessFieldResponse::Protection(value as _),
+            3 => GetProcessFieldResponse::Signers(value as _),
+            4 => GetProcessFieldResponse::Mitigation(value as _),
+            5 => GetProcessFieldResponse::Token(value as _),
+            _ => unreachable!("Invalid object id: {}", object),
+        }
+    }
 }
 
 #[derive(Clone, Default, Debug)]
@@ -47,31 +68,19 @@ impl VmcallResponse for GetProcessFieldResponse {
             return Err(HypervisorError::from_response(raw));
         }
 
-        Ok(match raw.arg1 {
-            1 => Self::NtPath(raw.arg2 as _),
-            2 => Self::Protection(raw.arg2 as _),
-            3 => Self::Signers(raw.arg2 as _),
-            4 => Self::Mitigation(raw.arg2 as _),
-            5 => Self::Token(raw.arg2 as _),
-            _ => unreachable!("Developer forgot to implement this one."),
-        })
+        Ok(GetProcessFieldResponse::from_raw_enum(
+            raw.arg1 as _,
+            raw.arg2 as _,
+        ))
     }
 
     fn into_raw(self) -> HypervisorResponse {
-        let (arg1, arg2, arg3) = match self {
-            Self::NtPath(x) => (1, x as _, 0),
-            Self::Protection(x) => (2, x as _, 0),
-            Self::Signers(x) => (3, x as _, 0),
-            Self::Mitigation(x) => (4, x, 0),
-            Self::Token(x) => (5, x, 0),
-            Self::Unknown => unreachable!(), // didn't use _ => on purpose, so I never forget implementing new ones
-        };
-
+        let args = self.into_raw_enum();
         HypervisorResponse {
             result: HypervisorResult::ok(ServiceFunction::GetProcessField),
-            arg1,
-            arg2,
-            arg3,
+            arg1: args.0,
+            arg2: args.1,
+            arg3: 0,
         }
     }
 }
