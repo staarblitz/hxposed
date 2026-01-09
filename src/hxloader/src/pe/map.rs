@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::nt::*;
+use crate::pe::HxLoaderParameterBlock;
 use crate::utils::get_cstr_len;
 use core::ptr::{copy_nonoverlapping, null_mut};
-
 // https://github.com/memN0ps/redlotus-rs/blob/master/bootkit/src/mapper/mod.rs
 // with some modifications
 
@@ -36,11 +36,56 @@ pub unsafe fn manually_map(
         headers.OptionalHeader.SizeOfImage as usize
     );
 
+    log::info!("Adding HxLoaderParameters...");
+    match get_section_by_name(headers, ".hxprm") {
+        None => {
+            panic!("HxPosed section not found!");
+        }
+        Some(params) => {
+            let cfg = ((&*params).VirtualAddress as usize + new_base as usize) as *mut HxLoaderParameterBlock;
+
+            log::info!(".hxprm found at: {:x}", cfg as usize);
+
+            let cfg = &mut *cfg;
+            cfg.base_address = new_base as _;
+            cfg.pe_size = headers.OptionalHeader.SizeOfImage as _;
+            cfg.booted_from_hxloader = true;
+        }
+    };
+
     // we cannot return the entry point in nt headers because it points to Gs/Fx and not the actual one.
     // it causes stack failure, as you would guess.
     //new_base.byte_offset(headers.OptionalHeader.AddressOfEntryPoint as _)
 
     get_function_by_name(new_base, "DriverEntry".as_ref())
+}
+
+pub unsafe fn get_section_by_name(
+    headers: &IMAGE_NT_HEADERS64,
+    name: &str,
+) -> Option<PIMAGE_SECTION_HEADER> {
+    let mut current_section_ptr = (&headers.OptionalHeader as *const _ as usize
+        + headers.FileHeader.SizeOfOptionalHeader as usize)
+        as *mut IMAGE_SECTION_HEADER;
+
+    let count = headers.FileHeader.NumberOfSections;
+
+    for _ in 0..count {
+        let section = &mut *current_section_ptr;
+
+        let name_bytes = &section.Name;
+        let len = name_bytes.iter().position(|&c| c == 0).unwrap_or(8);
+
+        if let Ok(name_str) = str::from_utf8(&name_bytes[..len]) {
+            if name_str == name {
+                return Some(section);
+            }
+        }
+
+        current_section_ptr = current_section_ptr.add(1);
+    }
+
+    None
 }
 
 pub unsafe fn resolve_imports(module_base: *const u8, ntoskrnl_base: *const u8) -> Option<bool> {
