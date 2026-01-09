@@ -4,6 +4,7 @@ extern crate alloc;
 extern crate bit_field;
 extern crate hv;
 
+mod boot;
 mod nt;
 mod ops;
 mod plugins;
@@ -14,7 +15,7 @@ mod win;
 #[global_allocator]
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
-use nt::cback::registry_callback;
+use crate::boot::HX_LOADER_PARAMETER_BLOCK;
 use crate::nt::mdl::{MapStatus, MemoryDescriptor};
 use crate::nt::thread::NtThread;
 use crate::nt::worker::async_worker_thread;
@@ -24,9 +25,9 @@ use crate::utils::logger::NtLogger;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::ToString;
-use core::mem;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicU64, Ordering};
+use core::{mem, ptr};
 use hv::SharedHostData;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
@@ -39,10 +40,14 @@ use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
+use nt::cback::registry_callback;
 use wdk_alloc::WdkAllocator;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{CmRegisterCallback, ExAllocatePool2, KeBugCheckEx, KeDelayExecutionThread};
-use wdk_sys::{BOOLEAN, DRIVER_OBJECT, FALSE, LARGE_INTEGER, NTSTATUS, POOL_FLAG_NON_PAGED, PUNICODE_STRING, PVOID, STATUS_SUCCESS, STATUS_TOO_LATE};
+use wdk_sys::{
+    BOOLEAN, DRIVER_OBJECT, FALSE, LARGE_INTEGER, NTSTATUS, POOL_FLAG_NON_PAGED, PUNICODE_STRING,
+    PVOID, STATUS_SUCCESS, STATUS_TOO_LATE,
+};
 
 static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
 static mut LOGGER: NtLogger = NtLogger::default();
@@ -54,17 +59,12 @@ extern "C" fn delayed_start(arg: PVOID) {
 
     let mut time = utils::timing::relative(utils::timing::seconds(20));
 
-    let _ = unsafe{
-        KeDelayExecutionThread(
-            KernelMode as _,
-            FALSE as _,
-            &mut time as *mut _ as _
-        )
-    };
+    let _ =
+        unsafe { KeDelayExecutionThread(KernelMode as _, FALSE as _, &mut time as *mut _ as _) };
 
     log::info!("Delayed! Executing real entry!");
 
-    driver_entry(null_mut(), null_mut(), 0);
+    driver_entry(null_mut(), null_mut());
 }
 
 #[unsafe(link_section = "INIT")]
@@ -73,8 +73,13 @@ extern "C" fn delayed_start(arg: PVOID) {
 extern "C" fn driver_entry(
     _driver: *mut DRIVER_OBJECT,
     _registry_path: PUNICODE_STRING,
-    hxloader: BOOLEAN,
 ) -> NTSTATUS {
+    // SAFETY: we know its aligned and safe to read.
+    let cfg = unsafe {
+        // must use read_volatile so rust compiler doesn't assume things.
+        ptr::read_volatile(&HX_LOADER_PARAMETER_BLOCK)
+    };
+
     // SAFETY: we know there is no other accessor currently
     unsafe {
         if !LOGGER.is_init {
@@ -89,7 +94,13 @@ extern "C" fn driver_entry(
     log::trace!("driver_entry");
     log::info!("Welcome to HxPosed!");
 
-    match hxloader == 1 {
+    log::info!(
+        "HxPosed base {:x}, size {:x}",
+        cfg.base_address,
+        cfg.pe_size
+    );
+
+    match cfg.booted_from_hxloader {
         true => {
             log::info!("Loaded from HxLoader!");
             log::info!("Delaying startup....");
@@ -98,15 +109,12 @@ extern "C" fn driver_entry(
 
             return STATUS_SUCCESS;
         }
-        false => {
-            match nt::get_nt_info(Some(26200)) {
-                Ok(_) => {}
-                Err(_) => {
-                    log::error!("System is not virtualized.");
-                    return STATUS_TOO_LATE;
-                }
+        false => match nt::get_nt_info(None) {
+            Ok(_) => {}
+            Err(_) => {
+                return STATUS_TOO_LATE;
             }
-        }
+        },
     }
 
     log::info!("Initializing HxPosed");
@@ -122,7 +130,11 @@ extern "C" fn driver_entry(
     log::info!("Allocating memory for the hypervisor...");
 
     let mem = unsafe {
-        ExAllocatePool2(POOL_FLAG_NON_PAGED, hv::allocator::ALLOCATION_BYTES as _, 0x2009)
+        ExAllocatePool2(
+            POOL_FLAG_NON_PAGED,
+            hv::allocator::ALLOCATION_BYTES as _,
+            0x2009,
+        )
     };
 
     hv::allocator::init(mem as _);
@@ -208,29 +220,16 @@ fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
     };
 
     if info.is_async() {
-        match nt::probe::probe_for_write(guest.regs().r12 as _, 16, 1) {
-            Ok(_) => {
-                // TODO: Validate this handle? How?
-                async_info = UnsafeAsyncInfo {
-                    handle: guest.regs().r11,
-                    result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
-                };
+        async_info = UnsafeAsyncInfo {
+            handle: guest.regs().r11,
+            result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
+        };
 
-                log::trace!(
-                    "Async Handle: {:x}. Result values: {:x}",
-                    async_info.handle,
-                    async_info.result_values.addr()
-                )
-            }
-            Err(_) => {
-                log::warn!("Invalid async buffer provided by user.");
-                write_response(
-                    guest,
-                    HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
-                );
-                return;
-            }
-        }
+        log::trace!(
+            "Async Handle: {:x}. Result values: {:x}",
+            async_info.handle,
+            async_info.result_values.addr()
+        )
     }
 
     let plugin = match PluginTable::current() {
