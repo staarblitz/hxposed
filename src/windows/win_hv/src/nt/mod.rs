@@ -1,19 +1,21 @@
 #![allow(dead_code)]
 
+pub mod cback;
 pub(crate) mod context;
 pub(crate) mod mdl;
-pub(crate) mod process;
-pub(crate) mod worker;
-pub(crate) mod thread;
 pub(crate) mod probe;
-pub mod cback;
+pub(crate) mod process;
+pub(crate) mod thread;
+pub(crate) mod worker;
 
 use crate::win::*;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hxposed_core::services::types::security_fields::TokenPrivilege;
-use wdk_sys::ntddk::{PsLookupProcessByProcessId, PsReferencePrimaryToken, RtlGetVersion};
-use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW};
+use wdk_sys::ntddk::{
+    PsGetVersion, PsLookupProcessByProcessId, PsReferencePrimaryToken, RtlGetVersion,
+};
+use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW, ULONG};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
@@ -37,23 +39,27 @@ pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 /// ## Return
 ///
 /// - No values returned. [`NT_BASE`] and [`NT_BUILD`] are changed accordingly.
-pub(crate) fn get_nt_info(custom: Option<u64>) -> Result<(), ()> {
+pub(crate) fn get_nt_info(custom: Option<u32>) -> Result<(), ()> {
     let build_number = {
         if let Some(build_number) = custom {
             build_number
         } else {
-            let mut info = RTL_OSVERSIONINFOW::default();
-            let _ = unsafe { RtlGetVersion(&mut info) };
-            info.dwBuildNumber as u64
+            let mut build = ULONG::default();
+            unsafe { PsGetVersion(null_mut(), null_mut(), &mut build, null_mut()) };
+
+            build
         }
     };
 
     NT_BUILD.store(build_number as _, Ordering::Relaxed);
 
     match build_number {
-        26200 => {},
+        26200 => {}
         _ => {
-            log::error!("HxPosed does not support your Windows version: {}", build_number);
+            log::error!(
+                "HxPosed does not support your Windows version: {}",
+                build_number
+            );
             return Err(());
         }
     }
