@@ -16,7 +16,7 @@ pub struct HxThread {
 impl Drop for HxThread {
     fn drop(&mut self) {
         let _ = CloseThreadRequest {
-            addr: self.addr,
+            thread: self.addr,
             open_type: ObjectOpenType::Hypervisor,
         }
         .send();
@@ -47,7 +47,7 @@ impl HxThread {
     /// * [`u32`] - Previous suspend count
     pub async fn suspend(&mut self) -> Result<u32, HypervisorError> {
         let result = SuspendResumeThreadRequest {
-            addr: self.addr,
+            thread: self.addr,
             operation: SuspendResumeThreadOperation::Suspend,
         }
         .send_async()
@@ -68,7 +68,7 @@ impl HxThread {
     /// * [`u32`] - Previous suspend count
     pub async fn resume(&mut self) -> Result<u32, HypervisorError> {
         let result = SuspendResumeThreadRequest {
-            addr: self.addr,
+            thread: self.addr,
             operation: SuspendResumeThreadOperation::Resume,
         }
         .send_async()
@@ -99,7 +99,7 @@ impl HxThread {
         token: &HxToken,
     ) -> Result<EmptyResponse, HypervisorError> {
         SetThreadFieldRequest {
-            addr: self.addr,
+            thread: self.addr,
             field: ThreadField::AdjustedClientToken,
             data: token.addr as _,
             data_len: size_of::<u64>(),
@@ -122,7 +122,7 @@ impl HxThread {
     /// * [`HypervisorError`] - Most likely thread is not impersonating.
     pub async fn get_impersonation_token(&self) -> Result<HxToken, HypervisorError> {
         match (GetThreadFieldRequest {
-            addr: self.addr,
+            thread: self.addr,
             field: ThreadField::AdjustedClientToken,
 
             ..Default::default()
@@ -150,7 +150,7 @@ impl HxThread {
     /// * [`bool`]
     pub fn is_impersonating(&self) -> Result<bool, HypervisorError> {
         match (GetThreadFieldRequest {
-            addr: self.addr,
+            thread: self.addr,
             field: ThreadField::ActiveImpersonationInfo,
 
             ..Default::default()
@@ -254,7 +254,7 @@ impl HxThread {
     /// Note that this is not an OP command. The thread will get stuck if it's waiting for an I/O operation.
     pub async fn kill(&mut self, exit_code: u32) -> Result<(), HypervisorError> {
         KillThreadRequest {
-            addr: self.addr,
+            thread: self.addr,
             exit_code,
         }
         .send_async()
@@ -272,7 +272,7 @@ impl HxThread {
     /// * [`u32`] - Previous freeze count
     async fn freeze(&mut self) -> Result<u32, HypervisorError> {
         let result = SuspendResumeThreadRequest {
-            addr: self.addr,
+            thread: self.addr,
             operation: SuspendResumeThreadOperation::Freeze,
         }
         .send_async()

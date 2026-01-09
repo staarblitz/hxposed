@@ -18,14 +18,14 @@ pub struct HxToken {
 
 impl Drop for HxToken {
     fn drop(&mut self) {
-        let _ = CloseTokenRequest { addr: self.addr }.send();
+        let _ = CloseTokenRequest { token: self.addr }.send();
     }
 }
 
 impl HxToken {
     pub(crate) async fn from_raw_object(addr: u64) -> Result<HxToken, HypervisorError> {
         OpenTokenRequest {
-            addr,
+            token: addr,
             open_type: ObjectOpenType::Hypervisor,
         }
         .send_async()
@@ -49,7 +49,7 @@ impl HxToken {
     /// * Handle as an u64.
     pub(crate) async fn open_handle(&self) -> Result<u64, HypervisorError> {
         let resp = OpenTokenRequest {
-            addr: self.addr,
+            token: self.addr,
             open_type: ObjectOpenType::Handle,
         }
         .send_async()
@@ -74,7 +74,7 @@ impl HxToken {
     /// * [`TokenPrivilege`] - Bitmask of privileges.
     pub fn get_present_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
-            addr: self.addr,
+            token: self.addr,
             field: TokenField::PresentPrivileges,
             ..Default::default()
         }
@@ -101,7 +101,7 @@ impl HxToken {
     /// * [`TokenPrivilege`] - Bitmask of privileges.
     pub fn get_system_present_privileges() -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
-            addr: 0,
+            token: 0,
             field: TokenField::PresentPrivileges,
             ..Default::default()
         }
@@ -153,7 +153,7 @@ impl HxToken {
     /// * [`TokenPrivilege`] - Bitmask of privileges.
     pub fn get_enabled_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
-            addr: self.addr,
+            token: self.addr,
             field: TokenField::EnabledPrivileges,
             ..Default::default()
         }
@@ -179,7 +179,7 @@ impl HxToken {
     /// * [`TokenPrivilege`] - Bitmask of privileges.
     pub fn get_default_enabled_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
-            addr: self.addr,
+            token: self.addr,
             field: TokenField::EnabledByDefaultPrivileges,
             ..Default::default()
         }
@@ -206,7 +206,7 @@ impl HxToken {
     /// * [`String`] - A beautiful string.
     pub async fn get_source_name(&self) -> Result<String, HypervisorError> {
         match (GetTokenFieldRequest {
-            addr: self.addr,
+            token: self.addr,
             field: TokenField::SourceName,
             ..Default::default()
         })
@@ -245,7 +245,7 @@ impl HxToken {
     pub async fn get_account_name(&self) -> Result<String, HypervisorError> {
         let mut bytes = 0u16;
         match (GetTokenFieldRequest {
-            addr: self.addr,
+            token: self.addr,
             field: TokenField::AccountName,
             ..Default::default()
         })
@@ -260,7 +260,7 @@ impl HxToken {
         assert_eq!(buffer.capacity(), bytes as usize / 2);
 
         match (GetTokenFieldRequest {
-            addr: self.addr,
+            token: self.addr,
             field: TokenField::AccountName,
             data: buffer.as_mut_ptr() as _,
             data_len: buffer.capacity() as _,

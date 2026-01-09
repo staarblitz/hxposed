@@ -25,7 +25,7 @@ pub struct HxProcess {
 impl Drop for HxProcess {
     fn drop(&mut self) {
         let _ = CloseProcessRequest {
-            addr: self.addr,
+            process: self.addr,
             open_type: ObjectOpenType::Hypervisor,
         }
         .send();
@@ -82,7 +82,7 @@ impl HxProcess {
     /// * [`HxToken`]
     pub async fn get_primary_token(&self) -> Result<HxToken, HypervisorError> {
         match (GetProcessFieldRequest {
-            addr: self.addr,
+            process: self.addr,
             field: ProcessField::Token,
             ..Default::default()
         }
@@ -113,7 +113,7 @@ impl HxProcess {
     /// - `token` - New token. See [`HxToken`]
     pub async fn swap_token(&self, token: &HxToken) -> Result<EmptyResponse, HypervisorError> {
         SetProcessFieldRequest{
-            addr: self.addr,
+            process: self.addr,
             field: ProcessField::Token,
             data: token.addr as _,
             data_len: 8
@@ -150,7 +150,7 @@ impl HxProcess {
     /// * [`MitigationOptions`] - Contains the mitigation flags.
     pub fn get_mitigation_options(&self) -> Result<MitigationOptions, HypervisorError> {
         let result = GetProcessFieldRequest {
-            addr: self.addr,
+            process: self.addr,
             field: ProcessField::MitigationFlags,
             ..Default::default()
         }
@@ -177,7 +177,7 @@ impl HxProcess {
     /// * [`Vec<u32>`] - Vector containing the ids of threads under specified process.
     pub async fn get_threads(&self) -> Result<Vec<u32>, HypervisorError> {
         let result = GetProcessThreadsRequest {
-            addr: self.addr,
+            process: self.addr,
             data: 0 as _,
             data_len: 0,
         }
@@ -187,7 +187,7 @@ impl HxProcess {
         let mut buffer = Vec::<u32>::with_capacity(result.number_of_threads as _);
 
         let result = GetProcessThreadsRequest {
-            addr: self.addr,
+            process: self.addr,
             data: buffer.as_mut_ptr() as _,
             data_len: (buffer.capacity() as i32 * 4) as _,
         }
@@ -329,7 +329,7 @@ impl HxProcess {
     /// ```
     pub fn get_signature_levels(&self) -> Result<ProcessSignatureLevels, HypervisorError> {
         let result = GetProcessFieldRequest {
-            addr: self.addr,
+            process: self.addr,
             field: ProcessField::Signers,
             ..Default::default()
         }
@@ -366,7 +366,7 @@ impl HxProcess {
     /// ```
     pub fn get_protection(&self) -> Result<ProcessProtection, HypervisorError> {
         let result = GetProcessFieldRequest {
-            addr: self.addr,
+            process: self.addr,
             field: ProcessField::Protection,
             ..Default::default()
         }
@@ -401,7 +401,7 @@ impl HxProcess {
         let mut bytes = 0u16;
 
         let mut promise = GetProcessFieldRequest {
-            addr: self.addr,
+            process: self.addr,
             field: ProcessField::NtPath,
             data: null_mut(),
             data_len: 0,
@@ -422,7 +422,7 @@ impl HxProcess {
         assert_eq!(buffer.capacity(), bytes as usize / 2);
 
         let mut promise = GetProcessFieldRequest {
-            addr: self.addr,
+            process: self.addr,
             field: ProcessField::NtPath,
             data: buffer.as_mut_ptr() as *mut u8,
             data_len: buffer.capacity() as _,
@@ -478,7 +478,7 @@ impl HxProcess {
     /// ```
     pub fn kill(self, exit_code: u32) -> Future<KillProcessRequest, EmptyResponse> {
         KillProcessRequest {
-            addr: self.addr,
+            process: self.addr,
             exit_code,
         }
         .send_async()
