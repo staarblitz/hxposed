@@ -11,6 +11,7 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::requests::process::ObjectOpenType;
 use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
@@ -34,7 +35,7 @@ pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorRe
 
     let thread = match plugin
         .object_table
-        .get_open_thread(request.command.addr as _)
+        .get_open_thread(request.command.thread as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -82,7 +83,7 @@ pub(crate) fn suspend_resume_thread_sync(
 
     let thread = match plugin
         .object_table
-        .get_open_thread(request.command.addr as _)
+        .get_open_thread(request.command.thread as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -145,7 +146,7 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
 
     let thread = match plugin
         .object_table
-        .get_open_thread(request.command.addr as _)
+        .get_open_thread(request.command.thread as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -185,7 +186,7 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
 
             GetThreadFieldResponse::AdjustedClientToken(field as _)
         }
-        _ => GetThreadFieldResponse::Unknown,
+        _ => return HypervisorResponse::not_found(),
     }
     .into_raw()
 }
@@ -198,7 +199,7 @@ pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> Hyp
 
     let thread = match plugin
         .object_table
-        .get_open_thread(request.command.addr as _)
+        .get_open_thread(request.command.thread as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -307,15 +308,15 @@ pub(crate) fn open_thread_sync(request: &OpenThreadAsyncCommand) -> HypervisorRe
 
     match request.command.open_type {
         ObjectOpenType::Handle => OpenObjectResponse {
-            addr: match thread.get_handle() {
+            object: ObjectType::Handle( match thread.get_handle() {
                 Ok(handle) => handle.get_forget() as _,
                 Err(x) => return HypervisorResponse::nt_error(x as _),
-            },
+            }),
         }
         .into_raw(),
         ObjectOpenType::Hypervisor => {
             plugin.object_table.add_open_thread(thread);
-            OpenObjectResponse { addr: thread as _ }.into_raw()
+            OpenObjectResponse { object: ObjectType::Token(thread as _) }.into_raw()
         }
     }
 }
@@ -371,7 +372,7 @@ pub(crate) fn close_thread(
     request: CloseThreadRequest,
     plugin: &'static mut Plugin,
 ) -> HypervisorResponse {
-    match plugin.object_table.pop_open_thread(request.addr as _) {
+    match plugin.object_table.pop_open_thread(request.thread as _) {
         None => HypervisorResponse::not_found(),
         Some(_) => EmptyResponse::with_service(ServiceFunction::CloseThread),
     }

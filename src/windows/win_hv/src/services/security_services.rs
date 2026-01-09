@@ -10,6 +10,7 @@ use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::requests::process::ObjectOpenType;
 use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
@@ -36,7 +37,7 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
 
     let token = match plugin
         .object_table
-        .get_open_token(request.command.addr as _)
+        .get_open_token(request.command.token as _)
     {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
@@ -105,10 +106,10 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
 
     let token = match plugin
         .object_table
-        .get_open_token(request.command.addr as _)
+        .get_open_token(request.command.token as _)
     {
         Some(x) => x,
-        None if request.command.addr == 0 => match request.command.field {
+        None if request.command.token == 0 => match request.command.field {
             // asking for SYSTEM token
             TokenField::PresentPrivileges => SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN,
             _ => return HypervisorResponse::not_found_what(NotFoundReason::Token),
@@ -215,7 +216,7 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
 
             GetTokenFieldResponse::EnabledByDefaultPrivileges(field.EnabledByDefault.clone())
         }
-        _ => GetTokenFieldResponse::Unknown,
+        _ => return HypervisorResponse::not_found(),
     }
     .into_raw()
 }
@@ -261,7 +262,7 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
             let mut handle = HANDLE::default();
             match unsafe {
                 ObOpenObjectByPointer(
-                    request.command.addr as _,
+                    request.command.token as _,
                     0,
                     Default::default(),
                     TOKEN_ALL_ACCESS,
@@ -270,7 +271,7 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
                     &mut handle,
                 )
             } {
-                STATUS_SUCCESS => OpenObjectResponse { addr: handle as _ }.into_raw(),
+                STATUS_SUCCESS => OpenObjectResponse { object: ObjectType::Handle(handle as _) }.into_raw(),
                 err => HypervisorResponse::nt_error(err as _),
             }
         }
@@ -278,7 +279,7 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
             match unsafe {
                 // verify object exists
                 ObReferenceObjectByPointer(
-                    request.command.addr as _,
+                    request.command.token as _,
                     TOKEN_ALL_ACCESS,
                     *SeTokenObjectType,
                     KernelMode as _,
@@ -287,7 +288,7 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
                 STATUS_SUCCESS => {
                     plugin
                         .object_table
-                        .add_open_token(request.command.addr as _);
+                        .add_open_token(request.command.token as _);
 
                     // ObDereferenceObject.....
 
@@ -328,7 +329,7 @@ pub(crate) fn close_token_sync(
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.object_table.pop_open_token(request.addr as _);
+    plugin.object_table.pop_open_token(request.token as _);
 
     EmptyResponse::with_service(ServiceFunction::CloseToken)
 }
