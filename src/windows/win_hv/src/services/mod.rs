@@ -20,7 +20,7 @@ use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use wdk_sys::ntddk::IoGetCurrentProcess;
+use wdk_sys::ntddk::PsGetCurrentProcessId;
 
 pub mod memory_services;
 pub mod process_services;
@@ -56,7 +56,7 @@ pub fn authorize_plugin(
     let plugin = plugin.unwrap();
     let permissions = plugin.permissions.bitand(request.permissions);
 
-    match plugin.integrate(unsafe { IoGetCurrentProcess() }, permissions) {
+    match plugin.integrate(unsafe { PsGetCurrentProcessId() } as _, permissions) {
         None => {
             write_response(guest, HypervisorResponse::not_allowed(NotAllowedReason::MissingPermissions));
             None
