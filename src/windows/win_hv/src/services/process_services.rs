@@ -1,16 +1,10 @@
+use crate::nt::process::NtProcess;
 use crate::nt::*;
 use crate::plugins::commands::process::*;
 use crate::plugins::{Plugin, PluginTable};
-use crate::utils::blanket::OpenHandle;
-use crate::utils::danger::DangerPtr;
-use crate::win::PsTerminateProcess;
 use alloc::boxed::Box;
-use alloc::vec::Vec;
-use core::arch::asm;
 use core::ptr::copy_nonoverlapping;
-use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -18,14 +12,11 @@ use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::process::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::*;
-use wdk_sys::ntddk::{
-    ExAcquirePushLockExclusiveEx, ExReleasePushLockExclusiveEx, ProbeForRead, ProbeForWrite,
-    PsGetThreadId, PsLookupProcessByProcessId, PsReferencePrimaryToken,
-};
-use wdk_sys::{_KTHREAD, _UNICODE_STRING, LIST_ENTRY, PEPROCESS, PETHREAD, STATUS_SUCCESS};
+use wdk_sys::ntddk::ObfDereferenceObject;
 
 ///
 /// # Get Process Threads (Sync)
@@ -54,46 +45,11 @@ pub(crate) fn get_process_threads_sync(
         .object_table
         .get_open_process(request.command.process as _)
     {
-        Some(thread) => thread,
+        Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    let lock = unsafe { get_eprocess_field::<u64>(EProcessField::Lock, process) };
-
-    // process object is extremely volatile. enumerating threads is no easy job. we have to secure our process.
-    unsafe { ExAcquirePushLockExclusiveEx(lock, 0) }
-
-    let threads = DangerPtr::<LIST_ENTRY> {
-        ptr: unsafe { get_eprocess_field::<LIST_ENTRY>(EProcessField::ThreadListHead, process) },
-    };
-
-    let first_entry = DangerPtr::<LIST_ENTRY> { ptr: threads.Blink };
-    let mut current_entry = DangerPtr::<LIST_ENTRY> { ptr: threads.ptr };
-
-    let mut thread_numbers = Vec::<u32>::new();
-
-    while current_entry != first_entry {
-        current_entry = DangerPtr::<LIST_ENTRY> {
-            ptr: current_entry.Flink,
-        };
-
-        // now it gets tricky. let me explain.
-
-        // the ThreadListHead field of _EPROCESS holds a LIST_ENTRY. what makes it deserve its own comments in this source is
-        // that the list header for items are not the first field of the item.
-        // for example, in 25h2, _ETHREAD's ThreadListEntry structure resides on offset 0x578.
-        // so we have to go back exactly that many bytes to get the head of _ETHREAD object.
-
-        // gets the real ETHREAD
-        let thread = unsafe {
-            get_ethread_field::<_KTHREAD>(EThreadField::OffsetFromListEntry, current_entry.ptr as _)
-                as PETHREAD
-        };
-
-        thread_numbers.push(unsafe { PsGetThreadId(thread) as _ });
-    }
-
-    unsafe { ExReleasePushLockExclusiveEx(lock, 0) }
+    let thread_numbers = process.get_threads();
 
     if !request.command.data.is_null() {
         match probe::probe_for_write(request.command.data, request.command.data_len, 1) {
@@ -220,29 +176,25 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let process = match plugin
+    let mut process = match plugin
         .object_table
-        .get_open_process(request.command.process as _)
+        .pop_open_process(request.command.process as _)
     {
-        Some(thread) => thread,
+        Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    match request.command.field {
+    let ret = match request.command.field {
         ProcessField::Protection => {
             if request.command.data_len != 1 {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            let field = unsafe {
-                get_eprocess_field::<ProcessProtection>(EProcessField::Protection, process)
-            };
-
             match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
                 Ok(_) => {
                     let new_field = unsafe { *(request.command.data as *mut ProcessProtection) };
 
-                    unsafe { field.write(new_field) };
+                    process.set_protection(new_field);
 
                     EmptyResponse::with_service(ServiceFunction::SetProcessField)
                 }
@@ -254,15 +206,12 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            let field = unsafe {
-                get_eprocess_field::<ProcessSignatureLevel>(EProcessField::SignatureLevels, process)
-            };
-
             match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
                 Ok(_) => {
                     let new_field =
                         unsafe { *(request.command.data as *mut ProcessSignatureLevel) };
-                    unsafe { field.write(new_field) };
+
+                    process.set_signers(new_field);
 
                     EmptyResponse::with_service(ServiceFunction::SetProcessField)
                 }
@@ -278,14 +227,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 Ok(_) => {
                     let mitigations = unsafe { *(request.command.data as *mut MitigationOptions) };
 
-                    let flags_field1 = unsafe {
-                        get_eprocess_field::<MitigationOptions>(
-                            EProcessField::MitigationFlags1,
-                            process,
-                        )
-                    };
-
-                    unsafe { flags_field1.write(mitigations) };
+                    process.set_mitigations(mitigations);
 
                     EmptyResponse::with_service(ServiceFunction::SetProcessField)
                 }
@@ -305,14 +247,17 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
             };
 
-            let field = unsafe { get_eprocess_field::<u64>(EProcessField::Token, process) };
-
-            unsafe { field.write(token as _) };
+            process.set_token(token.nt_token);
 
             EmptyResponse::with_service(ServiceFunction::SetProcessField)
         }
         _ => HypervisorResponse::not_found(),
-    }
+    };
+
+    // now, readd it.
+    plugin.object_table.add_open_process(process);
+
+    ret
 }
 
 ///
@@ -394,18 +339,13 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
         .object_table
         .get_open_process(request.command.process as _)
     {
-        Some(thread) => thread,
+        Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.command.field {
         ProcessField::NtPath => {
-            let field = unsafe {
-                &mut **get_eprocess_field::<*mut _UNICODE_STRING>(
-                    EProcessField::SeAuditProcessCreationInfo,
-                    process,
-                )
-            };
+            let field = unsafe { &mut *process.nt_path };
 
             if request.command.data_len == 0 {
                 GetProcessFieldResponse::NtPath(field.Length)
@@ -430,24 +370,20 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
                 }
             }
         }
-        ProcessField::Protection => GetProcessFieldResponse::Protection(
-            unsafe { *get_eprocess_field::<ProcessProtection>(EProcessField::Protection, process) }
-                .into_bits() as _,
-        ),
-        ProcessField::Signers => GetProcessFieldResponse::Signers(unsafe {
-            *get_eprocess_field::<u16>(EProcessField::SignatureLevels, process)
-        }),
+        ProcessField::Protection => {
+            GetProcessFieldResponse::Protection(process.get_protection().into_bits() as _)
+        }
+        ProcessField::Signers => {
+            GetProcessFieldResponse::Signers(unsafe { process.get_signers().into_bits() as _ })
+        }
         ProcessField::MitigationFlags => GetProcessFieldResponse::Mitigation(unsafe {
-            *get_eprocess_field::<u64>(EProcessField::MitigationFlags1, process)
+            process.get_mitigations().into_bits() as _
         }),
         ProcessField::Token => {
             if !plugin.perm_check(PluginPermissions::PROCESS_SECURITY) {
                 return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_SECURITY);
             }
-
-            let token = unsafe { PsReferencePrimaryToken(process) };
-
-            GetProcessFieldResponse::Token(token as _)
+            GetProcessFieldResponse::Token(process.get_token() as _)
         }
         _ => return HypervisorResponse::not_found(),
     }
@@ -520,15 +456,15 @@ pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> Hypervisor
 
     let process = match plugin
         .object_table
-        .get_open_process(request.command.process as _)
+        .pop_open_process(request.command.process as _)
     {
-        Some(thread) => thread,
+        Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    match unsafe { PsTerminateProcess(process, request.command.exit_code as _) } {
-        STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillProcess),
-        err => HypervisorResponse::nt_error(err as _),
+    match process.kill(request.command.exit_code as _) {
+        Ok(_) => EmptyResponse::with_service(ServiceFunction::KillProcess),
+        Err(err) => HypervisorResponse::nt_error(err as _),
     }
 }
 
@@ -552,7 +488,12 @@ pub(crate) fn close_process(
 ) -> HypervisorResponse {
     match plugin.object_table.pop_open_process(request.process as _) {
         None => HypervisorResponse::not_found(),
-        Some(_) => EmptyResponse::with_service(ServiceFunction::CloseProcess),
+        Some(process) => {
+            unsafe {
+                ObfDereferenceObject(process.uid as _);
+            }
+            EmptyResponse::with_service(ServiceFunction::CloseProcess)
+        }
     }
 }
 
@@ -604,26 +545,25 @@ pub(crate) fn open_process_sync(request: &OpenProcessAsyncCommand) -> Hypervisor
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let mut process = PEPROCESS::default();
-
-    match unsafe { PsLookupProcessByProcessId(request.command.process_id as _, &mut process) } {
-        STATUS_SUCCESS => {}
-        err => return HypervisorResponse::nt_error(err as _),
-    }
+    let process = match NtProcess::from_id(request.command.process_id) {
+        Some(process) => process,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+    };
 
     match request.command.open_type {
         ObjectOpenType::Handle => OpenObjectResponse {
-            object: ObjectType::Handle(match process.get_handle() {
+            object: ObjectType::Handle(match process.open_handle() {
                 Ok(handle) => handle.get_forget() as _,
                 Err(x) => return HypervisorResponse::nt_error(x as _),
             }),
         }
         .into_raw(),
         ObjectOpenType::Hypervisor => {
+            let uid = process.uid;
             plugin.object_table.add_open_process(process);
 
             OpenObjectResponse {
-                object: ObjectType::Process(process as _) as _,
+                object: ObjectType::Process(uid) as _,
             }
             .into_raw()
         }

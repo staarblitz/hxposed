@@ -1,16 +1,16 @@
+use crate::nt::token::NtToken;
 use crate::nt::{
-    get_access_token_field, get_logon_session_field, probe, AccessTokenField,
-    LogonSessionField, PSEP_LOGON_SESSION_REFERENCES, SYSTEM_TOKEN, _SEP_TOKEN_PRIVILEGES,
+    SYSTEM_TOKEN, probe,
 };
 use crate::plugins::commands::security::*;
 use crate::plugins::{Plugin, PluginTable};
 use alloc::boxed::Box;
 use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::requests::process::ObjectOpenType;
 use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
@@ -18,15 +18,11 @@ use hxposed_core::hxposed::responses::security::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use hxposed_core::services::types::security_fields::{
-    ImpersonationLevel, TokenPrivilege, TokenType,
-};
-use wdk_sys::ntddk::{
-    ObOpenObjectByPointer, ObReferenceObjectByPointer,
-};
+use hxposed_core::services::types::security_fields::TokenPrivilege;
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::{ObOpenObjectByPointer, ObReferenceObjectByPointer};
 use wdk_sys::{
-    SeTokenObjectType, HANDLE, PACCESS_TOKEN, STATUS_SUCCESS, TOKEN_ALL_ACCESS, UNICODE_STRING,
+    HANDLE, PACCESS_TOKEN, STATUS_SUCCESS, SeTokenObjectType, TOKEN_ALL_ACCESS,
 };
 
 pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> HypervisorResponse {
@@ -35,15 +31,15 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let token = match plugin
+    let mut token = match plugin
         .object_table
-        .get_open_token(request.command.token as _)
+        .pop_open_token(request.command.token as _)
     {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
     };
 
-    match request.command.field {
+    let ret = match request.command.field {
         TokenField::EnabledPrivileges => {
             if request.command.data_len != size_of::<TokenPrivilege>() {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
@@ -52,18 +48,9 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
             match probe::probe_for_read(request.command.data as _, request.command.data_len as _, 1)
             {
                 Ok(_) => {
-                    let field = unsafe {
-                        get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
-                            AccessTokenField::Privileges,
-                            token,
-                        )
-                    };
-
-                    let mut privs = unsafe { &*field }.clone();
 
                     let user_field = unsafe { &*(request.command.data as *mut TokenPrivilege) };
-                    privs.Enabled = user_field.clone();
-                    unsafe { field.write(privs) }
+                    token.set_enabled_privileges(user_field.clone());
 
                     EmptyResponse::with_service(ServiceFunction::SetTokenField)
                 }
@@ -71,7 +58,11 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
             }
         }
         _ => HypervisorResponse::invalid_params(ServiceParameter::Function),
-    }
+    };
+
+    plugin.object_table.add_open_token(token);
+
+    ret
 }
 
 pub(crate) fn set_token_field_async(
@@ -111,34 +102,18 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
         Some(x) => x,
         None if request.command.token == 0 => match request.command.field {
             // asking for SYSTEM token
-            TokenField::PresentPrivileges => SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN,
+            TokenField::PresentPrivileges => {
+                &NtToken::from_ptr(SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN)
+            }
             _ => return HypervisorResponse::not_found_what(NotFoundReason::Token),
         },
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
     };
 
     match request.command.field {
-        TokenField::SourceName => {
-            let field =
-                unsafe { *get_access_token_field::<u64>(AccessTokenField::TokenSource, token) };
-
-            GetTokenFieldResponse::SourceName(field)
-        }
+        TokenField::SourceName => GetTokenFieldResponse::SourceName(token.get_source_name()),
         TokenField::AccountName => {
-            let logon_session = unsafe {
-                *get_access_token_field::<PSEP_LOGON_SESSION_REFERENCES>(
-                    AccessTokenField::LogonSession,
-                    token,
-                )
-            };
-
-            let account_name = unsafe {
-                &mut *get_logon_session_field::<UNICODE_STRING>(
-                    LogonSessionField::AccountName,
-                    logon_session,
-                )
-            };
-
+            let account_name = unsafe { &mut *token.account_name };
             if request.command.data_len == 0 {
                 GetTokenFieldResponse::AccountName(account_name.Length)
             } else {
@@ -163,58 +138,26 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
                 }
             }
         }
-        TokenField::Type => {
-            let field =
-                unsafe { *get_access_token_field::<TokenType>(AccessTokenField::Type, token) };
-
-            GetTokenFieldResponse::Type(field)
-        }
+        TokenField::Type => GetTokenFieldResponse::Type(token.get_type()),
         TokenField::IntegrityLevelIndex => {
-            let field = unsafe { *get_access_token_field::<u32>(AccessTokenField::Type, token) };
-
-            GetTokenFieldResponse::IntegrityLevelIndex(field)
+            GetTokenFieldResponse::IntegrityLevelIndex(token.get_integrity_level_index())
         }
         TokenField::MandatoryPolicy => {
-            let field = unsafe { *get_access_token_field::<u32>(AccessTokenField::Type, token) };
-
-            GetTokenFieldResponse::MandatoryPolicy(field)
+            GetTokenFieldResponse::MandatoryPolicy(token.get_mandatory_policy())
         }
         TokenField::ImpersonationLevel => {
-            let field = unsafe {
-                *get_access_token_field::<ImpersonationLevel>(AccessTokenField::Type, token)
-            };
-
-            GetTokenFieldResponse::ImpersonationLevel(field)
+            GetTokenFieldResponse::ImpersonationLevel(token.get_impersonation_level())
         }
         TokenField::EnabledPrivileges => {
-            let field = unsafe {
-                &*get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
-                    AccessTokenField::Privileges,
-                    token,
-                )
-            };
-
-            GetTokenFieldResponse::EnabledPrivileges(field.Enabled.clone())
+            GetTokenFieldResponse::EnabledPrivileges(token.get_enabled_privileges())
         }
         TokenField::PresentPrivileges => {
-            let field = unsafe {
-                &*get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
-                    AccessTokenField::Privileges,
-                    token,
-                )
-            };
-
-            GetTokenFieldResponse::PresentPrivileges(field.Present.clone())
+            GetTokenFieldResponse::PresentPrivileges(token.get_present_privileges())
         }
         TokenField::EnabledByDefaultPrivileges => {
-            let field = unsafe {
-                &*get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
-                    AccessTokenField::Privileges,
-                    token,
-                )
-            };
-
-            GetTokenFieldResponse::EnabledByDefaultPrivileges(field.EnabledByDefault.clone())
+            GetTokenFieldResponse::EnabledByDefaultPrivileges(
+                token.get_default_enabled_privileges(),
+            )
         }
         _ => return HypervisorResponse::not_found(),
     }
@@ -271,7 +214,10 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
                     &mut handle,
                 )
             } {
-                STATUS_SUCCESS => OpenObjectResponse { object: ObjectType::Handle(handle as _) }.into_raw(),
+                STATUS_SUCCESS => OpenObjectResponse {
+                    object: ObjectType::Handle(handle as _),
+                }
+                .into_raw(),
                 err => HypervisorResponse::nt_error(err as _),
             }
         }
@@ -288,7 +234,7 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
                 STATUS_SUCCESS => {
                     plugin
                         .object_table
-                        .add_open_token(request.command.token as _);
+                        .add_open_token(NtToken::from_ptr(request.command.token as _));
 
                     // ObDereferenceObject.....
 

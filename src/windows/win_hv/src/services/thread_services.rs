@@ -1,31 +1,23 @@
-use crate::utils::blanket::OpenHandle;
-use crate::nt::{EThreadField, get_ethread_field};
+use crate::nt::thread::NtThread;
 use crate::plugins::commands::thread::*;
 use crate::plugins::{Plugin, PluginTable};
-use crate::win::{PspTerminateThread, ZwResumeThread, ZwSuspendThread};
+use crate::win::{
+    ZwResumeThread, ZwSuspendThread,
+};
 use alloc::boxed::Box;
-use bit_field::BitField;
-use core::arch::asm;
-use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::requests::process::ObjectOpenType;
 use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::thread::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use wdk_sys::ntddk::{
-    PsLookupThreadByThreadId, PsReferenceImpersonationToken,
-};
-use wdk_sys::{
-    BOOLEAN, PETHREAD, SECURITY_IMPERSONATION_LEVEL,
-    STATUS_SUCCESS, ULONG,
-};
+use wdk_sys::{STATUS_SUCCESS, ULONG};
 
 pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorResponse {
     let plugin = match PluginTable::lookup(request.uuid) {
@@ -35,18 +27,15 @@ pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorRe
 
     let thread = match plugin
         .object_table
-        .get_open_thread(request.command.thread as _)
+        .pop_open_thread(request.command.thread as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    unsafe {
-        asm!("mov r15, r14", in("r14") crate::win::NT_PS_TERMINATE_THREAD.load(Ordering::Relaxed));
-    }
-    match unsafe { PspTerminateThread(thread, request.command.exit_code as _, 1) } {
-        STATUS_SUCCESS => EmptyResponse::with_service(ServiceFunction::KillThread),
-        err => HypervisorResponse::nt_error(err as _),
+    match thread.kill(request.command.exit_code as _) {
+        Ok(_) => EmptyResponse::with_service(ServiceFunction::KillThread),
+        Err(err) => HypervisorResponse::nt_error(err as _),
     }
 }
 
@@ -89,7 +78,7 @@ pub(crate) fn suspend_resume_thread_sync(
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    let handle = match thread.get_handle() {
+    let handle = match thread.open_handle() {
         Ok(handle) => handle,
         Err(x) => return HypervisorResponse::nt_error(x as _),
     };
@@ -158,33 +147,14 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
                 return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
             }
 
-            let field =
-                unsafe { *get_ethread_field::<u32>(EThreadField::CrossThreadFlags, thread) }
-                    .get_bit(3);
-
-            GetThreadFieldResponse::ActiveImpersonationInfo(field)
+            GetThreadFieldResponse::ActiveImpersonationInfo(thread.get_impersonation_info())
         }
         ThreadField::AdjustedClientToken => {
             if !plugin.perm_check(PluginPermissions::THREAD_SECURITY) {
                 return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
             }
 
-            let mut copy_on_open = BOOLEAN::default();
-            let mut effective_only = BOOLEAN::default();
-            let mut impersonation_level = SECURITY_IMPERSONATION_LEVEL::default();
-
-            let field = unsafe {
-                PsReferenceImpersonationToken(
-                    thread,
-                    &mut copy_on_open,
-                    &mut effective_only,
-                    &mut impersonation_level,
-                )
-            };
-
-            log::warn!("PsReferenceImpersonationToken: copy_on_open: {:?}, effective_only: {:?}, impersonation_level: {:?}", copy_on_open, effective_only, impersonation_level);
-
-            GetThreadFieldResponse::AdjustedClientToken(field as _)
+            GetThreadFieldResponse::AdjustedClientToken(thread.get_adjusted_client_token() as _)
         }
         _ => return HypervisorResponse::not_found(),
     }
@@ -197,15 +167,15 @@ pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> Hyp
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let thread = match plugin
+    let mut thread = match plugin
         .object_table
-        .get_open_thread(request.command.thread as _)
+        .pop_open_thread(request.command.thread as _)
     {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    match request.command.field {
+    let ret = match request.command.field {
         ThreadField::AdjustedClientToken => {
             if !plugin.perm_check(PluginPermissions::THREAD_SECURITY) {
                 return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
@@ -219,15 +189,16 @@ pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> Hyp
                 None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
             };
 
-            let field =
-                unsafe { get_ethread_field::<*mut u64>(EThreadField::AdjustedClientToken, thread) };
-
-            unsafe { field.write(token as _) };
+            thread.set_adjusted_client_token(token.nt_token);
 
             EmptyResponse::with_service(ServiceFunction::SetThreadField)
         }
         _ => HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
-    }
+    };
+
+    plugin.object_table.add_open_thread(thread);
+
+    ret
 }
 pub(crate) fn set_thread_field_async(
     _guest: &mut dyn Guest,
@@ -299,24 +270,26 @@ pub(crate) fn open_thread_sync(request: &OpenThreadAsyncCommand) -> HypervisorRe
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let mut thread = PETHREAD::default();
-
-    match unsafe { PsLookupThreadByThreadId(request.command.tid as _, &mut thread) } {
-        STATUS_SUCCESS => {}
-        err => return HypervisorResponse::nt_error(err as _),
-    }
+    let thread = match NtThread::from_id(request.command.tid) {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+    };
 
     match request.command.open_type {
         ObjectOpenType::Handle => OpenObjectResponse {
-            object: ObjectType::Handle( match thread.get_handle() {
+            object: ObjectType::Handle(match thread.open_handle() {
                 Ok(handle) => handle.get_forget() as _,
                 Err(x) => return HypervisorResponse::nt_error(x as _),
             }),
         }
         .into_raw(),
         ObjectOpenType::Hypervisor => {
+            let rep = OpenObjectResponse {
+                object: ObjectType::Token(thread.uid as _),
+            }
+            .into_raw();
             plugin.object_table.add_open_thread(thread);
-            OpenObjectResponse { object: ObjectType::Token(thread as _) }.into_raw()
+            rep
         }
     }
 }
