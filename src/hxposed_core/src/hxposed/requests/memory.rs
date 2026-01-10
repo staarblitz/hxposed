@@ -5,7 +5,7 @@ use crate::hxposed::responses::memory::*;
 use crate::services::types::memory_fields::{MemoryPool, MemoryProtection};
 use alloc::boxed::Box;
 use core::mem;
-use crate::hxposed::ProcessObject;
+use crate::hxposed::{MdlObject, ProcessObject};
 
 #[derive(Default, Debug)]
 pub struct RWProcessMemoryRequest {
@@ -27,13 +27,13 @@ pub struct ProtectProcessMemoryRequest {
 #[derive(Default, Debug)]
 pub struct AllocateMemoryRequest {
     pub size: u32,
-    pub align: usize,
+    pub underlying_pages: usize,
     pub pool: MemoryPool,
 }
 
 #[derive(Default, Debug)]
 pub struct MapMemoryRequest {
-    pub original_system_va: u64,
+    pub mdl: MdlObject,
     pub map_address: u64,
     pub operation: MapMemoryOperation,
     pub process: ProcessObject,
@@ -41,7 +41,7 @@ pub struct MapMemoryRequest {
 
 #[derive(Default, Debug)]
 pub struct FreeMemoryRequest {
-    pub original_system_va: u64,
+    pub mdl: MdlObject,
 }
 
 impl VmcallRequest for FreeMemoryRequest {
@@ -50,7 +50,7 @@ impl VmcallRequest for FreeMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::free_mem(),
-            arg1: self.original_system_va,
+            arg1: self.mdl,
 
             ..Default::default()
         });
@@ -62,7 +62,7 @@ impl VmcallRequest for FreeMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            original_system_va: request.arg1,
+            mdl: request.arg1,
         }
     }
 }
@@ -73,7 +73,7 @@ impl VmcallRequest for MapMemoryRequest {
     fn into_raw(self) -> *mut HypervisorRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::mem_map(),
-            arg1: self.original_system_va,
+            arg1: self.mdl,
             arg2: self.map_address,
             arg3: self.operation.clone().into_bits() as _,
             extended_arg1: self.process as _,
@@ -88,7 +88,7 @@ impl VmcallRequest for MapMemoryRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            original_system_va: request.arg1,
+            mdl: request.arg1,
             map_address: request.arg2,
             operation: MapMemoryOperation::from_bits(request.arg3 as _),
             process: request.extended_arg1 as _,
@@ -103,7 +103,7 @@ impl VmcallRequest for AllocateMemoryRequest {
         let raw = Box::new(HypervisorRequest {
             call: HypervisorCall::mem_alloc(),
             arg1: self.size as _,
-            arg2: self.align as _,
+            arg2: self.underlying_pages as _,
             arg3: self.pool.into_bits() as _,
 
             ..Default::default()
@@ -117,7 +117,7 @@ impl VmcallRequest for AllocateMemoryRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             size: request.arg1 as _,
-            align: request.arg2 as _,
+            underlying_pages: request.arg2 as _,
             pool: MemoryPool::from_bits(request.arg3 as _),
         }
     }
