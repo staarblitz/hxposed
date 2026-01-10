@@ -1,8 +1,7 @@
-use crate::nt::context::ApcProcessContext;
-use crate::plugins::PluginTable;
+use crate::nt::mdl::MemoryDescriptor;
 use crate::plugins::commands::memory::*;
 use crate::plugins::plugin::Plugin;
-use crate::utils::blanket::OpenHandle;
+use crate::plugins::PluginTable;
 use crate::win::{MmCopyVirtualMemory, ZwProtectVirtualMemory};
 use alloc::boxed::Box;
 use core::ops::BitAnd;
@@ -17,15 +16,9 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::memory_fields::MemoryProtection;
-use wdk_sys::_MEMORY_CACHING_TYPE::MmCached;
-use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
 use wdk_sys::_MODE::{KernelMode, UserMode};
-use wdk_sys::ntddk::{
-    IoFreeMdl, MmAllocateContiguousMemorySpecifyCache, MmBuildMdlForNonPagedPool,
-    MmFreeContiguousMemory, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages,
-};
 use wdk_sys::{
-    FALSE, PHYSICAL_ADDRESS, SIZE_T, STATUS_INVALID_PAGE_PROTECTION, STATUS_MEMORY_NOT_ALLOCATED,
+    SIZE_T, STATUS_INVALID_PAGE_PROTECTION,
     STATUS_SUCCESS, ULONG,
 };
 
@@ -35,18 +28,13 @@ pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorRespo
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let mdl = match plugin
+    match plugin
         .object_table
-        .pop_allocated_mdl(request.command.original_system_va)
+        .pop_allocated_mdl(request.command.mdl as _)
     {
         Some(mdl) => mdl,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
     };
-
-    unsafe {
-        MmFreeContiguousMemory(mdl.MappedSystemVa);
-        IoFreeMdl(mdl.ptr);
-    }
 
     EmptyResponse::with_service(ServiceFunction::FreeMemory)
 }
@@ -84,9 +72,9 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let mdl = match plugin
+    let mut mdl = match plugin
         .object_table
-        .get_allocated_mdl(request.command.original_system_va)
+        .pop_allocated_mdl(request.command.mdl as _)
     {
         Some(mdl) => mdl,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
@@ -96,46 +84,40 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
         .object_table
         .get_open_process(request.command.process as _)
     {
-        None => plugin.process,
+        None => plugin.process.as_ref().unwrap(),
         Some(x) => x,
     };
 
-    let _ctx = ApcProcessContext::begin(process);
+    let _ctx = process.begin_context();
+    let map_address = if request.command.map_address == 0 {
+        None
+    } else {
+        Some(request.command.map_address as _)
+    };
 
     let result = match request.command.operation {
         MapMemoryOperation::Map => {
             let ptr = unsafe {
-                match microseh::try_seh(|| {
-                    MmMapLockedPagesSpecifyCache(
-                        mdl.ptr,
-                        UserMode as _,
-                        MmCached,
-                        request.command.map_address as _,
-                        FALSE,
-                        HighPagePriority as _,
-                    )
-                }) {
+                match mdl.map(map_address, UserMode as _) {
                     Ok(ptr) => ptr,
-                    Err(_) => {
-                        return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
+                    Err(err) => {
+                        return HypervisorResponse::nt_error(err as _);
                     }
                 }
             };
-
-            if ptr.is_null() {
-                return HypervisorResponse::nt_error(STATUS_MEMORY_NOT_ALLOCATED as _);
-            }
 
             MapMemoryResponse {
                 mapped_address: ptr as _,
             }
             .into_raw()
         }
-        MapMemoryOperation::Unmap => {
-            unsafe { MmUnmapLockedPages(request.command.map_address as _, mdl.ptr) }
-            EmptyResponse::with_service(ServiceFunction::MapMemory)
-        }
+        MapMemoryOperation::Unmap => match mdl.unmap() {
+            Ok(_) => EmptyResponse::with_service(ServiceFunction::MapMemory),
+            Err(_) => HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
+        },
     };
+
+    plugin.object_table.add_mdl(mdl);
 
     // paranoid
     drop(_ctx);
@@ -176,34 +158,19 @@ pub(crate) fn allocate_mdl_sync(request: &AllocateMemoryAsyncCommand) -> Hypervi
         None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
     };
 
-    let alloc = unsafe {
-        MmAllocateContiguousMemorySpecifyCache(
-            request.command.size as _,
-            PHYSICAL_ADDRESS::default(),
-            PHYSICAL_ADDRESS {
-                QuadPart: u64::MAX as _,
-            },
-            PHYSICAL_ADDRESS::default(),
-            MmCached as _,
-        )
+    let mdl = match request.command.underlying_pages {
+        0 => MemoryDescriptor::new(request.command.size as _),
+        addr => MemoryDescriptor::new_describe(addr as _, request.command.size as _),
     };
 
-    if alloc.is_null() {
-        return HypervisorResponse::nt_error(STATUS_MEMORY_NOT_ALLOCATED as _);
+    let ret = AllocateMemoryResponse {
+        mdl: mdl.mdl.ptr as _,
+        bytes_allocated: mdl.mdl.ByteCount,
     }
+    .into_raw();
 
-    let mdl = plugin
-        .object_table
-        .allocate_mdl(alloc, request.command.size);
-
-    // this function maps the mdl. so MappedSystemVa is a valid field now.
-    unsafe { MmBuildMdlForNonPagedPool(mdl.ptr) }
-
-    AllocateMemoryResponse {
-        address: mdl.MappedSystemVa as _,
-        bytes_allocated: mdl.ByteCount,
-    }
-    .into_raw()
+    plugin.object_table.add_mdl(mdl);
+    ret
 }
 
 pub(crate) fn allocate_mdl_async(
@@ -330,7 +297,7 @@ pub(crate) fn protect_vm_sync(request: &ProtectProcessMemoryAsyncCommand) -> Hyp
     let mut bytes_processed = 4096u64;
     let mut protection = ULONG::default();
 
-    let handle = match process.get_handle() {
+    let handle = match process.open_handle() {
         Ok(handle) => handle,
         Err(err) => return HypervisorResponse::nt_error(err as _),
     };
@@ -432,15 +399,15 @@ pub(crate) fn process_vm_operation_sync(
     let mut return_size = SIZE_T::default();
 
     let (source, target) = match request.command.operation {
-        ProcessMemoryOperation::Read => (process, plugin.process),
-        ProcessMemoryOperation::Write => (plugin.process, process),
+        ProcessMemoryOperation::Read => (process, plugin.process.as_ref().unwrap()),
+        ProcessMemoryOperation::Write => (plugin.process.as_ref().unwrap(), process),
     };
 
     match unsafe {
         MmCopyVirtualMemory(
-            source,
+            source.nt_process,
             request.command.address as _,
-            target,
+            target.nt_process,
             request.command.data as _,
             request.command.data_len as _,
             KernelMode as _,
