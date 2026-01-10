@@ -57,12 +57,10 @@ impl WakerCell {
     }
 
     pub fn register(&self, w: &Waker) {
-        // allocate Box<Waker> on heap
         let boxed = Box::into_raw(Box::new(w.clone()));
-        // swap old pointer out; if existing, drop it
         let prev = self.ptr.swap(boxed, Ordering::AcqRel);
         if !prev.is_null() {
-            // safety: prev was a Box<Waker> allocated above
+            // SAFETY: prev was a Box<Waker> allocated above
             unsafe { drop(Box::from_raw(prev)) };
         }
     }
@@ -130,19 +128,22 @@ where
         match me.state.load(Ordering::Acquire) {
             PromiseState::None => {
                 me.waker.register(cx.waker());
+                let pinned_me = unsafe{Pin::new_unchecked(me).get_unchecked_mut()};
                 match unsafe {
                     CreateThread(
                         null_mut(),
                         0,
                         Self::hv_wait_worker,
-                        Pin::new_unchecked(me).get_unchecked_mut() as *mut _ as _,
+                        pinned_me as *mut _ as _,
                         0,
                         null_mut(),
                     )
                 } {
                     0 => panic!("CreateThread returned an error"),
-                    handle => unsafe { CloseHandle(handle) },
-                }
+                    handle => unsafe {
+                        CloseHandle(handle)
+                    },
+                };
 
                 Poll::Pending
             }
@@ -195,6 +196,7 @@ where
 
         result
     }
+
 
     pub fn send_async(&mut self) {
         let request = self
