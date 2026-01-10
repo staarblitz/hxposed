@@ -2,12 +2,8 @@
 A hypervisor based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
 Based on [barevisor](https://github.com/tandasat/barevisor)
 
-### What does HxPosed do?
-HxPosed changes that by giving you direct access to both the kernel and user mode. It’s a hypervisor-based kernel driver that uses VMCALLs (CPUID traps, actually) to manage both the kernel and user space.
-
-Since hypervisors operate in ring -1 (a theoretical level even more privileged than the kernel), HxPosed gives you everything you need.
-
-This isn't just about optimizing Windows; it’s about owning it.
+## What does HxPosed do?
+HxPosed grants you hypervisor and kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
 
 And yes, we mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
 - A safe API written in Rust (available for C# and C too),
