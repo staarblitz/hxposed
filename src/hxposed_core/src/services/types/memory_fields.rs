@@ -48,6 +48,6 @@ impl MemoryPool {
 pub enum KernelMemoryState {
     None,
     Allocated,
-    Mapped,
+    Mapped(usize),
     Freed,
 }
