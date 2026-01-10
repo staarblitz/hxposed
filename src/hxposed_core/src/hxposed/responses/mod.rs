@@ -11,7 +11,7 @@ pub mod security;
 pub mod status;
 pub mod thread;
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
 pub struct HypervisorResponse {
     pub result: HypervisorResult,
     pub arg1: u64,
