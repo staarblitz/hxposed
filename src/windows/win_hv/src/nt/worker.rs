@@ -1,5 +1,4 @@
 use crate::plugins::PLUGINS;
-use crate::nt::context::ApcProcessContext;
 use crate::plugins::commands::memory::*;
 use crate::plugins::commands::process::*;
 use crate::plugins::commands::security::*;
@@ -52,7 +51,7 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                 Some(x) => x,
             };
 
-            let ctx = ApcProcessContext::begin(plugin.process);
+            let ctx = plugin.process.as_ref().unwrap().begin_context();
 
             log::trace!("Found {:?} on queue. Processing....", command.get_service_function());
 
@@ -135,12 +134,15 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .downcast_ref::<AllocateMemoryAsyncCommand>()
                         .unwrap(),
                 ),
-                ServiceFunction::MapMemory => map_mdl_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<MapMemoryAsyncCommand>()
-                        .unwrap(),
-                ),
+                ServiceFunction::MapMemory => {
+                    drop(ctx); // map_mdl has its own context
+                    map_mdl_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<MapMemoryAsyncCommand>()
+                            .unwrap(),
+                    )
+                },
                 ServiceFunction::FreeMemory => free_mdl_sync(
                     command.as_any().downcast_ref::<FreeMemoryAsyncCommand>().unwrap()
                 ),
@@ -156,8 +158,6 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
             log::trace!("Work completed: {:?}", result);
             log::trace!("Signaling completion");
             command.complete(result);
-
-            drop(ctx);
         }
     }
 }
