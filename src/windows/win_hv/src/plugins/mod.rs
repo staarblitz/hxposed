@@ -70,7 +70,10 @@ impl PluginTable {
         match slice
             .plugins
             .iter_mut()
-            .find(|p| p.process == unsafe { IoGetCurrentProcess() })
+            .find(|p| match &p.process {
+                None => false,
+                Some(x) => x.uid == unsafe {IoGetCurrentProcess()} as u64
+            })
         {
             Some(p) => Some(*p),
             None => None,

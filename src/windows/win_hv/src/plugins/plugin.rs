@@ -1,6 +1,9 @@
+use crate::nt::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
 use crate::plugins::commands::AsyncCommand;
 use crate::utils::alloc::PoolAllocSized;
+use crate::win::utf_to_unicode::Utf8ToUnicodeString;
+use crate::win::utils::InitializeObjectAttributes;
 use crate::{as_pvoid, get_data};
 use alloc::boxed::Box;
 use alloc::collections::VecDeque;
@@ -8,19 +11,17 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::ptr::slice_from_raw_parts_mut;
-use core::sync::atomic::Ordering;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use uuid::Uuid;
-use wdk_sys::ntddk::{
-    IoAllocateMdl, RtlCompareUnicodeString,
-    ZwClose, ZwOpenKey, ZwQueryValueKey,
-};
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
-use wdk_sys::{FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PETHREAD, PIRP, PMDL, STATUS_SUCCESS};
-use wdk_sys::{MDL, PACCESS_TOKEN, PEPROCESS, PVOID, UNICODE_STRING};
-use crate::utils::danger::DangerPtr;
-use crate::win::utf_to_unicode::Utf8ToUnicodeString;
-use crate::win::utils::InitializeObjectAttributes;
+use wdk_sys::ntddk::{RtlCompareUnicodeString, ZwClose, ZwOpenKey, ZwQueryValueKey};
+use wdk_sys::{
+    FALSE, HANDLE, KEY_ALL_ACCESS, KEY_VALUE_FULL_INFORMATION, OBJ_CASE_INSENSITIVE,
+    OBJ_KERNEL_HANDLE, OBJECT_ATTRIBUTES, PETHREAD, STATUS_SUCCESS,
+};
+use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PVOID, UNICODE_STRING};
+use crate::nt::thread::NtThread;
+use crate::nt::token::NtToken;
 
 #[derive(Default)]
 pub(crate) struct Plugin {
@@ -29,21 +30,20 @@ pub(crate) struct Plugin {
     #[allow(dead_code)]
     pub authorized_permissions: PluginPermissions,
     pub plugin_path: Box<UNICODE_STRING>,
-    pub process: PEPROCESS,
+    pub process: Option<NtProcess>,
     pub object_table: PluginObjectTable,
     pub awaiting_commands: VecDeque<Box<dyn AsyncCommand>>,
 }
 
 #[derive(Default)]
 pub(crate) struct PluginObjectTable {
-    pub open_processes: Vec<PEPROCESS>,
-    pub open_threads: Vec<PETHREAD>,
-    pub open_tokens: Vec<PACCESS_TOKEN>,
-    pub allocated_mdls: Vec<DangerPtr<MDL>>,
+    open_processes: Vec<NtProcess>,
+    open_threads: Vec<NtThread>,
+    open_tokens: Vec<NtToken>,
+    allocated_mdls: Vec<MemoryDescriptor>,
 }
 
 impl PluginObjectTable {
-
     ///
     /// # Allocate MDL
     ///
@@ -55,34 +55,21 @@ impl PluginObjectTable {
     ///
     /// ## Returns
     /// * [`MDL`] - Object
-    pub fn allocate_mdl(&mut self, ptr: PVOID, length: u32) -> &DangerPtr<MDL> {
-        // uses ExAllocatePool. so it's safe for us to wrap it in our Box.
-        let mdl = unsafe {
-            IoAllocateMdl(
-                ptr,
-                length,
-                FALSE as _,
-                FALSE as _,
-                PIRP::default(),
-            )
-        };
-        self.allocated_mdls.push(DangerPtr {
-            ptr: mdl
-        });
-
+    pub fn add_mdl(&mut self, mdl: MemoryDescriptor) -> &MemoryDescriptor {
+        self.allocated_mdls.push(mdl);
         self.allocated_mdls.last().unwrap()
     }
 
-    pub fn add_open_process(&mut self, process: PEPROCESS) {
+    pub fn add_open_process(&mut self, process: NtProcess) {
         self.open_processes.push(process);
     }
 
-    pub fn add_open_thread(&mut self, process: PETHREAD) {
-        self.open_threads.push(process);
+    pub fn add_open_thread(&mut self, thread: NtThread) {
+        self.open_threads.push(thread);
     }
 
-    pub fn add_open_token(&mut self, process: PACCESS_TOKEN) {
-        self.open_tokens.push(process);
+    pub fn add_open_token(&mut self, token: NtToken) {
+        self.open_tokens.push(token);
     }
 
     ///
@@ -91,17 +78,13 @@ impl PluginObjectTable {
     /// Gets an MDL opened by the plugin. Then "closes" it.
     ///
     /// ## Arguments
-    /// * `mapped_system_va` - [`MappedSystemVa`] field of the MDL object.
+    /// * `mdl_addr` - Address of [`MDL`] objeect.
     ///
     /// ## Returns
     /// * [`Some`] - MDL object.
     /// * [`None`] - MDL was not found.
-    pub fn pop_allocated_mdl(&mut self, mapped_system_va: u64) -> Option<DangerPtr<MDL>> {
-        if let Some(pos) = self
-            .allocated_mdls
-            .iter()
-            .position(|m| m.MappedSystemVa as u64 == mapped_system_va)
-        {
+    pub fn pop_allocated_mdl(&mut self, mdl_addr: usize) -> Option<MemoryDescriptor> {
+        if let Some(pos) = self.allocated_mdls.iter().position(|m| m.mdl.ptr as usize == mdl_addr) {
             Some(self.allocated_mdls.remove(pos))
         } else {
             None
@@ -119,11 +102,11 @@ impl PluginObjectTable {
     /// ## Returns
     /// * [`Some`] - Pointer to thread object.
     /// * [`None`] - Thread was not found.
-    pub fn pop_open_thread(&mut self, addr: PETHREAD) -> Option<PETHREAD> {
+    pub fn pop_open_thread(&mut self, addr: PETHREAD) -> Option<NtThread> {
         if let Some(pos) = self
             .open_threads
             .iter()
-            .position(|m| (m.addr() as u64) == (addr as u64))
+            .position(|m| (m.nt_thread.addr() as u64) == (addr as u64))
         {
             Some(self.open_threads.remove(pos))
         } else {
@@ -142,11 +125,11 @@ impl PluginObjectTable {
     /// ## Returns
     /// * [`Some`] - Pointer to process object.
     /// * [`None`] - Process was not found.
-    pub fn pop_open_process(&mut self, addr: PEPROCESS) -> Option<PEPROCESS> {
+    pub fn pop_open_process(&mut self, addr: PEPROCESS) -> Option<NtProcess> {
         if let Some(pos) = self
             .open_processes
             .iter()
-            .position(|m| (m.addr() as u64) == (addr as u64))
+            .position(|m| (m.uid) == (addr as u64))
         {
             Some(self.open_processes.remove(pos))
         } else {
@@ -165,11 +148,11 @@ impl PluginObjectTable {
     /// ## Returns
     /// * [`Some`] - Pointer to token object.
     /// * [`None`] - Token was not found.
-    pub fn pop_open_token(&mut self, addr: PACCESS_TOKEN) -> Option<PACCESS_TOKEN> {
+    pub fn pop_open_token(&mut self, addr: PACCESS_TOKEN) -> Option<NtToken> {
         if let Some(pos) = self
             .open_tokens
             .iter()
-            .position(|m| (m.addr() as u64) == (addr as u64))
+            .position(|m| (m.uid) == (addr as u64))
         {
             Some(self.open_tokens.remove(pos))
         } else {
@@ -188,18 +171,15 @@ impl PluginObjectTable {
     /// ## Returns
     /// * [`Some`] - Pointer to token object.
     /// * [`None`] - Token was not found.
-    pub fn get_open_token(&self, addr: PACCESS_TOKEN) -> Option<PACCESS_TOKEN> {
-        let ptr = self.open_tokens.iter().find(|p| {
-            if (**p).addr() == addr as u64 as usize {
-                return true;
-            }
-
-            false
-        });
+    pub fn get_open_token(&self, addr: PACCESS_TOKEN) -> Option<&NtToken> {
+        let ptr = self
+            .open_tokens
+            .iter()
+            .find(|p| p.nt_token as u64 == addr as u64);
 
         match ptr {
             None => None,
-            Some(p) => Some(*p),
+            Some(p) => Some(p),
         }
     }
 
@@ -214,18 +194,15 @@ impl PluginObjectTable {
     /// ## Returns
     /// * [`Some`] - Pointer to thread object.
     /// * [`None`] - Thread was not found.
-    pub fn get_open_thread(&self, addr: PETHREAD) -> Option<PETHREAD> {
-        let ptr = self.open_threads.iter().find(|p| {
-            if (**p).addr() == addr as u64 as usize {
-                return true;
-            }
-
-            false
-        });
+    pub fn get_open_thread(&self, addr: PETHREAD) -> Option<&NtThread> {
+        let ptr = self
+            .open_threads
+            .iter()
+            .find(|p| p.nt_thread.addr() == addr as u64 as usize);
 
         match ptr {
             None => None,
-            Some(x) => Some(*x),
+            Some(x) => Some(x),
         }
     }
 
@@ -244,18 +221,12 @@ impl PluginObjectTable {
     /// ## Returns
     /// * [`Some`] - Pointer to process object.
     /// * [`None`] - Process was not found.
-    pub fn get_open_process(&self, addr: PEPROCESS) -> Option<PEPROCESS> {
-        let ptr = self.open_processes.iter().find(|p| {
-            if (**p).addr() == addr as u64 as usize {
-                return true;
-            }
-
-            false
-        });
+    pub fn get_open_process(&self, addr: PEPROCESS) -> Option<&NtProcess> {
+        let ptr = self.open_processes.iter().find(|p| p.uid == addr as u64);
 
         match ptr {
             None => None,
-            Some(x) => Some(*x),
+            Some(x) => Some(x),
         }
     }
 
@@ -265,15 +236,18 @@ impl PluginObjectTable {
     /// Gets an MDL opened by the plugin.
     ///
     /// ## Arguments
-    /// * `mapped_system_va` - [`MappedSystemVa`] field of the MDL object.
+    /// * `mdl_addr` - Address of [`MDL`] object.
     ///
     /// ## Returns
     /// * [`Some`] - MDL object.
     /// * [`None`] - MDL was not found.
-    pub fn get_allocated_mdl(&self, mapped_system_va: u64) -> Option<&DangerPtr<MDL>> {
-        self.allocated_mdls
-            .iter()
-            .find(|m| m.MappedSystemVa as u64 == mapped_system_va)
+    pub fn get_mdl(&self, mdl_addr: usize) -> Option<&MemoryDescriptor> {
+        self.allocated_mdls.iter().find(|m| m.mdl.ptr == mdl_addr as _)
+    }
+
+    pub fn rundown(&mut self) {
+        self.open_processes.clear();
+        self.allocated_mdls.clear();
     }
 }
 
@@ -325,24 +299,27 @@ impl Plugin {
     /// Integrates a plugin with process, and permissions that are allowed.
     ///
     /// ## Arguments
-    /// * `process` - Pointer to NT executive process object.
+    /// * `process_id` - ID of the process.
     /// * `permissions` - Permission mask that plugin will utilize.
     ///
     /// ## Return
     /// * [`None`] - Plugin does not meet specifications.
     /// * [`Some`] - Ok.
-    pub fn integrate(&mut self, process: PEPROCESS, permissions: PluginPermissions) -> Option<()> {
-        let kprocess = NtProcess::from_ptr(process);
+    pub fn integrate(&mut self, process_id: u32, permissions: PluginPermissions) -> Option<()> {
+        if !self.process.is_some() {
+            self.object_table.rundown();
+        }
+
+        let process = match NtProcess::from_id(process_id) {
+            None => return None,
+            Some(x) => x,
+        };
 
         match unsafe {
-            RtlCompareUnicodeString(
-                kprocess.nt_path.load(Ordering::Relaxed),
-                self.plugin_path.as_mut(),
-                FALSE as _,
-            )
+            RtlCompareUnicodeString(process.nt_path, self.plugin_path.as_mut(), FALSE as _)
         } {
             0 => {
-                self.process = process;
+                self.process = Some(process);
                 self.permissions = permissions;
                 Some(())
             }
@@ -379,7 +356,7 @@ impl Plugin {
         };
 
         match unsafe { ZwOpenKey(&mut key_handle, KEY_ALL_ACCESS, &mut attributes) } {
-            STATUS_SUCCESS => {},
+            STATUS_SUCCESS => {}
             err => {
                 log::error!("Error opening key: {}", err);
                 return None;
