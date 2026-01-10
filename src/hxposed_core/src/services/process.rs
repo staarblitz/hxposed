@@ -1,8 +1,9 @@
 use crate::error::HypervisorError;
-use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::*;
+use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
+use crate::hxposed::ObjectType;
 use crate::intern::win::GetCurrentProcessId;
 use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
@@ -11,7 +12,10 @@ use crate::services::security::HxToken;
 use crate::services::types::process_fields::*;
 use alloc::boxed::Box;
 use alloc::string::String;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::arch::asm;
+use core::mem::ManuallyDrop;
 use core::pin::Pin;
 use core::ptr::null_mut;
 
@@ -32,7 +36,7 @@ impl Drop for HxProcess {
     }
 }
 
-pub type Future<T, X> = Pin<Box<AsyncPromise<T, X>>>;
+pub type AsyncFuture<T, X> = Pin<Box<AsyncPromise<T, X>>>;
 
 impl HxProcess {
     ///
@@ -66,7 +70,10 @@ impl HxProcess {
         .send_async()
         .await?;
 
-        Ok(result.addr)
+        Ok(match result.object {
+            ObjectType::Handle(handle) => handle,
+            _ => panic!("Unexpected object type"),
+        })
     }
 
     ///
@@ -112,12 +119,14 @@ impl HxProcess {
     /// ## Arguments
     /// - `token` - New token. See [`HxToken`]
     pub async fn swap_token(&self, token: &HxToken) -> Result<EmptyResponse, HypervisorError> {
-        SetProcessFieldRequest{
+        SetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Token,
             data: token.addr as _,
-            data_len: 8
-        }.send_async().await
+            data_len: 8,
+        }
+        .send_async()
+        .await
     }
 
     ///
@@ -231,8 +240,10 @@ impl HxProcess {
 
         Ok(Self {
             id,
-            memory: HxMemory { process: call.addr },
-            addr: call.addr,
+            memory: HxMemory {
+                process: call.object.into(),
+            },
+            addr: call.object.into(),
         })
     }
 
@@ -263,7 +274,7 @@ impl HxProcess {
     pub fn set_protection(
         &mut self,
         new_protection: ProcessProtection,
-    ) -> Future<SetProcessFieldRequest, EmptyResponse> {
+    ) -> AsyncFuture<SetProcessFieldRequest, EmptyResponse> {
         let mut boxed_protection = Box::new(new_protection);
         SetProcessFieldRequest::set_protection(self.addr, boxed_protection.as_mut()).send_async()
     }
@@ -297,7 +308,7 @@ impl HxProcess {
     pub fn set_signature_levels(
         &mut self,
         new_levels: ProcessSignatureLevels,
-    ) -> Future<SetProcessFieldRequest, EmptyResponse> {
+    ) -> AsyncFuture<SetProcessFieldRequest, EmptyResponse> {
         let mut boxed_levels = Box::new(new_levels);
         SetProcessFieldRequest::set_signature_levels(self.addr, boxed_levels.as_mut()).send_async()
     }
@@ -452,9 +463,12 @@ impl HxProcess {
     ///
     /// # Kill
     ///
-    /// Uses [`PspTerminateProces`] internally to terminate the process object.
+    /// Uses `PspTerminateProces` internally to terminate the process object.
     ///
     /// Consumes the object.
+    ///
+    /// ## Warning
+    /// * Object must be dropped by hand **after** a successful termination.
     ///
     /// ## Arguments
     /// * `exit_code` - The [`NTSTATUS`] exit code of the process.
@@ -470,13 +484,14 @@ impl HxProcess {
     ///  match process.kill(0).await {
     ///         Ok(_) => {
     ///             println!("Killed process!");
+    ///             drop(process);
     ///         }
     ///         Err(e) => {
     ///             println!("Error killing process: {:?}", e);
     ///         }
     ///     }
     /// ```
-    pub fn kill(self, exit_code: u32) -> Future<KillProcessRequest, EmptyResponse> {
+    pub fn kill(&self, exit_code: u32) -> AsyncFuture<KillProcessRequest, EmptyResponse> {
         KillProcessRequest {
             process: self.addr,
             exit_code,
