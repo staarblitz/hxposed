@@ -1,19 +1,16 @@
 use crate::utils::danger::DangerPtr;
 use core::ptr::null_mut;
+use wdk_sys::ntddk::{ExFreePool, IoAllocateMdl, MmAllocatePagesForMdlEx, MmFreePagesFromMdl, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages};
 use wdk_sys::_MEMORY_CACHING_TYPE::{MmCached, MmNonCached};
 use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
-use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{
-    ExFreePool, IoAllocateMdl, MmAllocatePagesForMdl, MmAllocatePagesForMdlEx, MmFreePagesFromMdl,
-    MmMapLockedPagesSpecifyCache, MmUnmapLockedPages,
-};
-use wdk_sys::{_MDL, FALSE, MM_ALLOCATE_PREFER_CONTIGUOUS, PHYSICAL_ADDRESS};
+use wdk_sys::{FALSE, KPROCESSOR_MODE, MM_ALLOCATE_PREFER_CONTIGUOUS, NTSTATUS, PHYSICAL_ADDRESS, PIRP, PVOID, STATUS_ACCESS_VIOLATION, STATUS_MEMORY_NOT_ALLOCATED, _MDL};
 
 /// Abstraction over MDL with Rust safety.
 pub struct MemoryDescriptor {
-    mdl: DangerPtr<_MDL>,
+    pub mdl: DangerPtr<_MDL>,
     pub status: MapStatus,
     pub length: usize,
+    pub owns: bool,
 }
 
 unsafe impl Send for MemoryDescriptor {}
@@ -27,12 +24,14 @@ pub enum MapStatus {
 
 impl Drop for MemoryDescriptor {
     fn drop(&mut self) {
-        unsafe {
-            MmFreePagesFromMdl(self.mdl.ptr);
-            ExFreePool(self.mdl.ptr as _);
-        }
-        if let MapStatus::Mapped(location) = self.status {
-            unsafe { MmUnmapLockedPages(location as _, self.mdl.ptr) }
+        if self.owns {
+            unsafe {
+                MmFreePagesFromMdl(self.mdl.ptr);
+                ExFreePool(self.mdl.ptr as _);
+            }
+            if let MapStatus::Mapped(location) = self.status {
+                unsafe { MmUnmapLockedPages(location as _, self.mdl.ptr) }
+            }
         }
     }
 }
@@ -45,12 +44,24 @@ impl MemoryDescriptor {
             },
             length: 0,
             status: MapStatus::NotInitialized,
+            owns: false,
+        }
+    }
+
+    pub fn new_describe(ptr: PVOID, length: u32) -> Self {
+        Self {
+            mdl: DangerPtr {
+                ptr: unsafe { IoAllocateMdl(ptr, length, FALSE as _, FALSE as _, PIRP::default()) }
+            },
+            length: length as _,
+            status: MapStatus::Allocated,
+            owns: true,
         }
     }
 
     pub fn new(length: usize) -> Self {
         let mut me = Self::default();
-        Self::init(&mut me, length);
+        Self::init(&mut me,length);
         me
     }
 
@@ -74,20 +85,38 @@ impl MemoryDescriptor {
         self.status = MapStatus::Allocated;
         self.length = length;
         self.mdl = mdl;
+        self.owns = true;
     }
 
-    pub fn map(&mut self, address: Option<usize>) {
-        let address = unsafe {
+    pub fn unmap(&mut self) -> Result<(), ()> {
+        match self.status {
+            MapStatus::Mapped(ptr) => {
+                unsafe { MmUnmapLockedPages(ptr as _, self.mdl.ptr) };
+                Ok(())
+            }
+            _ => Err(()),
+        }
+    }
+
+    pub fn map(&mut self, address: Option<usize>, mode: KPROCESSOR_MODE) -> Result<usize, NTSTATUS> {
+        let address = match microseh::try_seh(|| unsafe {
             MmMapLockedPagesSpecifyCache(
                 self.mdl.ptr,
-                KernelMode as _,
+                mode,
                 MmCached,
                 address.unwrap_or(0) as _,
                 FALSE as _,
                 HighPagePriority as _,
             )
+        }) {
+            Ok(ptr) => match ptr as usize {
+                0 => return Err(STATUS_MEMORY_NOT_ALLOCATED),
+                x => x,
+            },
+            Err(_) => return Err(STATUS_ACCESS_VIOLATION),
         };
 
         self.status = MapStatus::Mapped(address as _);
+        Ok(address as _)
     }
 }
