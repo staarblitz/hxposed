@@ -5,8 +5,8 @@ extern crate bit_field;
 extern crate hv;
 
 mod boot;
+mod hypervisor;
 mod nt;
-mod ops;
 mod plugins;
 mod services;
 mod utils;
@@ -16,43 +16,28 @@ mod win;
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::boot::HX_LOADER_PARAMETER_BLOCK;
-use crate::nt::mdl::{MapStatus, MemoryDescriptor};
+use crate::nt::guard::hxguard::HxGuard;
 use crate::nt::thread::NtThread;
 use crate::nt::worker::async_worker_thread;
-use crate::plugins::PluginTable;
-use crate::services::authorize_plugin;
 use crate::utils::logger::NtLogger;
-use alloc::boxed::Box;
-use alloc::format;
-use alloc::string::ToString;
+use core::ptr;
 use core::ptr::null_mut;
-use core::sync::atomic::{AtomicU64, Ordering};
-use core::{mem, ptr};
-use hv::SharedHostData;
+use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
-use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
-use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::func::ServiceFunction::Authorize;
-use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
-use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use hxposed_core::hxposed::responses::status::StatusResponse;
-use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::hxposed::status::HypervisorStatus;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use nt::cback::registry_callback;
+use hxposed_core::hxposed::responses::HypervisorResponse;
 use wdk_alloc::WdkAllocator;
+use wdk_sys::ntddk::{KeBugCheckEx, KeDelayExecutionThread};
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{CmRegisterCallback, ExAllocatePool2, KeBugCheckEx, KeDelayExecutionThread};
 use wdk_sys::{
-    BOOLEAN, DRIVER_OBJECT, FALSE, LARGE_INTEGER, NTSTATUS, POOL_FLAG_NON_PAGED, PUNICODE_STRING,
-    PVOID, STATUS_SUCCESS, STATUS_TOO_LATE,
+    DRIVER_OBJECT, FALSE, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS,
+    STATUS_TOO_LATE,
 };
 
-static CM_COOKIE: AtomicU64 = AtomicU64::new(0);
+static mut HX_GUARD: HxGuard = HxGuard::new(true);
+
 static mut LOGGER: NtLogger = NtLogger::default();
 
-extern "C" fn delayed_start(arg: PVOID) {
+extern "C" fn delayed_start(_arg: PVOID) {
     // im very sorry
 
     log::trace!("delayed_start");
@@ -80,6 +65,23 @@ extern "C" fn driver_entry(
         ptr::read_volatile(&HX_LOADER_PARAMETER_BLOCK)
     };
 
+    match cfg.booted_from_hxloader {
+        true => {
+            log::info!("Loaded from HxLoader!");
+            log::info!("Delaying startup....");
+
+            NtThread::create(Some(delayed_start), None);
+
+            return STATUS_SUCCESS;
+        }
+        false => match nt::get_nt_info(None) {
+            Ok(_) => {}
+            Err(_) => {
+                return STATUS_TOO_LATE;
+            }
+        },
+    }
+
     // SAFETY: we know there is no other accessor currently
     unsafe {
         if !LOGGER.is_init {
@@ -100,62 +102,26 @@ extern "C" fn driver_entry(
         cfg.pe_size
     );
 
-    match cfg.booted_from_hxloader {
-        true => {
-            log::info!("Loaded from HxLoader!");
-            log::info!("Delaying startup....");
-
-            NtThread::create(Some(delayed_start), None);
-
-            return STATUS_SUCCESS;
-        }
-        false => match nt::get_nt_info(None) {
-            Ok(_) => {}
-            Err(_) => {
-                return STATUS_TOO_LATE;
-            }
-        },
-    }
-
-    log::info!("Initializing HxPosed");
-
-    nt::get_system_token();
-
     log::info!("NT Version: {:x}", nt::NT_BUILD.load(Ordering::Relaxed));
     log::info!(
         "SYSTEM Token: {:x}",
         nt::SYSTEM_TOKEN.load(Ordering::Relaxed) as u64
     );
 
-    log::info!("Allocating memory for the hypervisor...");
+    log::info!("Initializing HxPosed");
 
-    let mem = unsafe {
-        ExAllocatePool2(
-            POOL_FLAG_NON_PAGED,
-            hv::allocator::ALLOCATION_BYTES as _,
-            0x2009,
-        )
-    };
+    // SAFETY: this is the only mutable access in entire lifecycle.
+    unsafe {
+        HX_GUARD.init();
+    }
 
-    hv::allocator::init(mem as _);
+    log::info!("Initializing hypervisor...");
 
-    hv::platform_ops::init(Box::new(ops::WindowsOps));
+    hypervisor::init::init_hypervisor();
 
-    // TODO: use custom gdt and so on for more security?
-    let mut host_data = SharedHostData::default();
-    host_data.vmcall_handler = Some(vmcall_handler);
-
-    hv::virtualize_system(host_data);
+    log::info!("Initializing plugins...");
 
     plugins::load_plugins();
-
-    let mut cookie = LARGE_INTEGER::default();
-    match unsafe { CmRegisterCallback(Some(registry_callback), PVOID::default(), &mut cookie) } {
-        STATUS_SUCCESS => unsafe { CM_COOKIE.store(cookie.QuadPart as _, Ordering::Relaxed) },
-        err => {
-            panic!("Error registering registry callbacks: {:?}", err);
-        }
-    }
 
     match NtThread::create(Some(async_worker_thread), None) {
         STATUS_SUCCESS => {}
@@ -167,133 +133,6 @@ extern "C" fn driver_entry(
     STATUS_SUCCESS
 }
 
-///
-/// # Called when a CPUID with RCX = 2009 is executed.
-///
-/// ## Arguments
-/// guest - The trait of guest. Intel or AMD.
-///
-/// info - Information about the call. See [HypervisorCall].
-///
-/// ## Return
-/// There is no return value of this function, however, the return value of the vmcall will be in RSI.
-/// Which you *may* want to utilize. See documentation on GitHub page for more information about trap ABI.
-///
-/// ## Warning
-///
-/// ### We are in context of the thread that made the vmcall.
-/// Functions like "IoGetCurrentProcess" returns the process that made the vmcall, not the system process.
-/// (that is a good thing)
-///
-/// ### IRQL is above sane.
-/// IRQL is 255, all interrupts are disabled. Using Zw* and other functions that ask for PASSIVE_LEVEL will only result in tears.
-///
-/// ### This is a VMEXIT handler
-/// Don't you dare to "take your time". This interrupts the whole CPU and making the kernel scheduler forget its purpose.
-///
-fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
-    log::trace!("Handling vmcall function: {:?}", info.func());
-
-    if info.func() == ServiceFunction::GetState {
-        write_response(
-            guest,
-            StatusResponse {
-                state: HypervisorStatus::SystemVirtualized,
-                version: 1,
-            }
-            .into_raw(),
-        );
-        return;
-    }
-
-    let mut async_info = UnsafeAsyncInfo::default();
-
-    let request = HypervisorRequest {
-        call: info,
-        arg1: guest.regs().r8,
-        arg2: guest.regs().r9,
-        arg3: guest.regs().r10,
-        extended_arg1: guest.regs().xmm0.into(),
-        extended_arg2: guest.regs().xmm1.into(),
-        extended_arg3: guest.regs().xmm2.into(),
-        extended_arg4: guest.regs().xmm3.into(),
-    };
-
-    if info.is_async() {
-        async_info = UnsafeAsyncInfo {
-            handle: guest.regs().r11,
-            result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
-        };
-
-        log::trace!(
-            "Async Handle: {:x}. Result values: {:x}",
-            async_info.handle,
-            async_info.result_values.addr()
-        )
-    }
-
-    let plugin = match PluginTable::current() {
-        None => {
-            log::trace!("Plugin is not authorized.");
-            if info.func() == Authorize {
-                log::trace!("Authorizing...");
-                authorize_plugin(guest, AuthorizationRequest::from_raw(&request));
-                return;
-            }
-            log::warn!("Plugin tried to use HxPosed without authorizing first.");
-            write_response(
-                guest,
-                HypervisorResponse::not_allowed(NotAllowedReason::PluginNotLoaded),
-            );
-            return;
-        }
-        Some(x) => x,
-    };
-
-    // we could actually use a bit mask that defines which category the service belongs to.
-    // so we would spare ourselves from checking the func 2 times.
-    // but rust enums aren't that easy, so we got this.
-    // TODO: do what I said.
-    match info.func() {
-        ServiceFunction::OpenProcess
-        | ServiceFunction::CloseProcess
-        | ServiceFunction::KillProcess
-        | ServiceFunction::GetProcessField
-        | ServiceFunction::SetProcessField
-        | ServiceFunction::GetProcessThreads => {
-            services::handle_process_services(guest, &request, plugin, async_info);
-        }
-        ServiceFunction::OpenThread
-        | ServiceFunction::CloseThread
-        | ServiceFunction::SuspendResumeThread
-        | ServiceFunction::KillThread
-        | ServiceFunction::GetThreadField
-        | ServiceFunction::SetThreadField => {
-            services::handle_thread_services(guest, &request, plugin, async_info);
-        }
-        ServiceFunction::ProcessVMOperation
-        | ServiceFunction::ProtectProcessMemory
-        | ServiceFunction::AllocateMemory
-        | ServiceFunction::MapMemory
-        | ServiceFunction::FreeMemory => {
-            services::handle_memory_services(guest, &request, plugin, async_info);
-        }
-        ServiceFunction::OpenToken
-        | ServiceFunction::CloseToken
-        | ServiceFunction::GetTokenField
-        | ServiceFunction::SetTokenField => {
-            services::handle_security_services(guest, &request, plugin, async_info);
-        }
-        _ => {
-            log::warn!("Unsupported vmcall: {:?}", info.func());
-            write_response(
-                guest,
-                HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
-            )
-        }
-    }
-}
-
 pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse) {
     guest.regs().r8 = response.arg1;
     guest.regs().r9 = response.arg2;
@@ -302,14 +141,17 @@ pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse
 }
 
 #[panic_handler]
-pub fn panic(_info: &core::panic::PanicInfo) -> ! {
-    log::error!("Panic occurred: {:?}", _info);
-    log::error!("Take a moment and report this to us in GitHub.");
-    log::error!("- Yours truly.");
-
-    let param1 = format!("{:?}", _info);
+#[allow(static_mut_refs)]
+pub fn panic(info: &core::panic::PanicInfo) -> ! {
+    log::error!("Panic occurred: {:?}", info);
 
     unsafe {
-        KeBugCheckEx(0x2009, param1.as_ptr() as _, 0, 0, 0);
+        KeBugCheckEx(
+            0x2009,
+            LOGGER.force_get_memory_buffer().as_ptr() as _,
+            0,
+            0,
+            0,
+        );
     };
 }
