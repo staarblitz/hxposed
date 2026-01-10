@@ -1,30 +1,30 @@
 #![allow(dead_code)]
+#![allow(non_camel_case_types)]
 
-pub mod cback;
 pub(crate) mod context;
+pub(crate) mod guard;
 pub(crate) mod mdl;
 pub(crate) mod probe;
 pub(crate) mod process;
 pub(crate) mod thread;
 pub(crate) mod worker;
+mod lock;
+pub(crate) mod token;
 
 use crate::win::*;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hxposed_core::services::types::security_fields::TokenPrivilege;
-use wdk_sys::ntddk::{
-    PsGetVersion, PsLookupProcessByProcessId, PsReferencePrimaryToken, RtlGetVersion,
-};
-use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, RTL_OSVERSIONINFOW, ULONG};
+use wdk_sys::ntddk::{PsGetVersion, PsLookupProcessByProcessId, PsReferencePrimaryToken};
+use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, ULONG};
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 pub(crate) static SYSTEM_TOKEN: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 
-#[allow(non_camel_case_types)]
 pub(crate) type PSEP_LOGON_SESSION_REFERENCES = *mut _SEP_LOGON_SESSION_REFERENCES;
 
-#[allow(non_camel_case_types)]
+
 pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 
 ///
@@ -39,6 +39,7 @@ pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 /// ## Return
 ///
 /// - No values returned. [`NT_BASE`] and [`NT_BUILD`] are changed accordingly.
+#[allow(static_mut_refs)]
 pub(crate) fn get_nt_info(custom: Option<u32>) -> Result<(), ()> {
     let build_number = {
         if let Some(build_number) = custom {
@@ -64,28 +65,24 @@ pub(crate) fn get_nt_info(custom: Option<u32>) -> Result<(), ()> {
         }
     }
 
+    get_system_token();
+
     unsafe {
         NT_BASE.store(get_nt_base() as _, Ordering::Relaxed);
 
-        NT_PS_TERMINATE_PROCESS.store(
-            get_nt_proc::<PsTerminateProcessType>(NtProcedure::PsTerminateProcessProc),
-            Ordering::Relaxed,
-        );
+        NT_PS_TERMINATE_PROCESS =
+            get_nt_proc::<PsTerminateProcessType>(NtProcedure::PsTerminateProcessProc) as _;
 
-        NT_PS_SET_CONTEXT_THREAD_INTERNAL.store(
-            get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspSetContextThreadInternal),
-            Ordering::Relaxed,
-        );
+        // NT_PS_SET_CONTEXT_THREAD_INTERNAL =
+        //     get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspSetContextThreadInternal)
+        //         as _;
+        //
+        // NT_PS_GET_CONTEXT_THREAD_INTERNAL =
+        //     get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspGetContextThreadInternal)
+        //         as _;
 
-        NT_PS_GET_CONTEXT_THREAD_INTERNAL.store(
-            get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspGetContextThreadInternal),
-            Ordering::Relaxed,
-        );
-
-        NT_PS_TERMINATE_THREAD.store(
-            get_nt_proc::<PsTerminateThreadType>(NtProcedure::PspTerminateThreadByPointer),
-            Ordering::Relaxed,
-        )
+        NT_PS_TERMINATE_THREAD =
+            get_nt_proc::<PsTerminateThreadType>(NtProcedure::PspTerminateThreadByPointer) as _;
     }
 
     Ok(())
@@ -99,7 +96,7 @@ pub(crate) fn get_nt_base() -> PVOID {
     }
 }
 
-pub(crate) fn get_system_token() {
+fn get_system_token() {
     let mut system = PEPROCESS::default();
     let _ = unsafe { PsLookupProcessByProcessId(4 as _, &mut system) };
 
@@ -129,16 +126,16 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
     let base = NT_BASE.load(Ordering::Relaxed) as *mut u8;
     unsafe {
         base.add(match build {
-        26200 /* 25H2 */ => {
-            match proc {
-                NtProcedure::PsTerminateProcessProc => 0x91f3d4,
-                NtProcedure::PspGetContextThreadInternal => 0x909940,
-                NtProcedure::PspSetContextThreadInternal => 0x9095f0,
-                NtProcedure::PspTerminateThreadByPointer => 0x8f48f0,
+            26200 /* 25H2 */ => {
+                match proc {
+                    NtProcedure::PsTerminateProcessProc => 0x91f3d4,
+                    NtProcedure::PspGetContextThreadInternal => 0x909940,
+                    NtProcedure::PspSetContextThreadInternal => 0x9095f0,
+                    NtProcedure::PspTerminateThreadByPointer => 0x8f48f0,
+                }
             }
-        }
-        _ => panic!("Unknown NT build {}", build)
-    }) as *mut T
+            _ => panic!("Unknown NT build {}", build)
+        }) as *mut T
     }
 }
 

@@ -2,6 +2,8 @@
 #![allow(non_snake_case)]
 #![allow(unused)]
 #![allow(non_camel_case_types)]
+#![allow(static_mut_refs)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
 pub(crate) mod utils;
 pub(crate) mod utf_to_unicode;
@@ -10,6 +12,7 @@ use ::alloc::boxed::Box;
 use ::alloc::vec::Vec;
 use core::arch::{asm, naked_asm};
 use core::ffi::c_void;
+use core::mem;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use wdk_sys::ntddk::{ExAllocatePool2, RtlCompareMemory, RtlCompareUnicodeString, RtlCopyUnicodeString, RtlFreeUnicodeString, RtlInitUTF8String, RtlUTF8StringToUnicodeString};
@@ -18,82 +21,29 @@ use crate::utils::danger::DangerPtr;
 
 pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(PEPROCESS, NTSTATUS) -> NTSTATUS;
 pub(crate) type PsTerminateThreadType = unsafe extern "C" fn(PETHREAD, NTSTATUS, CHAR) -> NTSTATUS;
-pub(crate) type NtDriverEntryType =
-    unsafe extern "C" fn(*mut _DRIVER_OBJECT, PUNICODE_STRING) -> NTSTATUS;
-pub(crate) type PsGetSetContextThreadInternal = unsafe extern "C" fn(
-    PETHREAD,
-    PCONTEXT,
-    KPROCESSOR_MODE,
-    KPROCESSOR_MODE,
-    KPROCESSOR_MODE,
-) -> NTSTATUS;
-pub(crate) static NT_PS_TERMINATE_PROCESS: AtomicPtr<PsTerminateProcessType> =
-    AtomicPtr::new(null_mut());
-pub(crate) static NT_PS_GET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextThreadInternal> =
-    AtomicPtr::new(null_mut());
-pub(crate) static NT_PS_SET_CONTEXT_THREAD_INTERNAL: AtomicPtr<PsGetSetContextThreadInternal> =
-    AtomicPtr::new(null_mut());
-pub(crate) static NT_PS_TERMINATE_THREAD: AtomicPtr<PsTerminateThreadType> =
-    AtomicPtr::new(null_mut());
 
-pub(crate) unsafe extern "C" fn PsTerminateProcess(
-    Process: PEPROCESS,
-    ExitCode: NTSTATUS,
-) -> NTSTATUS {
-    unsafe {
-        asm!("call _PsTerminateProcess",
-        "ret", in("rax") NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed), options(nomem, nostack, preserves_flags));
-    }
-    STATUS_SUCCESS // dummy
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_PS_TERMINATE_PROCESS: u64 = 0;
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_PS_GET_CONTEXT_THREAD_INTERNAL: u64 = 0;
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_PS_SET_CONTEXT_THREAD_INTERNAL: u64 = 0;
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_PS_TERMINATE_THREAD: u64 = 0;
+
+
+pub unsafe extern "C" fn PsTerminateProcess(Process: PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
+    let func: PsTerminateProcessType = mem::transmute(NT_PS_TERMINATE_PROCESS);
+    func(Process, ExitCode)
 }
 
-pub(crate) unsafe extern "C" fn PspTerminateThread(
-    Thread: PETHREAD,
-    ExitCode: NTSTATUS,
-    SomethingElse: CHAR,
-) -> NTSTATUS { unsafe {
-    asm!("call _PspTerminateThread",
-    "ret", in("rax") NT_PS_TERMINATE_PROCESS.load(Ordering::Relaxed), options(nomem, nostack, preserves_flags));
-
-    STATUS_SUCCESS // dummy
-}}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-unsafe extern "C" fn _PsTerminateProcess(Process: PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
-    naked_asm!("jmp rax")
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-unsafe extern "C" fn _PspTerminateThread(
+pub unsafe extern "C" fn PspTerminateThread(
     Thread: PETHREAD,
     ExitCode: NTSTATUS,
     SomethingElse: CHAR,
 ) -> NTSTATUS {
-    naked_asm!("jmp rax")
-}
-
-#[unsafe(naked)]
-unsafe extern "C" fn _PspGetSetContextThreadInternal(
-    Thread: PETHREAD,
-    Context: PCONTEXT,
-    Mode1: KPROCESSOR_MODE,
-    Mode2: KPROCESSOR_MODE,
-    Mode3: KPROCESSOR_MODE,
-) -> NTSTATUS {
-    naked_asm!("jmp rax")
-}
-
-#[unsafe(naked)]
-unsafe extern "C" fn _PspSetSetContextThreadInternal(
-    Thread: PETHREAD,
-    Context: PCONTEXT,
-    Mode1: KPROCESSOR_MODE,
-    Mode2: KPROCESSOR_MODE,
-    Mode3: KPROCESSOR_MODE,
-) -> NTSTATUS {
-    naked_asm!("jmp rax")
+    let func: PsTerminateThreadType = mem::transmute(NT_PS_TERMINATE_THREAD);
+    func(Thread, ExitCode, SomethingElse)
 }
 
 pub(crate) const NT_CURRENT_PROCESS: HANDLE = -1 as _;
