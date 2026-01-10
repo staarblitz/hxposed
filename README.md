@@ -1,29 +1,15 @@
-# hxposed
+# HxPosed - Hypervisor eXposed.
 A hypervisor based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
 Based on [barevisor](https://github.com/tandasat/barevisor)
 
-## HxPosed (Hypervisor eXposed)
-HxPosed gives you full control over your computer by breaking free from the limitations imposed by traditional user-mode access. With HxPosed, you can:
-- Protect or unprotect processes at will
-- Create or delete files anywhere on your system
-- Build custom computer management software
-- And much more...
-
-### The Problem
-In the standard user-mode environment, you're restricted in what you can do. For example, you can't:
-- Delete system-protected files
-- Kill processes that the OS restricts
-- Create files in system-protected directories
-- Or anything that is fun!
-
-In short, you're not fully in control of your own machine.
-
-### HxPosed - The Solution
+### What does HxPosed do?
 HxPosed changes that by giving you direct access to both the kernel and user mode. It’s a hypervisor-based kernel driver that uses VMCALLs (CPUID traps, actually) to manage both the kernel and user space.
 
-Since hypervisors operate in Ring -1 (a theoretical level even more privileged than the kernel), HxPosed enables you to leverage powers beyond the standard kernel-level access. This isn't just about optimizing Windows; it’s about owning it.
+Since hypervisors operate in ring -1 (a theoretical level even more privileged than the kernel), HxPosed gives you everything you need.
 
-And yes, we purposefully mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
+This isn't just about optimizing Windows; it’s about owning it.
+
+And yes, we mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
 - A safe API written in Rust (available for C# and C too),
 - A beautifully documented hypervisor interface,
 - A no-nonsense "it just works" functionality.
@@ -164,7 +150,7 @@ There is 2 ways to help me:
 
 Of course, coding them yourself would be nicer. But if you are just an everyday guy who enjoys hxposed, the first option will work well too.
 
-Build instructions are given below, do them and code the stuff (don't touch the UI).
+Build instructions are given in the wiki.
 
 ## What we have so far?
 - [x] GetState service.
