@@ -303,7 +303,7 @@ impl HxThread {
         .send_async()
         .await?;
 
-        Ok(result.addr)
+        Ok(result.object.into())
     }
 
     ///
@@ -335,7 +335,7 @@ impl HxThread {
 
         Ok(Self {
             id,
-            addr: result.addr,
+            addr: result.object.into(),
         })
     }
 }
