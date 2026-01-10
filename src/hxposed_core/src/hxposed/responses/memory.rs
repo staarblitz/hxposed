@@ -1,6 +1,7 @@
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
+use crate::hxposed::MdlObject;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::services::types::memory_fields::MemoryProtection;
 
@@ -18,7 +19,7 @@ pub struct ProtectProcessMemoryResponse {
 
 #[derive(Clone, Default, Debug)]
 pub struct AllocateMemoryResponse {
-    pub address: u64,
+    pub mdl: MdlObject,
     pub bytes_allocated: u32,
 }
 
@@ -54,7 +55,7 @@ impl VmcallResponse for AllocateMemoryResponse {
             Err(HypervisorError::from_response(raw))
         } else {
             Ok(Self {
-                address: raw.arg1,
+                mdl: raw.arg1,
                 bytes_allocated: raw.arg2 as _,
             })
         }
@@ -63,7 +64,7 @@ impl VmcallResponse for AllocateMemoryResponse {
     fn into_raw(self) -> HypervisorResponse {
         HypervisorResponse {
             result: HypervisorResult::ok(ServiceFunction::AllocateMemory),
-            arg1: self.address,
+            arg1: self.mdl,
             arg2: self.bytes_allocated as _,
 
             ..Default::default()
