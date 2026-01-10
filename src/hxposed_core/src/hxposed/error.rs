@@ -7,6 +7,7 @@ pub enum InternalErrorCode {
     /// See [NotAllowedReason]. Put on arg1
     NotAllowed = 2,
     NotLoaded = 3,
+    /// See [NotFoundReason]. Put on arg1
     NotFound = 4,
     InvalidParams = 5,
 }
@@ -36,6 +37,7 @@ pub enum NotAllowedReason {
     Unknown = 0,
     PluginNotLoaded = u32::MAX,
     MissingPermissions = 1,
+    LockHeld = 2
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
@@ -79,6 +81,7 @@ impl NotAllowedReason {
         match value {
             u32::MAX => Self::PluginNotLoaded,
             1 => Self::MissingPermissions,
+            2 => Self::LockHeld,
             _ => Self::Unknown,
         }
     }
