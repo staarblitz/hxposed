@@ -1,6 +1,6 @@
 pub(crate) mod danger;
 pub(crate) mod handlebox;
-pub(crate) mod blanket;
+pub(crate) mod object_handle;
 pub(crate) mod timing;
 pub(crate) mod macros;
 pub(crate) mod alloc;
