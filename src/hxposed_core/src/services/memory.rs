@@ -28,8 +28,6 @@ impl HxMemory {
     /// ## Remarks
     /// - This function allocates from kernel memory. Use with caution!
     /// - The memory is only ALLOCATED, not MAPPED. Use [`HxMemoryDescriptor::map`] to map memory into a process' address space.
-    /// - The allocation will NOT be freed when process exits. You can access your existing allocations using [`Self::get_allocs`].
-    /// - The align value is discarded, currently.
     /// - Size of [`T`] must not be bigger than [`u32::MAX`].
     ///
     /// ## Permissions
@@ -58,7 +56,7 @@ impl HxMemory {
         }
 
         let result =
-            Self::alloc_raw(pool, size_of::<T>() as _, align_of::<T>()).await?;
+            Self::alloc_raw(pool, size_of::<T>() as _).await?;
 
         Ok(HxMemoryDescriptor::<T>::new(
             result.0,
@@ -78,30 +76,27 @@ impl HxMemory {
     /// ## Arguments
     /// * `pool` - Kind of pool to allocate from. See [`MemoryPool`].
     /// * `size` - Number of bytes to allocate.
-    /// * `align` - Discarded. But it is **guaranteed** to be 16-byte aligned.
     ///
     /// ## Remarks
     /// - All remarks that apply to other alloc* functions.
     /// - This does NOT return a HxMemoryGuard. You are on your own.
     ///
     /// ## Return
-    /// * [`(u64, u32)`] - A tuple. First value contains the mapped system address (this does NOT mean the memory is mapped to your address space),
-    /// second one is how many bytes allocated.
+    /// * [`(u64, u32)`] - A tuple. First value contains the MDL address. Second one is how many bytes allocated.
     /// * [`HypervisorError`] - Most likely an NT error telling there is not enough memory caused by your blunders using this framework.
     pub async fn alloc_raw(
         pool: MemoryPool,
         size: u32,
-        align: usize,
     ) -> Result<(u64, u32), HypervisorError> {
         let alloc = AllocateMemoryRequest {
             size,
-            align,
+            underlying_pages: 0,
             pool,
         }
         .send_async()
         .await?;
 
-        Ok((alloc.address, alloc.bytes_allocated))
+        Ok((alloc.mdl, alloc.bytes_allocated))
     }
 
     ///
