@@ -55,7 +55,7 @@ impl HxToken {
         .send_async()
         .await?;
 
-        Ok(resp.addr)
+        Ok(resp.object.into())
     }
 
     ///
