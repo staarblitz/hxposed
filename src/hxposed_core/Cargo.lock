@@ -14,12 +14,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bit_field"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e4b40c7323adcfc0a41c4b88143ed58346ff65a288fc144329c5c45e05d70c6"
-
-[[package]]
 name = "bitfield-struct"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -29,12 +23,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "bitflags"
-version = "1.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
@@ -48,11 +36,9 @@ version = "0.1.0"
 dependencies = [
  "atomic_enum",
  "bitfield-struct",
- "bitflags 2.10.0",
+ "bitflags",
  "spin",
- "static_assertions",
  "uuid",
- "x86",
 ]
 
 [[package]]
@@ -83,15 +69,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "raw-cpuid"
-version = "10.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c297679cb867470fa8c9f67dbba74a78d78e3e98d7cf2b08d6d71540f797332"
-dependencies = [
- "bitflags 1.3.2",
-]
-
-[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -105,12 +82,6 @@ checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
 dependencies = [
  "lock_api",
 ]
-
-[[package]]
-name = "static_assertions"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "syn"
@@ -134,14 +105,3 @@ name = "uuid"
 version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
-
-[[package]]
-name = "x86"
-version = "0.52.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2781db97787217ad2a2845c396a5efe286f87467a5810836db6d74926e94a385"
-dependencies = [
- "bit_field",
- "bitflags 1.3.2",
- "raw-cpuid",
-]
