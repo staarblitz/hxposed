@@ -1,7 +1,7 @@
 use crate::nt::mdl::MemoryDescriptor;
+use crate::plugins::PluginTable;
 use crate::plugins::commands::memory::*;
 use crate::plugins::plugin::Plugin;
-use crate::plugins::PluginTable;
 use crate::win::{MmCopyVirtualMemory, ZwProtectVirtualMemory};
 use alloc::boxed::Box;
 use core::ops::BitAnd;
@@ -17,10 +17,7 @@ use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::memory_fields::MemoryProtection;
 use wdk_sys::_MODE::{KernelMode, UserMode};
-use wdk_sys::{
-    SIZE_T, STATUS_INVALID_PAGE_PROTECTION,
-    STATUS_SUCCESS, ULONG,
-};
+use wdk_sys::{SIZE_T, STATUS_INVALID_PAGE_PROTECTION, STATUS_SUCCESS, ULONG};
 
 pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorResponse {
     let plugin = match PluginTable::lookup(request.uuid) {
@@ -97,12 +94,10 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
 
     let result = match request.command.operation {
         MapMemoryOperation::Map => {
-            let ptr = unsafe {
-                match mdl.map(map_address, UserMode as _) {
-                    Ok(ptr) => ptr,
-                    Err(err) => {
-                        return HypervisorResponse::nt_error(err as _);
-                    }
+            let ptr = match mdl.map(map_address, UserMode as _) {
+                Ok(ptr) => ptr,
+                Err(err) => {
+                    return HypervisorResponse::nt_error(err as _);
                 }
             };
 

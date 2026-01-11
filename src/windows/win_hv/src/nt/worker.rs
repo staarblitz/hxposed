@@ -7,13 +7,13 @@ use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::services::security_services::*;
 use crate::services::thread_services::*;
+use crate::utils::timing;
 use crate::win::KeGetCurrentThread;
 use core::sync::atomic::Ordering;
 use hxposed_core::hxposed::func::ServiceFunction;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{KeDelayExecutionThread, KeSetPriorityThread};
 use wdk_sys::{FALSE, LARGE_INTEGER, LOW_REALTIME_PRIORITY, PVOID};
-use crate::utils::timing;
 
 ///
 /// # Async Worker Thread
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
         return;
     }
 
-    let plugins = unsafe { &mut *plugins_ptr};
+    let plugins = unsafe { &mut *plugins_ptr };
 
     // KeGetCurrentThread is not export by bindgen. lmao
     unsafe { KeSetPriorityThread(KeGetCurrentThread(), LOW_REALTIME_PRIORITY as _) };
@@ -51,113 +51,129 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                 Some(x) => x,
             };
 
-            let ctx = plugin.process.as_ref().unwrap().begin_context();
+            log::trace!(
+                "Found {:?} on queue. Processing....",
+                command.get_service_function()
+            );
 
-            log::trace!("Found {:?} on queue. Processing....", command.get_service_function());
-
-            let result = match command.get_service_function() {
-                ServiceFunction::KillProcess => kill_process_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<KillProcessAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::GetProcessField => get_process_field_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<GetProcessFieldAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::SetProcessField => set_process_field_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<SetProcessFieldAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::GetProcessThreads => get_process_threads_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<GetProcessThreadsAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::SuspendResumeThread => suspend_resume_thread_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<SuspendResumeThreadAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::KillThread => kill_thread_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<KillThreadAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::OpenToken => open_token_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<OpenTokenAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::GetThreadField => get_thread_field_sync(
-                    command.as_any().downcast_ref::<GetThreadFieldAsyncCommand>().unwrap()
-                ),
-                ServiceFunction::SetThreadField => set_thread_field_sync(
-                    command.as_any().downcast_ref::<SetThreadFieldAsyncCommand>().unwrap()
-                ),
-                ServiceFunction::GetTokenField => get_token_field_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<GetTokenFieldAsyncCommand>()
-                        .unwrap()
-                ),
-                ServiceFunction::SetTokenField => set_token_field_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<SetTokenFieldAsyncCommand>()
-                        .unwrap()
-                ),
-                ServiceFunction::ProcessVMOperation => process_vm_operation_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<RWProcessMemoryAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::ProtectProcessMemory => protect_vm_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<ProtectProcessMemoryAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::AllocateMemory => allocate_mdl_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<AllocateMemoryAsyncCommand>()
-                        .unwrap(),
-                ),
-                ServiceFunction::MapMemory => {
-                    drop(ctx); // map_mdl has its own context
-                    map_mdl_sync(
+            let result = {
+                let ctx = plugin.process.as_ref().unwrap().begin_context();
+                match command.get_service_function() {
+                    ServiceFunction::KillProcess => kill_process_sync(
                         command
                             .as_any()
-                            .downcast_ref::<MapMemoryAsyncCommand>()
+                            .downcast_ref::<KillProcessAsyncCommand>()
                             .unwrap(),
-                    )
-                },
-                ServiceFunction::FreeMemory => free_mdl_sync(
-                    command.as_any().downcast_ref::<FreeMemoryAsyncCommand>().unwrap()
-                ),
-                ServiceFunction::OpenProcess => open_process_sync(
-                    command
-                        .as_any()
-                        .downcast_ref::<OpenProcessAsyncCommand>()
-                        .unwrap(),
-                ),
-                _ => unreachable!("Forgot to implement this one!"),
+                    ),
+                    ServiceFunction::GetProcessField => get_process_field_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<GetProcessFieldAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::SetProcessField => set_process_field_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<SetProcessFieldAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::GetProcessThreads => get_process_threads_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<GetProcessThreadsAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::SuspendResumeThread => suspend_resume_thread_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<SuspendResumeThreadAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::KillThread => kill_thread_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<KillThreadAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::OpenToken => open_token_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<OpenTokenAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::GetThreadField => get_thread_field_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<GetThreadFieldAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::SetThreadField => set_thread_field_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<SetThreadFieldAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::GetTokenField => get_token_field_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<GetTokenFieldAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::SetTokenField => set_token_field_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<SetTokenFieldAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::ProcessVMOperation => process_vm_operation_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<RWProcessMemoryAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::ProtectProcessMemory => protect_vm_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<ProtectProcessMemoryAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::AllocateMemory => allocate_mdl_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<AllocateMemoryAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::MapMemory => {
+                        drop(ctx); // map_mdl has its own context
+                        map_mdl_sync(
+                            command
+                                .as_any()
+                                .downcast_ref::<MapMemoryAsyncCommand>()
+                                .unwrap(),
+                        )
+                    }
+                    ServiceFunction::FreeMemory => free_mdl_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<FreeMemoryAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    ServiceFunction::OpenProcess => open_process_sync(
+                        command
+                            .as_any()
+                            .downcast_ref::<OpenProcessAsyncCommand>()
+                            .unwrap(),
+                    ),
+                    _ => unreachable!("Forgot to implement this one!"),
+                }
             };
 
             log::trace!("Work completed: {:?}", result);
             log::trace!("Signaling completion");
+
+            let ctx = plugin.process.as_ref().unwrap().begin_context();
             command.complete(result);
+            drop(ctx)
         }
     }
 }

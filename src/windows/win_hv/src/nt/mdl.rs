@@ -1,6 +1,6 @@
 use crate::utils::danger::DangerPtr;
 use core::ptr::null_mut;
-use wdk_sys::ntddk::{ExFreePool, IoAllocateMdl, MmAllocatePagesForMdlEx, MmFreePagesFromMdl, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages};
+use wdk_sys::ntddk::{ExFreePool, IoAllocateMdl, MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages};
 use wdk_sys::_MEMORY_CACHING_TYPE::{MmCached, MmNonCached};
 use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
 use wdk_sys::{FALSE, KPROCESSOR_MODE, MM_ALLOCATE_PREFER_CONTIGUOUS, NTSTATUS, PHYSICAL_ADDRESS, PIRP, PVOID, STATUS_ACCESS_VIOLATION, STATUS_MEMORY_NOT_ALLOCATED, _MDL};
@@ -49,14 +49,20 @@ impl MemoryDescriptor {
     }
 
     pub fn new_describe(ptr: PVOID, length: u32) -> Self {
-        Self {
+        let me = Self {
             mdl: DangerPtr {
                 ptr: unsafe { IoAllocateMdl(ptr, length, FALSE as _, FALSE as _, PIRP::default()) }
             },
             length: length as _,
             status: MapStatus::Allocated,
             owns: true,
+        };
+        // this is crucial. because we should let the mdl know it's for non paged pool after IoAllocateMdl when it's going to be mapped to a user process.
+        unsafe {
+            MmBuildMdlForNonPagedPool(me.mdl.ptr);
         }
+
+        me
     }
 
     pub fn new(length: usize) -> Self {
