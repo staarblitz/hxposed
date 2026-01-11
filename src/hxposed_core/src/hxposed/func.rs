@@ -28,6 +28,7 @@ pub enum ServiceFunction {
     GetTokenField = 24,
     CloseToken = 25,
     SetTokenField = 26,
+    NotifyEvent = 27,
 }
 
 impl ServiceFunction {
@@ -64,6 +65,7 @@ impl ServiceFunction {
             24 => ServiceFunction::GetTokenField,
             25 => ServiceFunction::CloseToken,
             26 => ServiceFunction::SetTokenField,
+            27 => ServiceFunction::NotifyEvent,
             _ => ServiceFunction::Unknown,
         }
     }
