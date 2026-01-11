@@ -1,9 +1,10 @@
+#![allow(dead_code)]
+
 use crate::error::HypervisorError;
 use crate::hxposed::call::ServiceParameter;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::memory::*;
 use crate::hxposed::responses::HypervisorResponse;
-use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::memory_map::HxMemoryDescriptor;
 use crate::services::types::memory_fields::{KernelMemoryState, MemoryPool, MemoryProtection};
 use alloc::vec;

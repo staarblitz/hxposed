@@ -1,5 +1,5 @@
 use crate::error::HypervisorError;
-use crate::hxposed::call::{HypervisorCall, HypervisorResult, ServiceParameter};
+use crate::hxposed::call::{HypervisorResult, ServiceParameter};
 use crate::hxposed::error::{ErrorSource, InternalErrorCode, NotAllowedReason, NotFoundReason};
 use crate::plugins::plugin_perms::PluginPermissions;
 

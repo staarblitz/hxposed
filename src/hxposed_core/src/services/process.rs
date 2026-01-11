@@ -1,3 +1,6 @@
+#![allow(unused_parens)]
+#![allow(dead_code)]
+
 use crate::error::HypervisorError;
 use crate::hxposed::requests::process::*;
 use crate::hxposed::requests::Vmcall;
@@ -5,17 +8,13 @@ use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::hxposed::ObjectType;
 use crate::intern::win::GetCurrentProcessId;
-use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::async_service::AsyncPromise;
 use crate::services::memory::HxMemory;
 use crate::services::security::HxToken;
 use crate::services::types::process_fields::*;
 use alloc::boxed::Box;
 use alloc::string::String;
-use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::arch::asm;
-use core::mem::ManuallyDrop;
 use core::pin::Pin;
 use core::ptr::null_mut;
 
@@ -409,9 +408,8 @@ impl HxProcess {
     /// * [`String`] - Full path of the process.
     /// * [`HypervisorError::not_found`] - Unable to decode string from UTF16.
     pub async fn get_nt_path(&self) -> Result<String, HypervisorError> {
-        let mut bytes = 0u16;
 
-        let mut promise = GetProcessFieldRequest {
+        let promise = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::NtPath,
             data: null_mut(),
@@ -419,20 +417,16 @@ impl HxProcess {
         }
         .send_async();
 
-        match promise.await {
-            Ok(resp) => match resp {
-                GetProcessFieldResponse::NtPath(length) => {
-                    bytes = length;
-                }
-                _ => unreachable!(),
-            },
+        let bytes = match promise.await {
+            Ok(GetProcessFieldResponse::NtPath(length)) => length,
+            Ok(_) => unreachable!(),
             Err(e) => return Err(e),
-        }
+        };
 
         let mut buffer = Vec::<u16>::with_capacity(bytes as usize / 2);
         assert_eq!(buffer.capacity(), bytes as usize / 2);
 
-        let mut promise = GetProcessFieldRequest {
+        let promise = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::NtPath,
             data: buffer.as_mut_ptr() as *mut u8,

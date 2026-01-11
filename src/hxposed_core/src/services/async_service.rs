@@ -164,6 +164,7 @@ where
     X: VmcallResponse,
     T: VmcallRequest,
 {
+    #[allow(unsafe_op_in_unsafe_fn)]
     unsafe extern "C" fn hv_wait_worker(param: *mut u64) -> u32 {
         let me = &mut *(param as *mut AsyncPromise<T, X>);
         WaitForSingleObject(me.async_info.handle, u32::MAX);

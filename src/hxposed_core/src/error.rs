@@ -3,7 +3,7 @@ use crate::hxposed::error::{ErrorSource, InternalErrorCode, NotAllowedReason};
 use crate::hxposed::responses::HypervisorResponse;
 use alloc::format;
 use alloc::string::ToString;
-use core::fmt::{Debug, Display, Error, Formatter, Write};
+use core::fmt::{Debug, Display, Error, Formatter};
 
 #[derive(PartialEq, Eq, Clone, Copy, Default)]
 pub struct HypervisorError {

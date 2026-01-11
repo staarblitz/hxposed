@@ -1,11 +1,12 @@
+#![allow(dead_code)]
+#![allow(unused_parens)]
+
 use crate::error::HypervisorError;
 use crate::hxposed::requests::process::ObjectOpenType;
-use crate::hxposed::requests::security::*;
 use crate::hxposed::requests::security::*;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::security::GetTokenFieldResponse;
-use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::types::security_fields::*;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -243,8 +244,7 @@ impl HxToken {
     /// ## Return
     /// * [`String`] - A beautiful string.
     pub async fn get_account_name(&self) -> Result<String, HypervisorError> {
-        let mut bytes = 0u16;
-        match (GetTokenFieldRequest {
+        let bytes = match (GetTokenFieldRequest {
             token: self.addr,
             field: TokenField::AccountName,
             ..Default::default()
@@ -252,7 +252,7 @@ impl HxToken {
         .send_async()
         .await?
         {
-            GetTokenFieldResponse::AccountName(len) => bytes = len,
+            GetTokenFieldResponse::AccountName(len) => len,
             _ => unreachable!(),
         };
 

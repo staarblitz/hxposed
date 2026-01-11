@@ -2,7 +2,6 @@ use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::process::*;
-use crate::services::types::memory_fields::MemoryProtection;
 use crate::services::types::process_fields::*;
 use alloc::boxed::Box;
 use core::mem;

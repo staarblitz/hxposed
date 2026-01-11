@@ -197,7 +197,7 @@ pub struct ControlFlowGuard{
     pub strict: bool,
 }*/
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ProtectionSigner {
     #[default]
@@ -287,7 +287,7 @@ impl ProcessSignatureLevel {
     }
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ProtectionType {
     #[default]

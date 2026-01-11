@@ -2,8 +2,6 @@ use crate::error::HypervisorError;
 use crate::hxposed::requests::memory::{AllocateMemoryRequest, FreeMemoryRequest, MapMemoryOperation, MapMemoryRequest};
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::HypervisorResponse;
-use crate::plugins::plugin_perms::PluginPermissions;
-use crate::services::memory::HxMemory;
 use crate::services::process::HxProcess;
 use crate::services::types::memory_fields::{KernelMemoryState, MemoryPool};
 use core::marker::PhantomData;

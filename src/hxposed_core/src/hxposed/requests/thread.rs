@@ -1,5 +1,5 @@
 use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::process::{ObjectOpenType, ProcessField};
+use crate::hxposed::requests::process::{ObjectOpenType};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::thread::*;

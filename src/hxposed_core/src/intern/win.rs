@@ -1,5 +1,3 @@
-use core::ffi::c_void;
-
 #[cfg(feature = "usermode")]
 #[link(name = "kernel32")]
 unsafe extern "C" {

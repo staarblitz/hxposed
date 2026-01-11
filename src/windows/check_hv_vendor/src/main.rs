@@ -1,11 +1,7 @@
 use egui::{Color32, ViewportBuilder};
-use hxposed_core::error::HypervisorError;
-use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::status::StatusRequest;
-use hxposed_core::hxposed::responses::auth::AuthorizationResponse;
-use hxposed_core::hxposed::responses::empty::EmptyResponse;
-use hxposed_core::hxposed::responses::status::StatusResponse;
+use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::plugins::plugin_perms::PluginPermissions;
 use hxposed_core::services::memory::HxMemory;
 use hxposed_core::services::memory_map::{HxMemoryDescriptor, HxMemoryGuard};
@@ -15,11 +11,9 @@ use hxposed_core::services::types::process_fields::{
     ProcessProtection, ProtectionSigner, ProtectionType,
 };
 use std::borrow::ToOwned;
-use std::fmt;
-use std::fmt::{Debug, format};
 use std::ops::DerefMut;
 use std::str::FromStr;
-use uuid::{Error, Uuid};
+use uuid::Uuid;
 
 fn main() {
     let options = eframe::NativeOptions {
@@ -61,6 +55,9 @@ static mut PROCESS_STATE: ProcessState = ProcessState {
     process_id_text: String::new(),
     current_process: None,
     current_process_path: None,
+    protection_type: ProtectionType::None,
+    protection_audit: false,
+    protection_signer: ProtectionSigner::None,
 };
 
 static mut GENERAL_STATE: GeneralState = GeneralState {
@@ -80,6 +77,9 @@ struct ProcessState {
     current_process: Option<HxProcess>,
     process_id_text: String,
     current_process_path: Option<String>,
+    protection_type: ProtectionType,
+    protection_audit: bool,
+    protection_signer: ProtectionSigner,
 }
 
 struct GeneralState {
@@ -89,7 +89,7 @@ struct GeneralState {
 struct MemoryState {
     descriptor: Option<HxMemoryDescriptor<u64>>,
     guard: Option<HxMemoryGuard<'static, u64>>,
-    current_value: String
+    current_value: String,
 }
 
 impl Default for GeneralState {
@@ -158,19 +158,18 @@ impl eframe::App for HxTestApp {
                         if ui.button("Map").clicked() {
                             let result = unsafe {
                                 let desc = state.descriptor.as_mut().unwrap();
-                                async_std::task::block_on(desc.map(
-                                    PROCESS_STATE.current_process.as_mut(),
-                                    None
-                                ))
+                                async_std::task::block_on(
+                                    desc.map(PROCESS_STATE.current_process.as_mut(), None),
+                                )
                             };
 
                             match result {
                                 Ok(guard) => {
-                                    let static_guard: HxMemoryGuard<'static, u64> = unsafe {
-                                        std::mem::transmute(guard)
-                                    };
+                                    let static_guard: HxMemoryGuard<'static, u64> =
+                                        unsafe { std::mem::transmute(guard) };
 
-                                    ok_update = Some(format!("Successfully mapped: {:?}", static_guard));
+                                    ok_update =
+                                        Some(format!("Successfully mapped: {:?}", static_guard));
                                     state.guard = Some(static_guard);
                                 }
                                 Err(err) => {
@@ -205,7 +204,8 @@ impl eframe::App for HxTestApp {
                             state.current_value = state.guard.as_mut().unwrap().clone().to_string();
                         }
                         if ui.button("Write").clicked() {
-                            *state.guard.as_mut().unwrap().deref_mut() = u64::from_str(state.current_value.as_str()).unwrap();
+                            *state.guard.as_mut().unwrap().deref_mut() =
+                                u64::from_str(state.current_value.as_str()).unwrap();
                         }
                     });
                 }
@@ -325,44 +325,129 @@ impl eframe::App for HxTestApp {
                         ui.text_edit_singleline(state.current_process_path.as_mut().unwrap());
                     });
                     ui.separator();
-                    ui.horizontal(|ui| {
-                        if ui.button("Protect process").clicked() {
-                            match async_std::task::block_on(
-                                state.current_process.as_mut().unwrap().set_protection(
-                                    ProcessProtection::new()
-                                        .with_protection_type(ProtectionType::Protected)
-                                        .with_audit(false)
-                                        .with_signer(ProtectionSigner::AntiMalware),
-                                ),
-                            ) {
-                                Ok(_) => {
-                                    ok_update = Some("Successfully protected process".to_string());
-                                }
-                                Err(err) => {
-                                    error_update =
-                                        Some(format!("Error protecting process: {:?}", err));
+
+                    ui.group(|ui| {
+                        ui.columns(2, |columns| {
+                            columns[0].label("Protection type: ");
+                            columns[0].label("Is audit: ");
+                            columns[0].label("Protection signer: ");
+
+                            egui::ComboBox::from_label("X")
+                                .selected_text(format!("{:?}", state.protection_type))
+                                .show_ui(&mut columns[1], |ui| {
+                                    ui.selectable_value(
+                                        &mut state.protection_type,
+                                        ProtectionType::None,
+                                        "None",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_type,
+                                        ProtectionType::Light,
+                                        "Light",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_type,
+                                        ProtectionType::Protected,
+                                        "Protected",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_type,
+                                        ProtectionType::Max,
+                                        "Max",
+                                    );
+                                });
+                            columns[1].checkbox(&mut state.protection_audit, "Audit");
+                            egui::ComboBox::from_label("Y")
+                                .selected_text(format!("{:?}", state.protection_signer))
+                                .show_ui(&mut columns[1], |ui| {
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::None,
+                                        "None",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::Authenticode,
+                                        "Authenticode",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::CodeGen,
+                                        "CodeGen",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::AntiMalware,
+                                        "AntiMalware",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::Lsa,
+                                        "Lsa",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::Windows,
+                                        "Windows",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::WinTcb,
+                                        "WinTcb",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.protection_signer,
+                                        ProtectionSigner::Max,
+                                        "Max",
+                                    );
+                                });
+                        });
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Get protection").clicked() {
+                                let protection = match state
+                                    .current_process
+                                    .as_mut()
+                                    .unwrap()
+                                    .get_protection()
+                                {
+                                    Ok(x) => x,
+                                    Err(err) => {
+                                        error_update = Some(format!(
+                                            "Error getting process protection: {:?}",
+                                            err
+                                        ));
+                                        return;
+                                    }
+                                };
+
+                                state.protection_audit = protection.audit();
+                                state.protection_signer = protection.signer();
+                                state.protection_type = protection.protection_type();
+                            }
+                            if ui.button("Set protection").clicked() {
+                                let protection = ProcessProtection::new()
+                                    .with_protection_type(state.protection_type)
+                                    .with_signer(state.protection_signer)
+                                    .with_audit(state.protection_audit);
+                                match async_std::task::block_on(
+                                    state
+                                        .current_process
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_protection(protection),
+                                ) {
+                                    Ok(_) => {
+                                        ok_update =
+                                            Some("Successfully protected process".to_string());
+                                    }
+                                    Err(err) => {
+                                        error_update =
+                                            Some(format!("Error protecting process: {:?}", err));
+                                    }
                                 }
                             }
-                        }
-                        if ui.button("Unprotect process").clicked() {
-                            match async_std::task::block_on(
-                                state.current_process.as_mut().unwrap().set_protection(
-                                    ProcessProtection::new()
-                                        .with_protection_type(ProtectionType::None)
-                                        .with_audit(false)
-                                        .with_signer(ProtectionSigner::AntiMalware),
-                                ),
-                            ) {
-                                Ok(_) => {
-                                    ok_update =
-                                        Some("Successfully unprotected process".to_string());
-                                }
-                                Err(err) => {
-                                    error_update =
-                                        Some(format!("Error unprotecting process: {:?}", err));
-                                }
-                            }
-                        }
+                        });
                     });
                 }
             })

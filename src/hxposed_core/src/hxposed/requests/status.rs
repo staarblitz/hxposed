@@ -22,7 +22,7 @@ impl VmcallRequest for StatusRequest {
         Box::into_raw(raw)
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(_request: &HypervisorRequest) -> Self {
         Self {}
     }
 }

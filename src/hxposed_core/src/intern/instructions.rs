@@ -6,9 +6,9 @@ use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::services::async_service::AsyncInfo;
 use core::arch::asm;
 use core::arch::x86_64::_mm_load_si128;
-use core::ops::BitAnd;
 
 
+#[allow(dead_code)]
 pub fn vmcall_typed<R: VmcallRequest>(
     req: R,
     async_info: Option<&mut AsyncInfo>,
@@ -19,10 +19,10 @@ pub fn vmcall_typed<R: VmcallRequest>(
 
 pub(crate) fn vmcall(
     request: *mut HypervisorRequest,
-    mut async_info: Option<&mut AsyncInfo>,
+    async_info: Option<&mut AsyncInfo>,
 ) -> HypervisorResponse {
     // SAFETY:we know it's a valid pointer.
-    let mut request = unsafe { &mut *request };
+    let request = unsafe { &mut *request };
 
     let (handle, shared_mem, is_async) = match async_info {
         Some(info) => (info.handle, info.result_values.lock().as_mut_ptr(), true),

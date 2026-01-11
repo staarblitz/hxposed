@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_parens)]
+
 use crate::error::HypervisorError;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::thread::*;
@@ -5,7 +8,6 @@ use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::thread::GetThreadFieldResponse;
 use crate::intern::win::GetCurrentThreadId;
-use crate::plugins::plugin_perms::PluginPermissions;
 use crate::services::security::HxToken;
 
 pub struct HxThread {

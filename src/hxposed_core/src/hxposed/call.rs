@@ -128,14 +128,6 @@ impl HypervisorCall {
             .with_extended_args_present(true)
     }
 
-    pub(crate) fn add_async_handler() -> Self {
-        Self::new().with_func(ServiceFunction::AddAsyncHandler)
-    }
-
-    pub(crate) fn remove_async_handler() -> Self {
-        Self::new().with_func(ServiceFunction::AddAsyncHandler)
-    }
-
     pub(crate) fn close_process() -> Self {
         Self::new().with_func(ServiceFunction::CloseProcess)
     }
