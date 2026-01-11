@@ -21,7 +21,7 @@ let mut process = match HxProcess::open(id) {
     Ok(x) => x, // Good. Now we own *full* rights to the process.
     Err(e) => {
         println!("Error opening process: {:?}", e); // Gracefully explains error source, error code and reason.
-        // Error source: HxPosed. Error Code: Not Found. Error Reason: No extra information.
+        // Error source: HxPosed. Error Code: Not Found. Not Found What: Process
         return;
     }
 };
@@ -61,9 +61,10 @@ token.set_enabled_privileges(system_set).await; // Overpowered now.
 let mut allocation = match HxMemory::alloc::<u64>(MemoryPool::NonPaged).await.unwrap()
 
 {
-    let mut _guard = allocation.map(None).unwrap(); // now _guard is a "&mut u64" we can safely use.
+    let mut _guard = allocation.map(None, None).unwrap(); // now _guard is a "&mut u64" we can safely use.
     *_guard = u64::MAX;
-} // automatically unmapped "allocation.unmap()"
+    _guard.unmap()
+}
 
 allocation.free().await;
 ```
