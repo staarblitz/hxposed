@@ -1,4 +1,3 @@
-use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
@@ -12,14 +11,11 @@ pub struct StatusResponse {
 }
 
 impl VmcallResponse for StatusResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            return Err(HypervisorError::from_response(raw));
-        }
-        Ok(Self {
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
             state: HypervisorStatus::from(raw.arg1 as u32),
             version: raw.arg2 as _,
-        })
+        }
     }
 
     fn into_raw(self) -> HypervisorResponse {

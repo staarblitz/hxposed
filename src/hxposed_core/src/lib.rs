@@ -6,3 +6,4 @@ pub mod hxposed;
 mod intern;
 pub mod plugins;
 pub mod services;
+pub mod events;

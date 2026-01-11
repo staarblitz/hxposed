@@ -1817,9 +1817,7 @@ dependencies = [
  "bitfield-struct",
  "bitflags 2.10.0",
  "spin 0.10.0",
- "static_assertions",
  "uuid",
- "x86",
 ]
 
 [[package]]

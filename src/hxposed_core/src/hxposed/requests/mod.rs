@@ -1,15 +1,18 @@
+#![allow(unused_imports)]
+
 use crate::error::HypervisorError;
+#[cfg(feature = "usermode")]
+use crate::events::async_service::AsyncPromise;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::responses::VmcallResponse;
 use crate::intern::instructions::vmcall;
-#[cfg(feature = "usermode")]
-use crate::services::async_service::AsyncPromise;
 use alloc::boxed::Box;
 use core::any::Any;
 use core::pin::Pin;
 
 pub mod auth;
 pub mod memory;
+pub mod notify;
 pub mod process;
 pub mod security;
 pub mod status;
@@ -29,7 +32,7 @@ pub struct HypervisorRequest {
 }
 pub trait VmcallRequest {
     type Response: VmcallResponse + Any + Send + Sync + Clone;
-    fn into_raw(self) -> *mut HypervisorRequest;
+    fn into_raw(self) -> HypervisorRequest;
     fn from_raw(request: &HypervisorRequest) -> Self;
 }
 
@@ -46,7 +49,12 @@ where
     T: VmcallRequest,
 {
     fn send(self) -> Result<T::Response, HypervisorError> {
-        T::Response::from_raw(vmcall(self.into_raw(), None))
+        let response = vmcall(self.into_raw(), None);
+        if response.result.is_error() {
+            Err(HypervisorError::from_response(response))
+        } else {
+            Ok(T::Response::from_raw(response))
+        }
     }
 
     #[cfg(feature = "usermode")]

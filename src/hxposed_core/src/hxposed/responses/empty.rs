@@ -1,8 +1,7 @@
-use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
-use crate::hxposed::ObjectType;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::ObjectType;
 
 #[derive(Clone, Debug)]
 pub struct EmptyResponse;
@@ -13,12 +12,10 @@ pub struct OpenObjectResponse {
 }
 
 impl VmcallResponse for OpenObjectResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            return Err(HypervisorError::from_response(raw));
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
+            object: ObjectType::from_raw(raw.arg1, raw.arg2),
         }
-
-        Ok(Self { object: ObjectType::from_raw(raw.arg1, raw.arg2) })
     }
 
     fn into_raw(self) -> HypervisorResponse {
@@ -43,12 +40,8 @@ impl EmptyResponse {
 }
 
 impl VmcallResponse for EmptyResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            Err(HypervisorError::from_response(raw))
-        } else {
-            Ok(EmptyResponse)
-        }
+    fn from_raw(_raw: HypervisorResponse) -> Self {
+        EmptyResponse
     }
 
     fn into_raw(self) -> HypervisorResponse {

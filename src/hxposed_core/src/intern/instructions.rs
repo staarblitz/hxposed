@@ -3,10 +3,9 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::error::{ErrorSource, InternalErrorCode};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use crate::services::async_service::AsyncInfo;
 use core::arch::asm;
 use core::arch::x86_64::_mm_load_si128;
-
+use crate::events::AsyncInfo;
 
 #[allow(dead_code)]
 pub fn vmcall_typed<R: VmcallRequest>(
@@ -14,15 +13,18 @@ pub fn vmcall_typed<R: VmcallRequest>(
     async_info: Option<&mut AsyncInfo>,
 ) -> Result<R::Response, HypervisorError> {
     let raw_resp = vmcall(req.into_raw(), async_info);
-    R::Response::from_raw(raw_resp)
+    if raw_resp.result.is_error() {
+        Err(HypervisorError::from_response(raw_resp))
+    } else {
+        Ok(R::Response::from_raw(raw_resp))
+    }
 }
 
 pub(crate) fn vmcall(
-    request: *mut HypervisorRequest,
+    mut request: HypervisorRequest,
     async_info: Option<&mut AsyncInfo>,
 ) -> HypervisorResponse {
     // SAFETY:we know it's a valid pointer.
-    let request = unsafe { &mut *request };
 
     let (handle, shared_mem, is_async) = match async_info {
         Some(info) => (info.handle, info.result_values.lock().as_mut_ptr(), true),

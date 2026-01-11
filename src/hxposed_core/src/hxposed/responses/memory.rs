@@ -1,8 +1,7 @@
-use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
-use crate::hxposed::MdlObject;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::MdlObject;
 use crate::services::types::memory_fields::MemoryProtection;
 
 #[derive(Clone, Default, Debug)]
@@ -29,13 +28,9 @@ pub struct MapMemoryResponse {
 }
 
 impl VmcallResponse for MapMemoryResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            Err(HypervisorError::from_response(raw))
-        } else {
-            Ok(Self {
-                mapped_address: raw.arg1,
-            })
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
+            mapped_address: raw.arg1,
         }
     }
 
@@ -50,14 +45,10 @@ impl VmcallResponse for MapMemoryResponse {
 }
 
 impl VmcallResponse for AllocateMemoryResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            Err(HypervisorError::from_response(raw))
-        } else {
-            Ok(Self {
-                mdl: raw.arg1,
-                bytes_allocated: raw.arg2 as _,
-            })
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
+            mdl: raw.arg1,
+            bytes_allocated: raw.arg2 as _,
         }
     }
 
@@ -73,15 +64,11 @@ impl VmcallResponse for AllocateMemoryResponse {
 }
 
 impl VmcallResponse for ProtectProcessMemoryResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            Err(HypervisorError::from_response(raw))
-        } else {
-            Ok(Self {
-                old_protection: MemoryProtection::from_bits(raw.arg1 as _).unwrap(),
-                base_address: raw.arg2 as _,
-                bytes_processed: raw.arg3 as _,
-            })
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
+            old_protection: MemoryProtection::from_bits(raw.arg1 as _).unwrap(),
+            base_address: raw.arg2 as _,
+            bytes_processed: raw.arg3 as _,
         }
     }
 
@@ -98,13 +85,9 @@ impl VmcallResponse for ProtectProcessMemoryResponse {
 }
 
 impl VmcallResponse for RWProcessMemoryResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            Err(HypervisorError::from_response(raw))
-        } else {
-            Ok(Self {
-                bytes_processed: raw.arg1 as _,
-            })
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
+            bytes_processed: raw.arg1 as _,
         }
     }
 

@@ -1,4 +1,3 @@
-use crate::error::HypervisorError;
 use crate::hxposed::call::{HypervisorResult, ServiceParameter};
 use crate::hxposed::error::{ErrorSource, InternalErrorCode, NotAllowedReason, NotFoundReason};
 use crate::plugins::plugin_perms::PluginPermissions;
@@ -6,6 +5,7 @@ use crate::plugins::plugin_perms::PluginPermissions;
 pub mod auth;
 pub mod empty;
 pub mod memory;
+pub mod notify;
 pub mod process;
 pub mod security;
 pub mod status;
@@ -70,6 +70,6 @@ impl HypervisorResponse {
 }
 
 pub trait VmcallResponse: Sized + Send + Sync + Unpin {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError>;
+    fn from_raw(raw: HypervisorResponse) -> Self;
     fn into_raw(self) -> HypervisorResponse;
 }

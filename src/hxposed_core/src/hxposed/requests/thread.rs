@@ -1,10 +1,8 @@
 use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::process::{ObjectOpenType};
+use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::thread::*;
-use alloc::boxed::Box;
-use core::mem;
 use crate::hxposed::ThreadObject;
 
 #[derive(Clone, Default, Debug)]
@@ -59,8 +57,8 @@ pub struct SetThreadFieldRequest {
 impl VmcallRequest for GetThreadFieldRequest {
     type Response = GetThreadFieldResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::get_thread_field(),
             arg1: self.thread as _,
             arg2: self.field.clone() as _,
@@ -68,11 +66,7 @@ impl VmcallRequest for GetThreadFieldRequest {
             extended_arg1: self.data as _,
             extended_arg2: self.data_len as _,
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -88,8 +82,8 @@ impl VmcallRequest for GetThreadFieldRequest {
 impl VmcallRequest for SetThreadFieldRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::set_thread_field(),
             arg1: self.thread as _,
             arg2: self.field.clone() as _,
@@ -98,11 +92,7 @@ impl VmcallRequest for SetThreadFieldRequest {
             extended_arg2: self.data_len as _,
 
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -118,8 +108,8 @@ impl VmcallRequest for SetThreadFieldRequest {
 impl VmcallRequest for GetSetThreadContextRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::get_set_thread_context(),
             arg1: self.thread as _,
             arg2: self.operation.clone().into_bits() as _,
@@ -128,11 +118,7 @@ impl VmcallRequest for GetSetThreadContextRequest {
             extended_arg2: self.data_len as _,
 
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -148,18 +134,14 @@ impl VmcallRequest for GetSetThreadContextRequest {
 impl VmcallRequest for KillThreadRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::kill_thread(),
             arg1: self.thread as _,
             arg2: self.exit_code as _,
 
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(raw: &HypervisorRequest) -> Self {
@@ -173,18 +155,14 @@ impl VmcallRequest for KillThreadRequest {
 impl VmcallRequest for SuspendResumeThreadRequest {
     type Response = SuspendThreadResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::suspend_resume_thread(),
             arg1: self.thread as _,
             arg2: self.operation.clone().into_bits() as _,
 
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -198,17 +176,13 @@ impl VmcallRequest for SuspendResumeThreadRequest {
 impl VmcallRequest for CloseThreadRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::close_thread(),
             arg1: self.thread.clone() as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -222,8 +196,8 @@ impl VmcallRequest for CloseThreadRequest {
 impl VmcallRequest for OpenThreadRequest {
     type Response = OpenObjectResponse; // it works. that's all I can say
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: match self.open_type.clone() {
                 ObjectOpenType::Handle => HypervisorCall::open_thread().with_is_async(true),
                 ObjectOpenType::Hypervisor => HypervisorCall::open_thread(),
@@ -233,11 +207,7 @@ impl VmcallRequest for OpenThreadRequest {
             arg3: self.open_type.clone().to_bits() as _,
 
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {

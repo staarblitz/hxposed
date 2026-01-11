@@ -8,7 +8,6 @@ use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::hxposed::ObjectType;
 use crate::intern::win::GetCurrentProcessId;
-use crate::services::async_service::AsyncPromise;
 use crate::services::memory::HxMemory;
 use crate::services::security::HxToken;
 use crate::services::types::process_fields::*;
@@ -17,6 +16,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::pin::Pin;
 use core::ptr::null_mut;
+use crate::events::async_service::AsyncPromise;
 
 #[derive(Debug)]
 pub struct HxProcess {

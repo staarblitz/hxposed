@@ -1,8 +1,6 @@
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::status::StatusResponse;
-use alloc::boxed::Box;
-use core::mem;
 
 #[derive(Clone, Default, Debug)]
 #[repr(C)]
@@ -11,15 +9,11 @@ pub struct StatusRequest;
 impl VmcallRequest for StatusRequest {
     type Response = StatusResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::get_status(),
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(_request: &HypervisorRequest) -> Self {

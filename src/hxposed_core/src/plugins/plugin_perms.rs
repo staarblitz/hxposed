@@ -33,13 +33,13 @@ bitflags! {
         const CPU_CONTROL       = 1 << 21;
         const CPU_IO            = 1 << 22;
 
-        const RESERVED12        = 1 << 23;
-        const RESERVED13        = 1 << 24;
+        const INTERCEPT_PROCESS = 1 << 23;
+        const INTERCEPT_THREAD  = 1 << 24;
         const RESERVED14        = 1 << 25;
         const RESERVED15        = 1 << 26;
 
-        const RESERVED16   = 1 << 27;
+        const RESERVED16        = 1 << 27;
         const SECURITY_MANAGE   = 1 << 28;
-        const RESERVED17  = 1 << 29;
+        const RESERVED17        = 1 << 29;
     }
 }

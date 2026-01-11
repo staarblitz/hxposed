@@ -1,11 +1,11 @@
+#![allow(dead_code)]
+
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::process::*;
-use crate::services::types::process_fields::*;
-use alloc::boxed::Box;
-use core::mem;
 use crate::hxposed::ProcessObject;
+use crate::services::types::process_fields::*;
 
 #[derive(Clone, Default, Debug)]
 pub struct OpenProcessRequest {
@@ -52,19 +52,15 @@ pub struct GetProcessThreadsRequest {
 impl VmcallRequest for GetProcessThreadsRequest {
     type Response = GetProcessThreadsResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::get_process_threads(),
             arg1: self.process as _,
             arg2: self.data as _,
             arg3: self.data_len as _,
 
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -79,8 +75,8 @@ impl VmcallRequest for GetProcessThreadsRequest {
 impl VmcallRequest for OpenProcessRequest {
     type Response = OpenObjectResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: match self.open_type.clone() {
                 ObjectOpenType::Handle => HypervisorCall::open_process().with_is_async(true),
                 ObjectOpenType::Hypervisor => HypervisorCall::open_process(),
@@ -88,11 +84,7 @@ impl VmcallRequest for OpenProcessRequest {
             arg1: self.process_id.clone() as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -106,17 +98,13 @@ impl VmcallRequest for OpenProcessRequest {
 impl VmcallRequest for CloseProcessRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::close_process(),
             arg1: self.process.clone() as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -130,17 +118,13 @@ impl VmcallRequest for CloseProcessRequest {
 impl VmcallRequest for KillProcessRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::kill_process(),
             arg1: self.process as _,
             arg2: self.exit_code as _,
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -154,8 +138,8 @@ impl VmcallRequest for KillProcessRequest {
 impl VmcallRequest for GetProcessFieldRequest {
     type Response = GetProcessFieldResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::get_process_field(),
             arg1: self.process as _,
             arg2: self.field.clone() as _,
@@ -163,11 +147,7 @@ impl VmcallRequest for GetProcessFieldRequest {
             extended_arg1: self.data as _,
             extended_arg2: self.data_len as _,
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
@@ -183,8 +163,8 @@ impl VmcallRequest for GetProcessFieldRequest {
 impl VmcallRequest for SetProcessFieldRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> *mut HypervisorRequest {
-        let raw = Box::new(HypervisorRequest {
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
             call: HypervisorCall::set_process_field(),
             arg1: self.process as _,
             arg2: self.field.clone() as _,
@@ -193,11 +173,7 @@ impl VmcallRequest for SetProcessFieldRequest {
             extended_arg2: self.data_len as _,
 
             ..Default::default()
-        });
-
-        mem::forget(self);
-
-        Box::into_raw(raw)
+        }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {

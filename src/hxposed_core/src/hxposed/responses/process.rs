@@ -1,4 +1,3 @@
-use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
@@ -42,14 +41,10 @@ pub struct GetProcessThreadsResponse {
 }
 
 impl VmcallResponse for GetProcessThreadsResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            return Err(HypervisorError::from_response(raw));
-        }
-
-        Ok(Self {
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
             number_of_threads: raw.arg1 as _,
-        })
+        }
     }
 
     fn into_raw(self) -> HypervisorResponse {
@@ -63,15 +58,8 @@ impl VmcallResponse for GetProcessThreadsResponse {
 }
 
 impl VmcallResponse for GetProcessFieldResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            return Err(HypervisorError::from_response(raw));
-        }
-
-        Ok(GetProcessFieldResponse::from_raw_enum(
-            raw.arg1 as _,
-            raw.arg2 as _,
-        ))
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        GetProcessFieldResponse::from_raw_enum(raw.arg1 as _, raw.arg2 as _)
     }
 
     fn into_raw(self) -> HypervisorResponse {

@@ -7,10 +7,10 @@ use crate::hxposed::requests::security::*;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::security::GetTokenFieldResponse;
-use crate::services::types::security_fields::*;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use crate::services::types::security_fields::TokenPrivilege;
 
 #[derive(Debug)]
 pub struct HxToken {

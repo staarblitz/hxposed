@@ -1,4 +1,3 @@
-pub mod async_service;
 #[cfg(feature = "usermode")]
 pub mod memory;
 #[cfg(feature = "usermode")]
@@ -9,4 +8,6 @@ pub mod process;
 pub mod security;
 #[cfg(feature = "usermode")]
 pub mod thread;
+#[cfg(feature = "usermode")]
+pub mod notify;
 pub mod types;

@@ -1,4 +1,3 @@
-use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
@@ -58,12 +57,8 @@ impl GetTokenFieldResponse {
 }
 
 impl VmcallResponse for GetTokenFieldResponse {
-    fn from_raw(raw: HypervisorResponse) -> Result<Self, HypervisorError> {
-        if raw.result.is_error() {
-            return Err(HypervisorError::from_response(raw));
-        }
-
-        Ok(GetTokenFieldResponse::from_raw_enum(raw.arg1, raw.arg2))
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        GetTokenFieldResponse::from_raw_enum(raw.arg1, raw.arg2)
     }
 
     fn into_raw(self) -> HypervisorResponse {
