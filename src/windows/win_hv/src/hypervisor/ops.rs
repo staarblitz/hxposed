@@ -4,14 +4,13 @@ use wdk_sys::ntddk::{
     KeRevertToUserGroupAffinityThread, KeSetSystemGroupAffinityThread,
 };
 use wdk_sys::{
-    ntddk::MmGetPhysicalAddress, ALL_PROCESSOR_GROUPS, GROUP_AFFINITY, NT_SUCCESS,
-    PROCESSOR_NUMBER,
+    ALL_PROCESSOR_GROUPS, GROUP_AFFINITY, NT_SUCCESS, PROCESSOR_NUMBER, ntddk::MmGetPhysicalAddress,
 };
 
 pub(crate) struct WindowsOps;
 
 impl PlatformOps for WindowsOps {
-    fn run_on_all_processors(&self, callback: fn()) {
+    fn run_on_all_processors(&self, callback: fn(index: u32)) {
         fn processor_count() -> u32 {
             unsafe { KeQueryActiveProcessorCountEx(u16::try_from(ALL_PROCESSOR_GROUPS).unwrap()) }
         }
@@ -29,7 +28,7 @@ impl PlatformOps for WindowsOps {
             };
             unsafe { KeSetSystemGroupAffinityThread(&raw mut affinity, &raw mut old_affinity) };
 
-            callback();
+            callback(index);
 
             unsafe { KeRevertToUserGroupAffinityThread(&raw mut old_affinity) };
         }
