@@ -7,11 +7,10 @@ use x86::{
     controlregs::{Cr4, Xcr0},
     cpuid::cpuid,
 };
-
+use hxposed_core::hxposed::responses::HypervisorResponse;
 use super::{amd::Amd, intel::Intel};
 use crate::hypervisor::{
-    HV_CPUID_INTERFACE, HV_CPUID_VENDOR_AND_MAX_FUNCTIONS, OUR_HV_VENDOR_NAME_EBX,
-    OUR_HV_VENDOR_NAME_ECX, OUR_HV_VENDOR_NAME_EDX, SHARED_HOST_DATA, apic_id,
+    HV_CPUID_INTERFACE, HV_CPUID_VENDOR_AND_MAX_FUNCTIONS, SHARED_HOST_DATA, apic_id,
     registers::Registers,
     x86_instructions::{cr4, cr4_write, rdmsr, wrmsr, xsetbv},
 };
@@ -73,11 +72,10 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
     }
 }
 
-fn handle_vmcall<T: Guest>(guest: &mut T, info: &InstructionInfo) {
+fn handle_vmcall<T: Guest>(guest: &mut T, info: &InstructionInfo) -> bool {
+    guest.regs().rip = info.next_rip;
     let call = HypervisorCall::from_bits(guest.regs().rsi as _);
     unsafe { SHARED_HOST_DATA.get_unchecked().vmcall_handler.unwrap()(guest, call) }
-    guest.regs().rip = info.next_rip;
-    guest.regs().rcx = 0x2009; // This leaf indicates that CPUID was handled by the hypervisor.
 }
 
 fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
@@ -85,9 +83,16 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
     let sub_leaf = guest.regs().rcx as u32;
 
     if sub_leaf == 0x2009 {
-        // Our CPUID trap
-        handle_vmcall(guest, info);
-        return;
+        // our CPUID trap
+        match handle_vmcall(guest, info) {
+            true => {
+                guest.regs().rcx = 0x2009; // This leaf indicates that CPUID was handled by the hypervisor.
+                return;
+            }
+            false => {
+                // treat as normal
+            }
+        }
     }
 
     let mut cpuid_result = cpuid!(leaf, sub_leaf);
@@ -99,11 +104,6 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
         // See: Table 3-10. Feature Information Returned in the ECX Register
         cpuid_result.ecx &= !(1 << 5);
         cpuid_result.ecx &= !(1 << 31); // Hide presence of hypervisor
-    } else if leaf == HV_CPUID_VENDOR_AND_MAX_FUNCTIONS {
-        // Very stealthy, indeed.
-        cpuid_result.ebx = OUR_HV_VENDOR_NAME_EBX;
-        cpuid_result.ecx = OUR_HV_VENDOR_NAME_ECX;
-        cpuid_result.edx = OUR_HV_VENDOR_NAME_EDX;
     } else if leaf == HV_CPUID_INTERFACE {
         // Return non "Hv#1" into EAX. This indicate that our hypervisor does NOT
         // conform to the Microsoft hypervisor interface. This prevents the guest
@@ -199,6 +199,8 @@ pub trait Guest {
 
     /// Gets a reference to some of guest registers.
     fn regs(&mut self) -> &mut Registers;
+
+    fn write_response(&mut self, response: HypervisorResponse);
 }
 
 /// The reasons of VM-exit and additional information.
