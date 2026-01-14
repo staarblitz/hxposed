@@ -1,11 +1,9 @@
 use crate::nt::thread::NtThread;
-use crate::plugins::commands::thread::*;
-use crate::plugins::{Plugin, PluginTable};
-use crate::win::{
-    ZwResumeThread, ZwSuspendThread,
-};
+use crate::objects::ObjectTracker;
+use crate::services::commands::thread::*;
+use crate::win::{ZwResumeThread, ZwSuspendThread};
 use alloc::boxed::Box;
-use hv::hypervisor::host::Guest;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -15,21 +13,11 @@ use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse}
 use hxposed_core::hxposed::responses::thread::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::ObjectType;
-use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use wdk_sys::{STATUS_SUCCESS, ULONG};
 
 pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let thread = match plugin
-        .object_table
-        .pop_open_thread(request.command.thread as _)
-    {
-        Some(thread) => thread,
+    let thread = match ObjectTracker::get_open_thread(request.command.thread as _) {
+        Some(thread) => thread.take(),
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
@@ -40,22 +28,17 @@ pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorRe
 }
 
 pub(crate) fn kill_thread_async(
-    _guest: &mut dyn Guest,
     request: KillThreadRequest,
-    plugin: &'static mut Plugin,
+
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
-    }
-
     if !async_info.is_present() {
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.queue_command(Box::new(KillThreadAsyncCommand {
+    ObjectTracker::queue_command(Box::new(KillThreadAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     }));
 
@@ -65,15 +48,7 @@ pub(crate) fn kill_thread_async(
 pub(crate) fn suspend_resume_thread_sync(
     request: &SuspendResumeThreadAsyncCommand,
 ) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let thread = match plugin
-        .object_table
-        .get_open_thread(request.command.thread as _)
-    {
+    let thread = match ObjectTracker::get_open_thread(request.command.thread as _) {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
@@ -105,22 +80,17 @@ pub(crate) fn suspend_resume_thread_sync(
 }
 
 pub(crate) fn suspend_resume_thread_async(
-    _guest: &mut dyn Guest,
     request: SuspendResumeThreadRequest,
-    plugin: &mut Plugin,
+
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
-    }
-
     if !async_info.is_present() {
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.queue_command(Box::new(SuspendResumeThreadAsyncCommand {
+    ObjectTracker::queue_command(Box::new(SuspendResumeThreadAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     }));
 
@@ -128,32 +98,16 @@ pub(crate) fn suspend_resume_thread_async(
 }
 
 pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let thread = match plugin
-        .object_table
-        .get_open_thread(request.command.thread as _)
-    {
+    let thread = match ObjectTracker::get_open_thread(request.command.thread as _) {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.command.field {
         ThreadField::ActiveImpersonationInfo => {
-            if !plugin.perm_check(PluginPermissions::THREAD_SECURITY) {
-                return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
-            }
-
             GetThreadFieldResponse::ActiveImpersonationInfo(thread.get_impersonation_info())
         }
         ThreadField::AdjustedClientToken => {
-            if !plugin.perm_check(PluginPermissions::THREAD_SECURITY) {
-                return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
-            }
-
             GetThreadFieldResponse::AdjustedClientToken(thread.get_adjusted_client_token() as _)
         }
         _ => return HypervisorResponse::not_found(),
@@ -162,29 +116,14 @@ pub(crate) fn get_thread_field_sync(request: &GetThreadFieldAsyncCommand) -> Hyp
 }
 
 pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let mut thread = match plugin
-        .object_table
-        .pop_open_thread(request.command.thread as _)
-    {
+    let mut thread = match ObjectTracker::get_open_thread(request.command.thread as _) {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    let ret = match request.command.field {
+    match request.command.field {
         ThreadField::AdjustedClientToken => {
-            if !plugin.perm_check(PluginPermissions::THREAD_SECURITY) {
-                return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_SECURITY);
-            }
-
-            let token = match plugin
-                .object_table
-                .get_open_token(request.command.data as _)
-            {
+            let token = match ObjectTracker::get_open_token(request.command.data as _) {
                 Some(x) => x,
                 None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
             };
@@ -194,31 +133,22 @@ pub(crate) fn set_thread_field_sync(request: &SetThreadFieldAsyncCommand) -> Hyp
             EmptyResponse::with_service(ServiceFunction::SetThreadField)
         }
         _ => HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
-    };
-
-    plugin.object_table.add_open_thread(thread);
-
-    ret
+    }
 }
 pub(crate) fn set_thread_field_async(
-    _guest: &mut dyn Guest,
     request: SetThreadFieldRequest,
-    plugin: &mut Plugin,
+
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
-    }
-
     let obj = SetThreadFieldAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     };
 
     match obj.async_info.is_present() {
         true => {
-            plugin.queue_command(Box::new(obj));
+            ObjectTracker::queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::SetThreadField)
         }
         false => match obj.command.field {
@@ -228,24 +158,19 @@ pub(crate) fn set_thread_field_async(
 }
 
 pub(crate) fn get_thread_field_async(
-    _guest: &mut dyn Guest,
     request: GetThreadFieldRequest,
-    plugin: &mut Plugin,
+
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
-    }
-
     let obj = GetThreadFieldAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     };
 
     match obj.async_info.is_present() {
         true => {
-            plugin.queue_command(Box::new(obj));
+            ObjectTracker::queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::SuspendResumeThread)
         }
         false => match obj.command.field {
@@ -265,11 +190,6 @@ pub(crate) fn get_thread_field_async(
 /// * [`HypervisorResponse::nt_error`] - NT side error.
 /// * [`OpenObjectResponse`] - Object's address (or handle)
 pub(crate) fn open_thread_sync(request: &OpenThreadAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
     let thread = match NtThread::from_id(request.command.tid) {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
@@ -285,10 +205,10 @@ pub(crate) fn open_thread_sync(request: &OpenThreadAsyncCommand) -> HypervisorRe
         .into_raw(),
         ObjectOpenType::Hypervisor => {
             let rep = OpenObjectResponse {
-                object: ObjectType::Token(thread.uid as _),
+                object: ObjectType::Token(thread.nt_thread as _),
             }
             .into_raw();
-            plugin.object_table.add_open_thread(thread);
+            ObjectTracker::add_open_thread(thread);
             rep
         }
     }
@@ -305,24 +225,19 @@ pub(crate) fn open_thread_sync(request: &OpenThreadAsyncCommand) -> HypervisorRe
 /// * [`HypervisorResponse::not_allowed_perms`] - Plugin lacks required permissions.
 /// * [`HypervisorResponse::invalid_params`] - Plugin provided invalid call type.
 pub(crate) fn open_thread_async(
-    _guest: &mut dyn Guest,
     request: OpenThreadRequest,
-    plugin: &mut Plugin,
+
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::THREAD_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::THREAD_EXECUTIVE);
-    }
-
     let obj = OpenThreadAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     };
 
     match obj.async_info.is_present() {
         true => {
-            plugin.queue_command(Box::new(obj));
+            ObjectTracker::queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::OpenThread)
         }
         false => match obj.command.open_type {
@@ -340,13 +255,12 @@ pub(crate) fn open_thread_async(
 /// ## Return
 /// * [`EmptyResponse`] - OK.
 /// * [`HypervisorResponse::not_found`] - Thread was not found.
-pub(crate) fn close_thread(
-    _guest: &mut dyn Guest,
-    request: CloseThreadRequest,
-    plugin: &'static mut Plugin,
-) -> HypervisorResponse {
-    match plugin.object_table.pop_open_thread(request.thread as _) {
+pub(crate) fn close_thread(request: CloseThreadRequest) -> HypervisorResponse {
+    match ObjectTracker::get_open_thread(request.thread as _) {
         None => HypervisorResponse::not_found(),
-        Some(_) => EmptyResponse::with_service(ServiceFunction::CloseThread),
+        Some(x) => {
+            x.take();
+            EmptyResponse::with_service(ServiceFunction::CloseThread)
+        }
     }
 }

@@ -1,12 +1,10 @@
 use crate::nt::token::NtToken;
-use crate::nt::{
-    SYSTEM_TOKEN, probe,
-};
-use crate::plugins::commands::security::*;
-use crate::plugins::{Plugin, PluginTable};
+use crate::nt::{SYSTEM_TOKEN, probe};
+use crate::services::commands::security::*;
 use alloc::boxed::Box;
 use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
@@ -16,30 +14,22 @@ use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::security::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::security_fields::TokenPrivilege;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{ObOpenObjectByPointer, ObReferenceObjectByPointer};
-use wdk_sys::{
-    HANDLE, PACCESS_TOKEN, STATUS_SUCCESS, SeTokenObjectType, TOKEN_ALL_ACCESS,
-};
+use wdk_sys::{HANDLE, PACCESS_TOKEN, STATUS_SUCCESS, SeTokenObjectType, TOKEN_ALL_ACCESS};
+use crate::objects::ObjectTracker;
+use crate::utils::pop_guard::PopGuard;
 
 pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
 
-    let mut token = match plugin
-        .object_table
-        .pop_open_token(request.command.token as _)
+    let mut token = match ObjectTracker::get_open_token(request.command.token as _)
     {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
     };
 
-    let ret = match request.command.field {
+   match request.command.field {
         TokenField::EnabledPrivileges => {
             if request.command.data_len != size_of::<TokenPrivilege>() {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
@@ -48,7 +38,6 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
             match probe::probe_for_read(request.command.data as _, request.command.data_len as _, 1)
             {
                 Ok(_) => {
-
                     let user_field = unsafe { &*(request.command.data as *mut TokenPrivilege) };
                     token.set_enabled_privileges(user_field.clone());
 
@@ -58,28 +47,22 @@ pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> Hyper
             }
         }
         _ => HypervisorResponse::invalid_params(ServiceParameter::Function),
-    };
-
-    plugin.object_table.add_open_token(token);
-
-    ret
+    }
 }
 
 pub(crate) fn set_token_field_async(
-    _guest: &mut dyn Guest,
     request: SetTokenFieldRequest,
-    plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
     let obj = SetTokenFieldAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     };
 
     match obj.async_info.is_present() {
         true => {
-            plugin.queue_command(Box::new(obj));
+            ObjectTracker::queue_command(Box::new(obj));
 
             EmptyResponse::with_service(ServiceFunction::SetTokenField)
         }
@@ -90,20 +73,13 @@ pub(crate) fn set_token_field_async(
 }
 
 pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let token = match plugin
-        .object_table
-        .get_open_token(request.command.token as _)
+    let token = match ObjectTracker::get_open_token(request.command.token as _)
     {
         Some(x) => x,
         None if request.command.token == 0 => match request.command.field {
             // asking for SYSTEM token
             TokenField::PresentPrivileges => {
-                &NtToken::from_ptr(SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN)
+                PopGuard::no_src(NtToken::from_ptr(SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN))
             }
             _ => return HypervisorResponse::not_found_what(NotFoundReason::Token),
         },
@@ -113,7 +89,7 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
     match request.command.field {
         TokenField::SourceName => GetTokenFieldResponse::SourceName(token.get_source_name()),
         TokenField::AccountName => {
-            let account_name = unsafe { &mut *token.account_name };
+            let account_name = unsafe { &*token.account_name };
             if request.command.data_len == 0 {
                 GetTokenFieldResponse::AccountName(account_name.Length)
             } else {
@@ -165,24 +141,18 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
 }
 
 pub(crate) fn get_token_field_async(
-    _guest: &mut dyn Guest,
     request: GetTokenFieldRequest,
-    plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::SECURITY_MANAGE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::SECURITY_MANAGE);
-    }
-
     let obj = GetTokenFieldAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     };
 
     match obj.async_info.is_present() {
         true => {
-            plugin.queue_command(Box::new(obj));
+            ObjectTracker::queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::GetTokenField)
         }
         false => match obj.command.field {
@@ -195,11 +165,6 @@ pub(crate) fn get_token_field_async(
 }
 
 pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
     match request.command.open_type {
         ObjectOpenType::Handle => {
             let mut handle = HANDLE::default();
@@ -232,9 +197,7 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
                 )
             } {
                 STATUS_SUCCESS => {
-                    plugin
-                        .object_table
-                        .add_open_token(NtToken::from_ptr(request.command.token as _));
+                    ObjectTracker::add_open_token(NtToken::from_ptr(request.command.token as _));
 
                     // ObDereferenceObject.....
 
@@ -247,18 +210,16 @@ pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResp
 }
 
 pub(crate) fn open_token_async(
-    _guest: &mut dyn Guest,
     request: OpenTokenRequest,
-    plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
     if !async_info.is_present() {
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.queue_command(Box::new(OpenTokenAsyncCommand {
+    ObjectTracker::queue_command(Box::new(OpenTokenAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
+
         async_info,
     }));
 
@@ -266,16 +227,14 @@ pub(crate) fn open_token_async(
 }
 
 pub(crate) fn close_token_sync(
-    _guest: &mut dyn Guest,
     request: CloseTokenRequest,
-    plugin: &mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
     if async_info.is_present() {
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.object_table.pop_open_token(request.token as _);
+    ObjectTracker::get_open_token(request.token as _).take();
 
     EmptyResponse::with_service(ServiceFunction::CloseToken)
 }

@@ -1,10 +1,11 @@
 use crate::nt::process::NtProcess;
 use crate::nt::*;
-use crate::plugins::commands::process::*;
-use crate::plugins::{Plugin, PluginTable};
+use crate::objects::ObjectTracker;
+use crate::services::commands::process::*;
 use alloc::boxed::Box;
 use core::ptr::copy_nonoverlapping;
 use hv::hypervisor::host::Guest;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -13,8 +14,6 @@ use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse}
 use hxposed_core::hxposed::responses::process::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::ObjectType;
-use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::process_fields::*;
 use wdk_sys::ntddk::ObfDereferenceObject;
 
@@ -36,23 +35,15 @@ use wdk_sys::ntddk::ObfDereferenceObject;
 pub(crate) fn get_process_threads_sync(
     request: &GetProcessThreadsAsyncCommand,
 ) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let process = match plugin
-        .object_table
-        .get_open_process(request.command.process as _)
-    {
+    let process = match ObjectTracker::get_open_process(request.command.process as _) {
         Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     let thread_numbers = process.get_threads();
 
-    if !request.command.data.is_null() {
-        match probe::probe_for_write(request.command.data, request.command.data_len, 1) {
+    if !request.command.data == 0 {
+        match probe::probe_for_write(request.command.data as _, request.command.data_len, 1) {
             Ok(_) => {}
             Err(_) => return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
         }
@@ -91,23 +82,16 @@ pub(crate) fn get_process_threads_sync(
 /// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
 /// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
 pub(crate) fn get_process_threads_async(
-    _guest: &mut dyn Guest,
     request: GetProcessThreadsRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
-    }
-
     if !async_info.is_present() {
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.queue_command(Box::new(GetProcessThreadsAsyncCommand {
+    ObjectTracker::queue_command(Box::new(GetProcessThreadsAsyncCommand {
         command: request,
         async_info,
-        uuid: plugin.uuid,
     }));
 
     EmptyResponse::with_service(ServiceFunction::GetProcessThreads)
@@ -132,21 +116,14 @@ pub(crate) fn get_process_threads_async(
 /// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
 /// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
 pub(crate) fn set_process_field_async(
-    _guest: &mut dyn Guest,
     request: SetProcessFieldRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
-    }
-
     if !async_info.is_present() {
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.queue_command(Box::new(SetProcessFieldAsyncCommand {
-        uuid: plugin.uuid,
+    ObjectTracker::queue_command(Box::new(SetProcessFieldAsyncCommand {
         command: request,
         async_info,
     }));
@@ -171,26 +148,18 @@ pub(crate) fn set_process_field_async(
 /// * [`HypervisorResponse::invalid_params`] - Invalid buffer.
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let mut process = match plugin
-        .object_table
-        .pop_open_process(request.command.process as _)
-    {
+    let mut process = match ObjectTracker::get_open_process(request.command.process as _) {
         Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    let ret = match request.command.field {
+    match request.command.field {
         ProcessField::Protection => {
             if request.command.data_len != 1 {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len, 1) {
                 Ok(_) => {
                     let new_field = unsafe { *(request.command.data as *mut ProcessProtection) };
 
@@ -206,7 +175,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len, 1) {
                 Ok(_) => {
                     let new_field =
                         unsafe { *(request.command.data as *mut ProcessSignatureLevel) };
@@ -223,7 +192,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match probe::probe_for_read(request.command.data, request.command.data_len, 1) {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len, 1) {
                 Ok(_) => {
                     let mitigations = unsafe { *(request.command.data as *mut MitigationOptions) };
 
@@ -239,10 +208,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            let token = match plugin
-                .object_table
-                .get_open_token(request.command.data as _)
-            {
+            let token = match ObjectTracker::get_open_token(request.command.data as _) {
                 Some(x) => x,
                 None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
             };
@@ -252,12 +218,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
             EmptyResponse::with_service(ServiceFunction::SetProcessField)
         }
         _ => HypervisorResponse::not_found(),
-    };
-
-    // now, readd it.
-    plugin.object_table.add_open_process(process);
-
-    ret
+    }
 }
 
 ///
@@ -279,24 +240,17 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
 /// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
 /// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
 pub(crate) fn get_process_field_async(
-    _guest: &mut dyn Guest,
     request: GetProcessFieldRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
-    }
-
     let obj = GetProcessFieldAsyncCommand {
-        uuid: plugin.uuid,
         command: request,
         async_info,
     };
 
     match obj.async_info.is_present() {
         true => {
-            plugin.queue_command(Box::new(obj));
+            ObjectTracker::queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::KillProcess)
         }
         false => match obj.command.field {
@@ -330,22 +284,14 @@ pub(crate) fn get_process_field_async(
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 ///
 pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let process = match plugin
-        .object_table
-        .get_open_process(request.command.process as _)
-    {
+    let process = match ObjectTracker::get_open_process(request.command.process as _) {
         Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.command.field {
         ProcessField::NtPath => {
-            let field = unsafe { &mut *process.nt_path };
+            let field = unsafe { &*process.nt_path };
 
             if request.command.data_len == 0 {
                 GetProcessFieldResponse::NtPath(field.Length)
@@ -374,17 +320,12 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
             GetProcessFieldResponse::Protection(process.get_protection().into_bits() as _)
         }
         ProcessField::Signers => {
-            GetProcessFieldResponse::Signers(unsafe { process.get_signers().into_bits() as _ })
+            GetProcessFieldResponse::Signers(process.get_signers().into_bits() as _)
         }
-        ProcessField::MitigationFlags => GetProcessFieldResponse::Mitigation(unsafe {
-            process.get_mitigations().into_bits() as _
-        }),
-        ProcessField::Token => {
-            if !plugin.perm_check(PluginPermissions::PROCESS_SECURITY) {
-                return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_SECURITY);
-            }
-            GetProcessFieldResponse::Token(process.get_token() as _)
+        ProcessField::MitigationFlags => {
+            GetProcessFieldResponse::Mitigation(process.get_mitigations().into_bits() as _)
         }
+        ProcessField::Token => GetProcessFieldResponse::Token(process.get_token() as _),
         _ => return HypervisorResponse::not_found(),
     }
     .into_raw()
@@ -411,21 +352,14 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
 ///
 /// TODO: Move the existence check to worker thread maybe?
 pub(crate) fn kill_process_async(
-    _guest: &mut dyn Guest,
     request: KillProcessRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
-    }
-
     if !async_info.is_present() {
         return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
     }
 
-    plugin.queue_command(Box::new(KillProcessAsyncCommand {
-        uuid: plugin.uuid,
+    ObjectTracker::queue_command(Box::new(KillProcessAsyncCommand {
         command: request,
         async_info,
     }));
@@ -449,16 +383,8 @@ pub(crate) fn kill_process_async(
 /// * [`HypervisorResponse::ok`] - The process was killed.
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
 pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let process = match plugin
-        .object_table
-        .pop_open_process(request.command.process as _)
-    {
-        Some(process) => process,
+    let process = match ObjectTracker::get_open_process(request.command.process as _) {
+        Some(process) => process.take(),
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
@@ -481,41 +407,31 @@ pub(crate) fn kill_process_sync(request: &KillProcessAsyncCommand) -> Hypervisor
 /// ## Return
 /// * [`HypervisorResponse::ok`] - Process was closed.
 /// * [`HypervisorResponse::not_allowed`] - Something went very wrong.
-pub(crate) fn close_process(
-    _guest: &mut dyn Guest,
-    request: CloseProcessRequest,
-    plugin: &'static mut Plugin,
-) -> HypervisorResponse {
-    match plugin.object_table.pop_open_process(request.process as _) {
+pub(crate) fn close_process(request: CloseProcessRequest) -> HypervisorResponse {
+    match ObjectTracker::get_open_process(request.process as _) {
         None => HypervisorResponse::not_found(),
         Some(process) => {
             unsafe {
-                ObfDereferenceObject(process.uid as _);
+                ObfDereferenceObject(process.nt_process as _);
             }
+            process.take();
             EmptyResponse::with_service(ServiceFunction::CloseProcess)
         }
     }
 }
 
 pub(crate) fn open_process_async(
-    _guest: &mut dyn Guest,
     request: OpenProcessRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_EXECUTIVE) {
-        return HypervisorResponse::not_allowed_perms(PluginPermissions::PROCESS_EXECUTIVE);
-    }
-
     let obj = OpenProcessAsyncCommand {
         command: request,
         async_info,
-        uuid: plugin.uuid,
     };
 
     match obj.async_info.is_present() {
         true => {
-            plugin.queue_command(Box::new(obj));
+            ObjectTracker::queue_command(Box::new(obj));
             EmptyResponse::with_service(ServiceFunction::OpenProcess)
         }
         false => match obj.command.open_type {
@@ -540,11 +456,6 @@ pub(crate) fn open_process_async(
 /// * [`HypervisorResponse::not_allowed_perms`] - Plugin lacks required permissions
 /// * [`HypervisorResponse::nt_error`] - [`PsLookupProcessByProcessId`] returned an NTSTATUS indicating failure.
 pub(crate) fn open_process_sync(request: &OpenProcessAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
     let process = match NtProcess::from_id(request.command.process_id) {
         Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
@@ -559,8 +470,8 @@ pub(crate) fn open_process_sync(request: &OpenProcessAsyncCommand) -> Hypervisor
         }
         .into_raw(),
         ObjectOpenType::Hypervisor => {
-            let uid = process.uid;
-            plugin.object_table.add_open_process(process);
+            let uid = process.nt_process as u64;
+            ObjectTracker::add_open_process(process);
 
             OpenObjectResponse {
                 object: ObjectType::Process(uid) as _,

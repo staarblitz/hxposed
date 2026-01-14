@@ -1,11 +1,13 @@
 use crate::nt::mdl::MemoryDescriptor;
-use crate::plugins::PluginTable;
-use crate::plugins::commands::memory::*;
-use crate::plugins::plugin::Plugin;
+use crate::nt::process::NtProcess;
+use crate::objects::ObjectTracker;
+use crate::services::commands::memory::*;
+use crate::utils::pop_guard::PopGuard;
 use crate::win::{MmCopyVirtualMemory, ZwProtectVirtualMemory};
 use alloc::boxed::Box;
-use core::ops::BitAnd;
+use core::ops::{BitAnd, Deref};
 use hv::hypervisor::host::Guest;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -13,23 +15,15 @@ use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::memory::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::plugins::plugin_perms::PluginPermissions;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
 use hxposed_core::services::types::memory_fields::MemoryProtection;
 use wdk_sys::_MODE::{KernelMode, UserMode};
 use wdk_sys::{SIZE_T, STATUS_INVALID_PAGE_PROTECTION, STATUS_SUCCESS, ULONG};
 
 pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    match plugin
-        .object_table
-        .pop_allocated_mdl(request.command.mdl as _)
-    {
-        Some(mdl) => mdl,
+    match ObjectTracker::get_allocated_mdl(request.command.mdl as _) {
+        Some(mdl) => {
+            mdl.take();
+        }
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
     };
 
@@ -37,51 +31,24 @@ pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorRespo
 }
 
 pub(crate) fn free_mdl_async(
-    _guest: &mut dyn Guest,
     request: FreeMemoryRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(
-        PluginPermissions::MEMORY_PHYSICAL
-            | PluginPermissions::MEMORY_VIRTUAL
-            | PluginPermissions::MEMORY_ALLOCATION,
-    ) {
-        return HypervisorResponse::not_allowed_perms(
-            PluginPermissions::MEMORY_PHYSICAL
-                | PluginPermissions::MEMORY_VIRTUAL
-                | PluginPermissions::MEMORY_ALLOCATION,
-        );
-    };
-
-    plugin.queue_command(Box::new(FreeMemoryAsyncCommand {
+    ObjectTracker::queue_command(Box::new(FreeMemoryAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
         async_info,
     }));
-
     EmptyResponse::with_service(ServiceFunction::MapMemory)
 }
 
 pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let mut mdl = match plugin
-        .object_table
-        .pop_allocated_mdl(request.command.mdl as _)
-    {
+    let mut mdl = match ObjectTracker::get_allocated_mdl(request.command.mdl as _) {
         Some(mdl) => mdl,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
     };
 
-    let process = match plugin
-        .object_table
-        .get_open_process(request.command.process as _)
-    {
-        None => plugin.process.as_ref().unwrap(),
+    let process = match ObjectTracker::get_open_process(request.command.process as _) {
+        None => PopGuard::no_src(NtProcess::from_ptr(request.async_info.process as _)),
         Some(x) => x,
     };
 
@@ -112,8 +79,6 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
         },
     };
 
-    plugin.object_table.add_mdl(mdl);
-
     // paranoid
     drop(_ctx);
 
@@ -121,38 +86,17 @@ pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorRespons
 }
 
 pub(crate) fn map_mdl_async(
-    _guest: &mut dyn Guest,
     request: MapMemoryRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(
-        PluginPermissions::MEMORY_PHYSICAL
-            | PluginPermissions::MEMORY_VIRTUAL
-            | PluginPermissions::MEMORY_ALLOCATION,
-    ) {
-        return HypervisorResponse::not_allowed_perms(
-            PluginPermissions::MEMORY_PHYSICAL
-                | PluginPermissions::MEMORY_VIRTUAL
-                | PluginPermissions::MEMORY_ALLOCATION,
-        );
-    };
-
-    plugin.queue_command(Box::new(MapMemoryAsyncCommand {
+    ObjectTracker::queue_command(Box::new(MapMemoryAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
         async_info,
     }));
-
     EmptyResponse::with_service(ServiceFunction::MapMemory)
 }
 
 pub(crate) fn allocate_mdl_sync(request: &AllocateMemoryAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(plugin) => plugin,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
     let mdl = match request.command.underlying_pages {
         0 => MemoryDescriptor::new(request.command.size as _),
         addr => MemoryDescriptor::new_describe(addr as _, request.command.size as _),
@@ -164,31 +108,16 @@ pub(crate) fn allocate_mdl_sync(request: &AllocateMemoryAsyncCommand) -> Hypervi
     }
     .into_raw();
 
-    plugin.object_table.add_mdl(mdl);
+    ObjectTracker::add_mdl(mdl);
     ret
 }
 
 pub(crate) fn allocate_mdl_async(
-    _guest: &mut dyn Guest,
     request: AllocateMemoryRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(
-        PluginPermissions::MEMORY_PHYSICAL
-            | PluginPermissions::MEMORY_VIRTUAL
-            | PluginPermissions::MEMORY_ALLOCATION,
-    ) {
-        return HypervisorResponse::not_allowed_perms(
-            PluginPermissions::MEMORY_PHYSICAL
-                | PluginPermissions::MEMORY_VIRTUAL
-                | PluginPermissions::MEMORY_ALLOCATION,
-        );
-    }
-
-    plugin.queue_command(Box::new(AllocateMemoryAsyncCommand {
+    ObjectTracker::queue_command(Box::new(AllocateMemoryAsyncCommand {
         command: request,
-        uuid: plugin.uuid,
         async_info,
     }));
 
@@ -215,23 +144,9 @@ pub(crate) fn allocate_mdl_async(
 /// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
 /// * [`HypervisorResponse::nt_error`] - Invalid page protection specified.
 pub(crate) fn protect_vm_async(
-    _guest: &mut dyn Guest,
     mut request: ProtectProcessMemoryRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(
-        PluginPermissions::PROCESS_MEMORY
-            | PluginPermissions::MEMORY_VIRTUAL
-            | PluginPermissions::MEMORY_PROTECT,
-    ) {
-        return HypervisorResponse::not_allowed_perms(
-            PluginPermissions::PROCESS_MEMORY
-                | PluginPermissions::MEMORY_VIRTUAL
-                | PluginPermissions::MEMORY_PROTECT,
-        );
-    }
-
     request.protection = request
         .protection
         .bitand(!(MemoryProtection::GUARD | MemoryProtection::NO_CACHE));
@@ -252,8 +167,7 @@ pub(crate) fn protect_vm_async(
         return HypervisorResponse::nt_error(STATUS_INVALID_PAGE_PROTECTION as _);
     }
 
-    plugin.queue_command(Box::new(ProtectProcessMemoryAsyncCommand {
-        uuid: plugin.uuid,
+    ObjectTracker::queue_command(Box::new(ProtectProcessMemoryAsyncCommand {
         command: request,
         async_info,
     }));
@@ -276,15 +190,7 @@ pub(crate) fn protect_vm_async(
 /// * [`HypervisorResponse::nt_error`] - An error occurred in `ZwProtectVirtualMemory`.
 /// * [`ProtectProcessMemoryResponse`] - Number of bytes processed.
 pub(crate) fn protect_vm_sync(request: &ProtectProcessMemoryAsyncCommand) -> HypervisorResponse {
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let process = match plugin
-        .object_table
-        .get_open_process(request.command.process as _)
-    {
+    let process = match ObjectTracker::get_open_process(request.command.process as _) {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };
@@ -337,19 +243,10 @@ pub(crate) fn protect_vm_sync(request: &ProtectProcessMemoryAsyncCommand) -> Hyp
 /// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
 /// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
 pub(crate) fn process_vm_operation_async(
-    _guest: &mut dyn Guest,
     request: RWProcessMemoryRequest,
-    plugin: &'static mut Plugin,
     async_info: UnsafeAsyncInfo,
 ) -> HypervisorResponse {
-    if !plugin.perm_check(PluginPermissions::PROCESS_MEMORY | PluginPermissions::MEMORY_VIRTUAL) {
-        return HypervisorResponse::not_allowed_perms(
-            PluginPermissions::PROCESS_MEMORY | PluginPermissions::MEMORY_VIRTUAL,
-        );
-    }
-
-    plugin.queue_command(Box::new(RWProcessMemoryAsyncCommand {
-        uuid: plugin.uuid,
+    ObjectTracker::queue_command(Box::new(RWProcessMemoryAsyncCommand {
         command: request,
         async_info,
     }));
@@ -378,15 +275,7 @@ pub(crate) fn process_vm_operation_sync(
         return HypervisorResponse::not_allowed(NotAllowedReason::Unknown);
     }
 
-    let plugin = match PluginTable::lookup(request.uuid) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Plugin),
-    };
-
-    let process = match plugin
-        .object_table
-        .get_open_process(request.command.process as _)
-    {
+    let process = match ObjectTracker::get_open_process(request.command.process as _) {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };
@@ -394,8 +283,14 @@ pub(crate) fn process_vm_operation_sync(
     let mut return_size = SIZE_T::default();
 
     let (source, target) = match request.command.operation {
-        ProcessMemoryOperation::Read => (process, plugin.process.as_ref().unwrap()),
-        ProcessMemoryOperation::Write => (plugin.process.as_ref().unwrap(), process),
+        ProcessMemoryOperation::Read => (
+            process.deref(),
+            &NtProcess::from_ptr(request.async_info.process as _),
+        ),
+        ProcessMemoryOperation::Write => (
+            &NtProcess::from_ptr(request.async_info.process as _),
+            process.deref(),
+        ),
     };
 
     match unsafe {
