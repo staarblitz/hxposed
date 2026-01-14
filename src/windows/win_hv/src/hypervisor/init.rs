@@ -1,9 +1,9 @@
-use alloc::boxed::Box;
-use hv::SharedHostData;
-use wdk_sys::ntddk::ExAllocatePool2;
-use wdk_sys::POOL_FLAG_NON_PAGED;
 use crate::hypervisor::ops;
 use crate::hypervisor::vmexit::vmcall_handler;
+use alloc::boxed::Box;
+use hv::SharedHostData;
+use wdk_sys::POOL_FLAG_NON_PAGED;
+use wdk_sys::ntddk::ExAllocatePool2;
 
 pub(crate) fn init_hypervisor() {
     log::info!("Allocating memory for the hypervisor...");
