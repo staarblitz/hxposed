@@ -142,7 +142,12 @@ where
     #[allow(unsafe_op_in_unsafe_fn)]
     unsafe extern "C" fn hv_wait_worker(param: *mut u64) -> u32 {
         let me = &mut *(param as *mut AsyncPromise<RQ, RS>);
-        WaitForSingleObject(me.async_info.handle, u32::MAX);
+        match WaitForSingleObject(me.async_info.handle, 2000) {
+            0x00000102 /* WAIT_TIMEOUT*/ => {
+                panic!("Hypervisor failed to complete async task. This indicates a bug on kernel side.")
+            }
+            _ => {}
+        }
 
         // check if cancellation requested, if so, do nothing.
         if me.cancellation_requested {
@@ -183,12 +188,13 @@ where
             .take()
             .expect("send_async called more than once");
 
-        let raw_request = request.into_raw();
+        let mut raw_request = request.into_raw();
+
+        let response = vmcall(&mut raw_request, Some(&mut self.async_info));
 
         // save it for later
-        self.raw_request = Some(raw_request.clone());
+        self.raw_request = Some(raw_request);
 
-        let response = vmcall(raw_request, Some(&mut self.async_info));
         if response.result.is_error() {
             unsafe {
                 let ptr = self.async_info.result_values.lock().as_mut_ptr();
@@ -197,6 +203,8 @@ where
                 ptr.offset(1).write(response.arg1);
                 ptr.offset(2).write(response.arg2);
                 ptr.offset(3).write(response.arg3);
+
+                // directly wakeup the thread with the failure values
                 SetEvent(self.async_info.handle);
             }
         }
