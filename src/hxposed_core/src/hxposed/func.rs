@@ -7,8 +7,8 @@ pub enum ServiceFunction {
     OpenProcess = 3,
     CloseProcess = 4,
     KillProcess = 5,
-    AddAsyncHandler = 6,
-    RemoveAsyncHandler = 7,
+    RegisterNotifyEvent = 6,
+    UnregisterNotifyEvent = 7,
     GetProcessField = 8,
     SetProcessField = 9,
     ProcessVMOperation = 10,
@@ -28,7 +28,7 @@ pub enum ServiceFunction {
     GetTokenField = 24,
     CloseToken = 25,
     SetTokenField = 26,
-    NotifyEvent = 27,
+    AwaitNotifyEvent = 27,
 }
 
 impl ServiceFunction {
@@ -44,8 +44,8 @@ impl ServiceFunction {
             3 => ServiceFunction::OpenProcess,
             4 => ServiceFunction::CloseProcess,
             5 => ServiceFunction::KillProcess,
-            6 => ServiceFunction::AddAsyncHandler,
-            7 => ServiceFunction::RemoveAsyncHandler,
+            6 => ServiceFunction::RegisterNotifyEvent,
+            7 => ServiceFunction::UnregisterNotifyEvent,
             8 => ServiceFunction::GetProcessField,
             9 => ServiceFunction::SetProcessField,
             10 => ServiceFunction::ProcessVMOperation,
@@ -65,7 +65,7 @@ impl ServiceFunction {
             24 => ServiceFunction::GetTokenField,
             25 => ServiceFunction::CloseToken,
             26 => ServiceFunction::SetTokenField,
-            27 => ServiceFunction::NotifyEvent,
+            27 => ServiceFunction::AwaitNotifyEvent,
             _ => ServiceFunction::Unknown,
         }
     }
