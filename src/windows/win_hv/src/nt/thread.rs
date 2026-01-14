@@ -3,22 +3,33 @@ use crate::nt::{EThreadField, get_ethread_field};
 use crate::utils::handlebox::HandleBox;
 use crate::win::{KeGetCurrentThread, PspTerminateThread};
 use bit_field::BitField;
+use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{ObOpenObjectByPointer, ObfDereferenceObject, ObfReferenceObject, PsCreateSystemThread, PsGetThreadId, PsLookupThreadByThreadId, PsReferenceImpersonationToken, ZwClose};
+use wdk_sys::ntddk::{
+    ObOpenObjectByPointer, ObfDereferenceObject, ObfReferenceObject, PsCreateSystemThread,
+    PsGetThreadId, PsLookupThreadByThreadId, PsReferenceImpersonationToken, ZwClose,
+};
 use wdk_sys::{
-    FALSE, HANDLE, NTSTATUS, PACCESS_TOKEN, PETHREAD,
-    PKSTART_ROUTINE, PVOID, PsThreadType,
+    FALSE, HANDLE, NTSTATUS, PACCESS_TOKEN, PETHREAD, PKSTART_ROUTINE, PVOID, PsThreadType,
     SECURITY_IMPERSONATION_LEVEL, STATUS_SUCCESS, THREAD_ALL_ACCESS,
 };
 
 pub struct NtThread {
     pub nt_thread: PETHREAD,
     pub id: u32,
-    pub uid: u64,
     pub lock: PushLock,
     pub owns: bool,
 }
+
+impl Hash for NtThread {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.nt_thread as _);
+    }
+}
+
+unsafe impl Send for NtThread {}
+unsafe impl Sync for NtThread {}
 
 impl Drop for NtThread {
     fn drop(&mut self) {
@@ -55,7 +66,6 @@ impl NtThread {
             nt_thread: ptr,
             id: unsafe { PsGetThreadId(ptr) } as _,
             lock: unsafe { PushLock::from_ptr(get_ethread_field::<u64>(EThreadField::Lock, ptr)) },
-            uid: ptr as _,
             owns,
         }
     }

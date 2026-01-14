@@ -1,19 +1,33 @@
-use hxposed_core::services::types::security_fields::{ImpersonationLevel, TokenPrivilege, TokenType};
-use crate::nt::{get_access_token_field, get_logon_session_field, AccessTokenField, LogonSessionField, PSEP_LOGON_SESSION_REFERENCES, _SEP_TOKEN_PRIVILEGES};
+use core::hash::{Hash, Hasher};
+use crate::nt::{
+    _SEP_TOKEN_PRIVILEGES, AccessTokenField, LogonSessionField, PSEP_LOGON_SESSION_REFERENCES,
+    get_access_token_field, get_logon_session_field,
+};
 use crate::utils::handlebox::HandleBox;
-use wdk_sys::ntddk::{ObOpenObjectByPointer, ObfDereferenceObject};
+use hxposed_core::services::types::security_fields::{
+    ImpersonationLevel, TokenPrivilege, TokenType,
+};
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::{ObOpenObjectByPointer, ObfDereferenceObject};
 use wdk_sys::{
-    SeTokenObjectType, HANDLE, NTSTATUS, PACCESS_TOKEN, PUNICODE_STRING,
-    STATUS_SUCCESS, TOKEN_ALL_ACCESS, UNICODE_STRING,
+    HANDLE, NTSTATUS, PACCESS_TOKEN, PUNICODE_STRING, STATUS_SUCCESS, SeTokenObjectType,
+    TOKEN_ALL_ACCESS, UNICODE_STRING,
 };
 
 pub struct NtToken {
     pub nt_token: PACCESS_TOKEN,
     pub account_name: PUNICODE_STRING,
-    pub uid: u64,
     pub owns: bool,
 }
+
+impl Hash for NtToken {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.nt_token as u64);
+    }
+}
+
+unsafe impl Send for NtToken {}
+unsafe impl Sync for NtToken {}
 
 impl Drop for NtToken {
     fn drop(&mut self) {
@@ -33,7 +47,6 @@ impl NtToken {
     fn open_thread(ptr: PACCESS_TOKEN, owns: bool) -> Self {
         Self {
             nt_token: ptr,
-            uid: ptr as _,
             account_name: unsafe {
                 get_logon_session_field::<UNICODE_STRING>(
                     LogonSessionField::AccountName,
@@ -70,24 +83,34 @@ impl NtToken {
     }
 
     pub fn get_type(&self) -> TokenType {
-        unsafe{*get_access_token_field::<TokenType>(AccessTokenField::Type, self.nt_token) }
+        unsafe { *get_access_token_field::<TokenType>(AccessTokenField::Type, self.nt_token) }
     }
 
     pub fn get_mandatory_policy(&self) -> u32 {
-        unsafe{*get_access_token_field::<u32>(AccessTokenField::MandatoryPolicy, self.nt_token)}
+        unsafe { *get_access_token_field::<u32>(AccessTokenField::MandatoryPolicy, self.nt_token) }
     }
 
     pub fn get_integrity_level_index(&self) -> u32 {
-        unsafe {*get_access_token_field::<u32>(AccessTokenField::IntegrityLevelIndex, self.nt_token)}
+        unsafe {
+            *get_access_token_field::<u32>(AccessTokenField::IntegrityLevelIndex, self.nt_token)
+        }
     }
 
     pub fn get_impersonation_level(&self) -> ImpersonationLevel {
-        unsafe {*get_access_token_field::<ImpersonationLevel>(AccessTokenField::ImpersonationLevel, self.nt_token)}
+        unsafe {
+            *get_access_token_field::<ImpersonationLevel>(
+                AccessTokenField::ImpersonationLevel,
+                self.nt_token,
+            )
+        }
     }
 
     fn get_privileges(&self) -> &mut _SEP_TOKEN_PRIVILEGES {
-        unsafe{
-            &mut *get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(AccessTokenField::Privileges, self.nt_token)
+        unsafe {
+            &mut *get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
+                AccessTokenField::Privileges,
+                self.nt_token,
+            )
         }
     }
 
