@@ -1,15 +1,17 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 
+pub(crate) mod callback;
 pub(crate) mod context;
 pub(crate) mod guard;
+mod lock;
 pub(crate) mod mdl;
 pub(crate) mod probe;
 pub(crate) mod process;
 pub(crate) mod thread;
-pub(crate) mod worker;
-mod lock;
 pub(crate) mod token;
+pub(crate) mod worker;
+mod registry;
 
 use crate::win::*;
 use core::ptr::null_mut;
@@ -23,7 +25,6 @@ pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 pub(crate) static SYSTEM_TOKEN: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 
 pub(crate) type PSEP_LOGON_SESSION_REFERENCES = *mut _SEP_LOGON_SESSION_REFERENCES;
-
 
 pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 
