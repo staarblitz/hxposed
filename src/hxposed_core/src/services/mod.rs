@@ -9,5 +9,5 @@ pub mod security;
 #[cfg(feature = "usermode")]
 pub mod thread;
 #[cfg(feature = "usermode")]
-pub mod notify;
+pub mod callbacks;
 pub mod types;
