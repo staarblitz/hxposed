@@ -12,8 +12,4 @@
     <PackageReference Include="System.Management" Version="10.0.1" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\HxPosed.Plugins\HxPosed.Plugins.csproj" />
-  </ItemGroup>
-
 </Project>

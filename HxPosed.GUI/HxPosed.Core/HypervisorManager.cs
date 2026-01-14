@@ -1,7 +1,6 @@
 ﻿using HxPosed.Core.Exceptions;
 using HxPosed.Core.Request;
 using HxPosed.Core.Response;
-using HxPosed.Plugins.Permissions;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -17,32 +16,6 @@ namespace HxPosed.Core
         [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern HypervisorError HxGetStatus(out HxStatus response);
 
-        [DllImport("libhxposed.dll")]
-        private static extern HypervisorError HxAuthenticate(ref AuthenticationRequest request, out PluginPermissions grantedPermissions);
-
-
-        /// <summary>
-        /// Authenticates the plugin.
-        /// </summary>
-        /// <param name="guid">Unique identifier of the plugin.</param>
-        /// <param name="permissions">Permission mask to utilize.</param>
-        /// <returns>Granted permissions. See <see cref="PluginPermissions"/></returns>
-        /// <exception cref="HypervisorException"></exception>
-        public static PluginPermissions Authenticate(Guid guid, PluginPermissions permissions)
-        {
-            var request = new AuthenticationRequest
-            {
-                Guid = guid,
-                Permissions = permissions
-            };
-
-            var error = HxAuthenticate(ref request, out var perms);
-
-            if (error.IsError())
-                throw new HypervisorException(error);
-
-            return perms;
-        }
 
         /// <summary>
         /// Gets <see cref="Status"/> struct.
