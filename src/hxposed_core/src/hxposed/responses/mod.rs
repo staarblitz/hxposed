@@ -2,7 +2,6 @@ use crate::hxposed::call::{HypervisorResult, ServiceParameter};
 use crate::hxposed::error::{ErrorSource, InternalErrorCode, NotAllowedReason, NotFoundReason};
 use crate::plugins::plugin_perms::PluginPermissions;
 
-pub mod auth;
 pub mod empty;
 pub mod memory;
 pub mod notify;
@@ -40,7 +39,7 @@ impl HypervisorResponse {
         Self {
             result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotAllowed),
             arg1: NotAllowedReason::MissingPermissions as _,
-            arg2: permissions.bits(),
+            arg2: permissions.bits() as _,
             arg3: 0,
         }
     }

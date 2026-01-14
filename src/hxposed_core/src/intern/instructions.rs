@@ -12,7 +12,7 @@ pub fn vmcall_typed<R: VmcallRequest>(
     req: R,
     async_info: Option<&mut AsyncInfo>,
 ) -> Result<R::Response, HypervisorError> {
-    let raw_resp = vmcall(req.into_raw(), async_info);
+    let raw_resp = vmcall(&mut req.into_raw(), async_info);
     if raw_resp.result.is_error() {
         Err(HypervisorError::from_response(raw_resp))
     } else {
@@ -21,7 +21,7 @@ pub fn vmcall_typed<R: VmcallRequest>(
 }
 
 pub(crate) fn vmcall(
-    mut request: HypervisorRequest,
+    request: &mut HypervisorRequest,
     async_info: Option<&mut AsyncInfo>,
 ) -> HypervisorResponse {
     // SAFETY:we know it's a valid pointer.
@@ -34,7 +34,7 @@ pub(crate) fn vmcall(
     request.call.set_is_async(is_async);
 
     let mut response = HypervisorResponse::default();
-    let mut result = 0u32;
+    let mut result: u32;
     let mut leaf = 0x2009u64;
 
     unsafe {

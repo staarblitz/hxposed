@@ -21,7 +21,7 @@ pub struct CloseTokenRequest {
 pub struct GetTokenFieldRequest {
     pub token: TokenObject,
     pub field: TokenField,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 
@@ -29,7 +29,7 @@ pub struct GetTokenFieldRequest {
 pub struct SetTokenFieldRequest {
     pub token: TokenObject,
     pub field: TokenField,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 

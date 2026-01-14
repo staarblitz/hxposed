@@ -10,7 +10,6 @@ use alloc::boxed::Box;
 use core::any::Any;
 use core::pin::Pin;
 
-pub mod auth;
 pub mod memory;
 pub mod notify;
 pub mod process;
@@ -49,7 +48,7 @@ where
     T: VmcallRequest,
 {
     fn send(self) -> Result<T::Response, HypervisorError> {
-        let response = vmcall(self.into_raw(), None);
+        let response = vmcall(&mut self.into_raw(), None);
         if response.result.is_error() {
             Err(HypervisorError::from_response(response))
         } else {

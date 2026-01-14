@@ -29,7 +29,7 @@ pub struct KillProcessRequest {
 pub struct GetProcessFieldRequest {
     pub process: ProcessObject,
     pub field: ProcessField,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 
@@ -37,7 +37,7 @@ pub struct GetProcessFieldRequest {
 pub struct SetProcessFieldRequest {
     pub process: ProcessObject,
     pub field: ProcessField,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 
@@ -45,7 +45,7 @@ pub struct SetProcessFieldRequest {
 #[derive(Default, Debug)]
 pub struct GetProcessThreadsRequest {
     pub process: ProcessObject,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 
@@ -81,7 +81,7 @@ impl VmcallRequest for OpenProcessRequest {
                 ObjectOpenType::Handle => HypervisorCall::open_process().with_is_async(true),
                 ObjectOpenType::Hypervisor => HypervisorCall::open_process(),
             },
-            arg1: self.process_id.clone() as _,
+            arg1: self.process_id as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
         }
@@ -101,7 +101,7 @@ impl VmcallRequest for CloseProcessRequest {
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
             call: HypervisorCall::close_process(),
-            arg1: self.process.clone() as _,
+            arg1: self.process as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
         }
@@ -154,7 +154,7 @@ impl VmcallRequest for GetProcessFieldRequest {
         Self {
             process: request.arg1 as _,
             field: ProcessField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as *mut u8,
+            data: request.extended_arg1 as usize,
             data_len: request.extended_arg2 as _,
         }
     }

@@ -34,7 +34,7 @@ pub struct KillThreadRequest {
 pub struct GetSetThreadContextRequest {
     pub thread: ThreadObject,
     pub operation: ThreadContextOperation,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 
@@ -42,7 +42,7 @@ pub struct GetSetThreadContextRequest {
 pub struct GetThreadFieldRequest {
     pub thread: ThreadObject,
     pub field: ThreadField,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 
@@ -50,7 +50,7 @@ pub struct GetThreadFieldRequest {
 pub struct SetThreadFieldRequest {
     pub thread: ThreadObject,
     pub field: ThreadField,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
 }
 
@@ -73,7 +73,7 @@ impl VmcallRequest for GetThreadFieldRequest {
         Self {
             thread: request.arg1 as _,
             field: ThreadField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as *mut u8,
+            data: request.extended_arg1 as usize,
             data_len: request.extended_arg2 as _,
         }
     }

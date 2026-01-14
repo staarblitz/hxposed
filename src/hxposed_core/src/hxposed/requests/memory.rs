@@ -8,9 +8,9 @@ use crate::services::types::memory_fields::{MemoryPool, MemoryProtection};
 #[derive(Default, Debug)]
 pub struct RWProcessMemoryRequest {
     pub process: ProcessObject,
-    pub address: *mut u8,
+    pub address: usize,
     pub count: usize,
-    pub data: *mut u8,
+    pub data: usize,
     pub data_len: usize,
     pub operation: ProcessMemoryOperation,
 }
@@ -18,7 +18,7 @@ pub struct RWProcessMemoryRequest {
 #[derive(Default, Debug)]
 pub struct ProtectProcessMemoryRequest {
     pub process: ProcessObject,
-    pub address: *mut u8,
+    pub address: usize,
     pub protection: MemoryProtection,
 }
 
@@ -128,7 +128,7 @@ impl VmcallRequest for RWProcessMemoryRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             process: request.arg1 as _,
-            address: request.arg2 as *mut u8,
+            address: request.arg2 as _,
             count: request.arg3 as _,
 
             data: request.extended_arg1 as _,
