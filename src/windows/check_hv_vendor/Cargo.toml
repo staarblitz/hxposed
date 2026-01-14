@@ -3,8 +3,6 @@ name = "check_hv_vendor"
 description = "The hypervisor vendor checker for Windows"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
-publish.workspace = true
 
 [profile.dev]
 opt-level = 0
