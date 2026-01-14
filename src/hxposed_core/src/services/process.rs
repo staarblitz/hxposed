@@ -412,7 +412,7 @@ impl HxProcess {
         let promise = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::NtPath,
-            data: null_mut(),
+            data: 0,
             data_len: 0,
         }
         .send_async();
@@ -429,7 +429,7 @@ impl HxProcess {
         let promise = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::NtPath,
-            data: buffer.as_mut_ptr() as *mut u8,
+            data: buffer.as_mut_ptr() as _,
             data_len: buffer.capacity() as _,
         }
         .send_async();
