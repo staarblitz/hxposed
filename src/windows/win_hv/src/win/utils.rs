@@ -1,38 +1,46 @@
-use alloc::boxed::Box;
-use core::ffi::c_void;
-use wdk_sys::{FALSE, HANDLE, LIST_ENTRY, OBJECT_ATTRIBUTES, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PUNICODE_STRING, PVOID, ULONG, UNICODE_STRING};
-use wdk_sys::ntddk::{ExAllocatePool2, RtlCompareMemory, RtlCompareUnicodeString, RtlCopyUnicodeString};
 use crate::utils::danger::DangerPtr;
-use crate::win::{PsLoadedModuleList, _LDR_DATA_TABLE_ENTRY};
 use crate::win::utf_to_unicode::Utf8ToUnicodeString;
+use crate::win::{PsLoadedModuleList, _LDR_DATA_TABLE_ENTRY};
+use alloc::boxed::Box;
+use alloc::string::String;
+use core::ffi::c_void;
+use wdk_sys::ntddk::{
+    ExAllocatePool2, RtlCompareMemory, RtlCompareUnicodeString, RtlCopyUnicodeString,
+};
+use wdk_sys::{
+    FALSE, HANDLE, LIST_ENTRY, OBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED
+    , PVOID, ULONG, UNICODE_STRING,
+};
 
-pub unsafe fn RtlGetLoadedModuleByName(name: &str) -> Option<*mut _LDR_DATA_TABLE_ENTRY> { unsafe {
-    let mut unicoded = name.to_unicode_string();
-    let list = DangerPtr {
-        ptr: PsLoadedModuleList,
-    };
+pub unsafe fn RtlGetLoadedModuleByName(name: &str) -> Option<*mut _LDR_DATA_TABLE_ENTRY> {
+    unsafe {
+        let mut unicoded = name.to_unicode_string();
+        let list = DangerPtr {
+            ptr: PsLoadedModuleList,
+        };
 
-    let head = &list.InLoadOrderLinks as *const LIST_ENTRY;
-    let mut current = (*head).Flink;
+        let head = &list.InLoadOrderLinks as *const LIST_ENTRY;
+        let mut current = (*head).Flink;
 
-    let mut return_value: Option<*mut _LDR_DATA_TABLE_ENTRY> = None;
+        let mut return_value: Option<*mut _LDR_DATA_TABLE_ENTRY> = None;
 
-    while current.addr() != head.addr() {
-        let entry = &mut *(current as *mut _LDR_DATA_TABLE_ENTRY);
+        while current.addr() != head.addr() {
+            let entry = &mut *(current as *mut _LDR_DATA_TABLE_ENTRY);
 
-        match RtlCompareUnicodeString(&entry.BaseDllName, unicoded.as_mut(), FALSE as _) {
-            0 => {
-                return_value = Some(current as *mut _LDR_DATA_TABLE_ENTRY);
-                break;
-            },
-            _ => {}
+            match RtlCompareUnicodeString(&entry.BaseDllName, unicoded.as_mut(), FALSE as _) {
+                0 => {
+                    return_value = Some(current as *mut _LDR_DATA_TABLE_ENTRY);
+                    break;
+                }
+                _ => {}
+            }
+
+            current = (*current).Flink;
         }
 
-        current = (*current).Flink;
+        return_value
     }
-
-    return_value
-}}
+}
 
 pub unsafe fn _RtlDuplicateUnicodeString(
     first: &mut UNICODE_STRING,
@@ -63,22 +71,21 @@ pub unsafe fn _RtlDuplicateUnicodeString(
 }
 
 #[inline]
-pub unsafe fn InitializeObjectAttributes(
-    p: POBJECT_ATTRIBUTES,
-    n: PUNICODE_STRING,
+pub fn init_object_attributes(
+    n: String,
     a: ULONG,
     r: HANDLE,
     s: PVOID,
-) {
-    use core::mem::size_of;
-    unsafe {
-        (*p).Length = size_of::<OBJECT_ATTRIBUTES>() as ULONG;
-        (*p).RootDirectory = r;
-        (*p).Attributes = a;
-        (*p).ObjectName = n;
-        (*p).SecurityDescriptor = s;
-        (*p).SecurityQualityOfService = s;
-    }
+) -> Box<OBJECT_ATTRIBUTES> {
+    let mut attributes = Box::new(OBJECT_ATTRIBUTES::default());
+    (attributes).Length = size_of::<OBJECT_ATTRIBUTES>() as ULONG;
+    (attributes).RootDirectory = r;
+    (attributes).Attributes = a;
+    (attributes).ObjectName = n.to_unicode_string().as_mut();
+    (attributes).SecurityDescriptor = s;
+    (attributes).SecurityQualityOfService = s;
+
+    attributes
 }
 
 pub unsafe fn RtlBufferContainsBuffer(
