@@ -1,3 +1,3 @@
 pub(crate) mod init;
-mod vmexit;
 mod ops;
+mod vmexit;
