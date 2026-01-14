@@ -24,19 +24,10 @@
                             <ui:SymbolIcon Symbol="Home24" />
                         </ui:NavigationViewItem.Icon>
                     </ui:NavigationViewItem>
-                    <ui:NavigationViewItem Content="Plugins" TargetPageType="{x:Type pages:Plugins}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="Apps24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
-                    <ui:NavigationViewItem Content="Developer Mode" TargetPageType="{x:Type pages:DeveloperMode}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="DeveloperBoard24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+             
                 </ui:NavigationView.MenuItems>
                 <ui:NavigationView.FooterMenuItems>
-                    <ui:NavigationViewItem Content="Settings">
+                    <ui:NavigationViewItem Content="Settings" TargetPageType="{x:Type pages:Settings}">
                         <ui:NavigationViewItem.Icon>
                             <ui:SymbolIcon Symbol="Settings24" />
                         </ui:NavigationViewItem.Icon>

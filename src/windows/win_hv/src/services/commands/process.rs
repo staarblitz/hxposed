@@ -1,52 +1,56 @@
-use crate::plugins::commands::{AsyncCommand, write_and_set};
+use crate::services::commands::{AsyncCommand, write_and_set};
 use core::any::Any;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::memory::*;
+use hxposed_core::hxposed::requests::process::{
+    GetProcessFieldRequest, GetProcessThreadsRequest, KillProcessRequest, OpenProcessRequest,
+    SetProcessFieldRequest,
+};
 use hxposed_core::hxposed::responses::HypervisorResponse;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use uuid::Uuid;
 
-pub struct RWProcessMemoryAsyncCommand {
-    pub uuid: Uuid,
-    pub command: RWProcessMemoryRequest,
+pub struct GetProcessFieldAsyncCommand {
+    pub async_info: UnsafeAsyncInfo,
+    
+    pub command: GetProcessFieldRequest,
+}
+
+pub struct SetProcessFieldAsyncCommand {
+    
+    pub command: SetProcessFieldRequest,
     pub async_info: UnsafeAsyncInfo,
 }
 
-pub struct ProtectProcessMemoryAsyncCommand {
-    pub uuid: Uuid,
-    pub command: ProtectProcessMemoryRequest,
+pub struct KillProcessAsyncCommand {
+    pub command: KillProcessRequest,
     pub async_info: UnsafeAsyncInfo,
+    
 }
 
-pub struct AllocateMemoryAsyncCommand {
-    pub command: AllocateMemoryRequest,
-    pub uuid: Uuid,
+pub struct OpenProcessAsyncCommand {
+    pub command: OpenProcessRequest,
     pub async_info: UnsafeAsyncInfo,
+    
 }
 
-pub struct MapMemoryAsyncCommand {
-    pub command: MapMemoryRequest,
-    pub uuid: Uuid,
+pub struct GetProcessThreadsAsyncCommand {
+    pub command: GetProcessThreadsRequest,
     pub async_info: UnsafeAsyncInfo,
+    
 }
 
-pub struct FreeMemoryAsyncCommand {
-    pub command: FreeMemoryRequest,
-    pub uuid: Uuid,
-    pub async_info: UnsafeAsyncInfo,
-}
-
-impl AsyncCommand for FreeMemoryAsyncCommand {
+impl AsyncCommand for GetProcessThreadsAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
-        ServiceFunction::FreeMemory
+        ServiceFunction::GetProcessThreads
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
             self.async_info.result_values as *mut _,
             self.async_info.handle as _,
-        )
+        );
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -54,17 +58,19 @@ impl AsyncCommand for FreeMemoryAsyncCommand {
     }
 }
 
-impl AsyncCommand for MapMemoryAsyncCommand {
+impl AsyncCommand for OpenProcessAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
-        ServiceFunction::MapMemory
+        ServiceFunction::OpenProcess
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
             self.async_info.result_values as *mut _,
             self.async_info.handle as _,
-        )
+        );
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -72,9 +78,32 @@ impl AsyncCommand for MapMemoryAsyncCommand {
     }
 }
 
-impl AsyncCommand for AllocateMemoryAsyncCommand {
+impl AsyncCommand for KillProcessAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
-        ServiceFunction::AllocateMemory
+        ServiceFunction::KillProcess
+    }
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
+    fn complete(&mut self, result: HypervisorResponse) {
+        write_and_set(
+            &result,
+            self.async_info.result_values as *mut _,
+            self.async_info.handle as _,
+        );
+        // seems like our user mode app tried to be a little too smart.
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl AsyncCommand for GetProcessFieldAsyncCommand {
+    fn get_service_function(&self) -> ServiceFunction {
+        ServiceFunction::GetProcessField
+    }
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
     }
 
     fn complete(&mut self, result: HypervisorResponse) {
@@ -82,7 +111,7 @@ impl AsyncCommand for AllocateMemoryAsyncCommand {
             &result,
             self.async_info.result_values as *mut _,
             self.async_info.handle as _,
-        )
+        );
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -90,27 +119,12 @@ impl AsyncCommand for AllocateMemoryAsyncCommand {
     }
 }
 
-impl AsyncCommand for ProtectProcessMemoryAsyncCommand {
+impl AsyncCommand for SetProcessFieldAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
-        ServiceFunction::ProtectProcessMemory
+        ServiceFunction::SetProcessField
     }
-
-    fn complete(&mut self, result: HypervisorResponse) {
-        write_and_set(
-            &result,
-            self.async_info.result_values as *mut _,
-            self.async_info.handle as _,
-        )
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-impl AsyncCommand for RWProcessMemoryAsyncCommand {
-    fn get_service_function(&self) -> ServiceFunction {
-        ServiceFunction::ProcessVMOperation
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
     }
 
     fn complete(&mut self, result: HypervisorResponse) {

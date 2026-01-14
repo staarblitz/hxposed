@@ -1,26 +1,25 @@
+use crate::services::commands::{AsyncCommand, write_and_set};
 use core::any::Any;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::HypervisorResponse;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use uuid::Uuid;
-use crate::plugins::commands::{write_and_set, AsyncCommand};
 
 pub struct OpenTokenAsyncCommand {
     pub command: OpenTokenRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct GetTokenFieldAsyncCommand {
     pub command: GetTokenFieldRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct SetTokenFieldAsyncCommand {
     pub command: SetTokenFieldRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
@@ -28,7 +27,9 @@ impl AsyncCommand for SetTokenFieldAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::SetTokenField
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
@@ -46,7 +47,9 @@ impl AsyncCommand for GetTokenFieldAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::GetTokenField
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
@@ -56,7 +59,7 @@ impl AsyncCommand for GetTokenFieldAsyncCommand {
     }
 
     fn as_any(&self) -> &dyn Any {
-       self
+        self
     }
 }
 
@@ -64,7 +67,9 @@ impl AsyncCommand for OpenTokenAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::OpenToken
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,

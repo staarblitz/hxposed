@@ -16,7 +16,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HxPosed.Core\HxPosed.Core.csproj" />
-    <ProjectReference Include="..\HxPosed.Plugins\HxPosed.Plugins.csproj" />
   </ItemGroup>
 
 </Project>

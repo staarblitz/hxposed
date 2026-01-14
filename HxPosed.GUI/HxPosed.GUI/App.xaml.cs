@@ -1,4 +1,6 @@
-﻿using HxPosed.Plugins;
+﻿
+using HxPosed.Core.Guard;
+using Microsoft.Win32;
 using System.Configuration;
 using System.Data;
 using System.Windows;
@@ -27,9 +29,28 @@ namespace HxPosed.GUI
             }
         }
 
+        private void CheckRegistrySanity()
+        {
+            if(Registry.LocalMachine.OpenSubKey("SOFTWARE\\HxPosed") == null)
+            {
+                Registry.LocalMachine.CreateSubKey("SOFTWARE\\HxPosed");
+            }
+            if(Registry.LocalMachine.OpenSubKey("SOFTWARE\\HxPosed\\HxGuard") == null)
+            {
+                Registry.LocalMachine.CreateSubKey("SOFTWARE\\HxPosed\\HxGuard");
+                HxGuard.RegistryProtection.SetRegistryProtection(true);
+                HxGuard.CallerVerification.SetCallerVerification(true);
+            }
+            if (Registry.LocalMachine.OpenSubKey("SOFTWARE\\HxPosed\\HxGuard\\CallerVerification") == null)
+            {
+                Registry.LocalMachine.CreateSubKey("SOFTWARE\\HxPosed\\HxGuard\\CallerVerification");
+                HxGuard.CallerVerification.SetVerifiedCallers([]);
+            }
+        }
+
         public App()
         {
-            PluginManager.HealthCheck();
+            CheckRegistrySanity();
             DispatcherUnhandledException += (sender, exception) =>
             {
                 ContentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions

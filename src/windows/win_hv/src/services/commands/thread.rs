@@ -1,38 +1,37 @@
+use crate::services::commands::{AsyncCommand, write_and_set};
 use core::any::Any;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::responses::HypervisorResponse;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use uuid::Uuid;
-use crate::plugins::commands::{write_and_set, AsyncCommand};
 
 pub struct OpenThreadAsyncCommand {
     pub command: OpenThreadRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct SuspendResumeThreadAsyncCommand {
     pub command: SuspendResumeThreadRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct GetThreadFieldAsyncCommand {
     pub command: GetThreadFieldRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct SetThreadFieldAsyncCommand {
     pub command: SetThreadFieldRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct KillThreadAsyncCommand {
     pub command: KillThreadRequest,
-    pub uuid: Uuid,
+    
     pub async_info: UnsafeAsyncInfo,
 }
 
@@ -40,7 +39,9 @@ impl AsyncCommand for SetThreadFieldAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::SetThreadField
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
@@ -58,7 +59,9 @@ impl AsyncCommand for GetThreadFieldAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::GetThreadField
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
@@ -76,7 +79,9 @@ impl AsyncCommand for KillThreadAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::KillThread
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
@@ -91,8 +96,12 @@ impl AsyncCommand for KillThreadAsyncCommand {
 }
 
 impl AsyncCommand for SuspendResumeThreadAsyncCommand {
-    fn get_service_function(&self) -> ServiceFunction { ServiceFunction::SuspendResumeThread }
-
+    fn get_service_function(&self) -> ServiceFunction {
+        ServiceFunction::SuspendResumeThread
+    }
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
@@ -110,7 +119,9 @@ impl AsyncCommand for OpenThreadAsyncCommand {
     fn get_service_function(&self) -> ServiceFunction {
         ServiceFunction::OpenThread
     }
-
+    fn get_async_info(&self) -> &UnsafeAsyncInfo {
+        &self.async_info
+    }
     fn complete(&mut self, result: HypervisorResponse) {
         write_and_set(
             &result,
