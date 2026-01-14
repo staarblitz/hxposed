@@ -1,19 +1,23 @@
+use crate::nt::context::ApcProcessContext;
 use crate::nt::lock::pushlock::PushLock;
 use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
 use crate::utils::danger::DangerPtr;
+use crate::utils::handlebox::HandleBox;
 use crate::win::PsTerminateProcess;
 use alloc::vec::Vec;
+use core::hash::{Hash, Hasher};
 use hxposed_core::services::types::process_fields::{
     MitigationOptions, ProcessProtection, ProcessSignatureLevel,
 };
 use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{IoGetCurrentProcess, ObOpenObjectByPointer, ObfDereferenceObject, ObfReferenceObject, PsGetProcessId, PsGetThreadId, PsLookupProcessByProcessId};
+use wdk_sys::ntddk::{
+    IoGetCurrentProcess, ObOpenObjectByPointer, ObfDereferenceObject, ObfReferenceObject,
+    PsGetProcessId, PsGetThreadId, PsLookupProcessByProcessId,
+};
 use wdk_sys::{
     _KTHREAD, HANDLE, LIST_ENTRY, NTSTATUS, PACCESS_TOKEN, PEPROCESS, PETHREAD, PLIST_ENTRY,
     PROCESS_ALL_ACCESS, PUNICODE_STRING, PsProcessType, STATUS_SUCCESS, UNICODE_STRING,
 };
-use crate::nt::context::ApcProcessContext;
-use crate::utils::handlebox::HandleBox;
 
 ///
 /// # Kernel Process
@@ -26,9 +30,17 @@ pub struct NtProcess {
     pub lock: PushLock,
     pub thread_list_head: PLIST_ENTRY,
     pub id: u32,
-    pub uid: u64,
     pub owns: bool,
 }
+
+impl Hash for NtProcess {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.nt_process as _);
+    }
+}
+
+unsafe impl Send for NtProcess {}
+unsafe impl Sync for NtProcess {}
 
 impl Drop for NtProcess {
     fn drop(&mut self) {
@@ -53,7 +65,7 @@ impl NtProcess {
     }
 
     pub fn current() -> NtProcess {
-        Self::open_process(unsafe { IoGetCurrentProcess() }, true)
+        Self::open_process(unsafe { IoGetCurrentProcess() }, false)
     }
 
     pub fn from_ptr(process: PEPROCESS) -> Self {
@@ -77,9 +89,15 @@ impl NtProcess {
             thread_list_head: unsafe {
                 get_eprocess_field::<LIST_ENTRY>(EProcessField::ThreadListHead, ptr)
             },
-            uid: ptr as _,
             owns,
         }
+    }
+
+    pub fn get_path_hash(&self) -> u64 {
+        let str = unsafe { self.nt_path.as_ref().unwrap() };
+        let name_slice =
+            unsafe { core::slice::from_raw_parts::<u8>(str.Buffer as _, str.Length as _) };
+        wyhash::wyhash(name_slice, 0x2009)
     }
 
     pub fn open_handle(&self) -> Result<HandleBox, NTSTATUS> {
