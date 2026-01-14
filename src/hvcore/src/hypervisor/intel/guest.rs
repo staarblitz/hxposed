@@ -2,23 +2,6 @@
 
 use core::{arch::global_asm, ptr::addr_of};
 
-use alloc::{
-    boxed::Box,
-    format,
-    string::{String, ToString},
-};
-use derive_more::Debug;
-use spin::Lazy;
-use x86::{
-    bits64::{paging::BASE_PAGE_SIZE, rflags::RFlags},
-    controlregs::{Cr0, Cr4},
-    debugregs::{Dr6, Dr7, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, dr7_write},
-    segmentation::{
-        CodeSegmentType, DataSegmentType, SystemDescriptorTypes64, cs, ds, es, fs, gs, ss,
-    },
-    vmx::vmcs,
-};
-
 use super::epts::Epts;
 use crate::hypervisor::{
     SHARED_HOST_DATA,
@@ -28,6 +11,23 @@ use crate::hypervisor::{
     segment::SegmentDescriptor,
     support::{Page, zeroed_box},
     x86_instructions::{cr0, cr3, cr4, lar, ldtr, lsl, rdmsr, sgdt, sidt, tr, write_cr2},
+};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+};
+use derive_more::Debug;
+use hxposed_core::hxposed::responses::HypervisorResponse;
+use spin::Lazy;
+use x86::{
+    bits64::{paging::BASE_PAGE_SIZE, rflags::RFlags},
+    controlregs::{Cr0, Cr4},
+    debugregs::{Dr6, Dr7, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, dr7_write},
+    segmentation::{
+        CodeSegmentType, DataSegmentType, SystemDescriptorTypes64, cs, ds, es, fs, gs, ss,
+    },
+    vmx::vmcs,
 };
 
 /// Representation of a guest.
@@ -59,6 +59,14 @@ impl Guest for VmxGuest {
             registers: Registers::default(),
             vmcs: Vmcs::new(),
         }
+    }
+
+    fn write_response(&mut self, response: HypervisorResponse) {
+        let regs = self.regs();
+        regs.r8 = response.arg1;
+        regs.r9 = response.arg2;
+        regs.r10 = response.arg3;
+        regs.rsi = response.result.into_bits() as _;
     }
 
     fn activate(&mut self) {
@@ -207,7 +215,7 @@ impl VmxGuest {
                     | vmcs::control::SecondaryControls::ENABLE_RDTSCP
                     | vmcs::control::SecondaryControls::ENABLE_INVPCID
                     | vmcs::control::SecondaryControls::ENABLE_XSAVES_XRSTORS
-                | vmcs::control::SecondaryControls::ENABLE_USER_WAIT_PAUSE)
+                    | vmcs::control::SecondaryControls::ENABLE_USER_WAIT_PAUSE)
                     .bits() as _,
             ),
         );

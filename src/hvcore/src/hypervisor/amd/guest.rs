@@ -16,7 +16,7 @@ use x86::{
     cpuid::cpuid,
     segmentation::{cs, ds, es, ss},
 };
-
+use hxposed_core::hxposed::responses::HypervisorResponse;
 use super::npts::NestedPageTables;
 use crate::hypervisor::{
     SHARED_HOST_DATA, apic_id,
@@ -60,6 +60,15 @@ impl Guest for SvmGuest {
         }
         vm
     }
+
+    fn write_response(&mut self, response: HypervisorResponse) {
+        let regs = self.regs();
+        regs.r8 = response.arg1;
+        regs.r9 = response.arg2;
+        regs.r10 = response.arg3;
+        regs.rsi = response.result.into_bits() as _;
+    }
+
     fn activate(&mut self) {
         const SVM_MSR_VM_HSAVE_PA: u32 = 0xc001_0117;
 
