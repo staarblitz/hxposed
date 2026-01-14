@@ -3,21 +3,19 @@ use wdk_sys::HANDLE;
 use wdk_sys::ntddk::ZwClose;
 
 pub struct HandleBox {
-    handle: HANDLE
+    handle: HANDLE,
 }
 
 impl HandleBox {
     pub fn new(handle: HANDLE) -> HandleBox {
-        Self {
-            handle
-        }
+        Self { handle }
     }
 
     ///
     /// # Get Danger
     ///
     /// Gets the handle object. (Copy)
-    pub fn get_danger(&self) -> HANDLE{
+    pub fn get_danger(&self) -> HANDLE {
         self.handle
     }
 
@@ -35,8 +33,6 @@ impl HandleBox {
 
 impl Drop for HandleBox {
     fn drop(&mut self) {
-        let _ = unsafe{
-            ZwClose(self.handle)
-        };
+        let _ = unsafe { ZwClose(self.handle) };
     }
 }

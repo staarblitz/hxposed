@@ -1,9 +1,10 @@
+pub(crate) mod alloc;
 pub(crate) mod danger;
 pub(crate) mod handlebox;
-pub(crate) mod object_handle;
-pub(crate) mod timing;
-pub(crate) mod macros;
-pub(crate) mod alloc;
-pub(crate) mod scanner;
 pub(crate) mod logger;
+pub(crate) mod macros;
+pub(crate) mod rng;
+pub(crate) mod scanner;
 mod sehptr;
+pub(crate) mod timing;
+pub(crate) mod pop_guard;

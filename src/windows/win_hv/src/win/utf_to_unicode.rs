@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use wdk_sys::{TRUE, UNICODE_STRING, UTF8_STRING};
 use wdk_sys::ntddk::{RtlInitUTF8String, RtlUTF8StringToUnicodeString};
+use wdk_sys::{TRUE, UNICODE_STRING, UTF8_STRING};
 
 pub trait Utf8ToUnicodeString {
     fn to_unicode_string(&self) -> Box<UNICODE_STRING>;
