@@ -20,6 +20,8 @@ mod x86_instructions;
 extern crate hxposed_core;
 
 use alloc::vec::Vec;
+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use bit_field::BitField;
 use hxposed_core::hxposed::call::HypervisorCall;
 use spin::Once;
 use x86::cpuid::cpuid;
@@ -27,6 +29,8 @@ use x86::cpuid::cpuid;
 use self::interrupt_handlers::InterruptDescriptorTable;
 use crate::hypervisor::host::{Guest};
 use crate::{GdtTss, PagingStructures, hypervisor::registers::Registers};
+
+pub static PROCESSOR_BITMASK: AtomicU64 = AtomicU64::new(0);
 
 /// Hyperjacks the current system by virtualizing all logical processors on this
 /// system.
@@ -37,7 +41,7 @@ pub fn virtualize_system(shared_host: SharedHostData) {
     let _ = SHARED_HOST_DATA.call_once(|| shared_host);
 
     // Virtualize each logical processor.
-    platform_ops::get().run_on_all_processors(|| {
+    platform_ops::get().run_on_all_processors(|index| {
         // Take a snapshot of current register values. This will be the initial
         // state of the guest _including RIP_. This means that the guest starts execution
         // right after this function call. Think of it as the setjmp() C standard
@@ -47,8 +51,13 @@ pub fn virtualize_system(shared_host: SharedHostData) {
         // In the first run, our hypervisor is not installed and the branch is
         // taken. After starting the guest, the second run, the hypervisor is already
         // installed and we will bail out.
-        if !is_our_hypervisor_present() {
-            log::info!("Virtualizing the current processor");
+
+        let mut mask = PROCESSOR_BITMASK.load(Ordering::Acquire);
+        if !mask.get_bit(index as _) {
+            mask.set_bit(index as _, true);
+            PROCESSOR_BITMASK.store(mask, Ordering::Release);
+
+            log::info!("Virtualizing processor: {}", index);
 
             // We are about to execute host code with newly allocated stack.
             // This is required because the guest will start executing with the
@@ -56,7 +65,7 @@ pub fn virtualize_system(shared_host: SharedHostData) {
             // as the guest starts, it will smash host's stack.
             switch_stack::jump_with_new_stack(host::main, &registers);
         }
-        log::info!("Virtualized the current processor");
+        log::info!("Virtualized processor: {}", index);
     });
 
     log::info!("Virtualized the all processors");
@@ -77,21 +86,10 @@ pub struct SharedHostData {
     /// the current GDTs and TSSes are used for both the host and the guest.
     pub gdts: Option<Vec<GdtTss>>,
 
-    pub vmcall_handler: Option<fn(&mut dyn Guest, HypervisorCall)>,
+    pub vmcall_handler: Option<fn(&mut dyn Guest, HypervisorCall) -> bool>,
 }
 
 static SHARED_HOST_DATA: Once<SharedHostData> = Once::new();
 
 const HV_CPUID_VENDOR_AND_MAX_FUNCTIONS: u32 = 0x4000_0000;
 const HV_CPUID_INTERFACE: u32 = 0x4000_0001;
-const OUR_HV_VENDOR_NAME_EBX: u32 = u32::from_ne_bytes(*b"HxPo");
-const OUR_HV_VENDOR_NAME_ECX: u32 = u32::from_ne_bytes(*b"sedB");
-const OUR_HV_VENDOR_NAME_EDX: u32 = u32::from_ne_bytes(*b"ySta");
-
-/// Tests whether the current processor is already virtualized by our hypervisor.
-fn is_our_hypervisor_present() -> bool {
-    let regs = cpuid!(HV_CPUID_VENDOR_AND_MAX_FUNCTIONS);
-    (regs.ebx == OUR_HV_VENDOR_NAME_EBX)
-        && (regs.ecx == OUR_HV_VENDOR_NAME_ECX)
-        && (regs.edx == OUR_HV_VENDOR_NAME_EDX)
-}

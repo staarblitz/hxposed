@@ -20,7 +20,7 @@ pub(crate) fn get() -> ApicId {
 pub(crate) fn init() {
     log::trace!("Initializing APIC ID");
     log::info!("Number of initial processors: {}", PROCESSOR_COUNT.load(Ordering::Relaxed));
-    platform_ops::get().run_on_all_processors(|| {
+    platform_ops::get().run_on_all_processors(|index| {
         let mut map = APIC_ID_MAP.write();
         log::info!("Inserting processor count...");
         assert!(

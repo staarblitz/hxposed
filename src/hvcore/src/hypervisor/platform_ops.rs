@@ -5,7 +5,7 @@ use spin::Once;
 pub trait PlatformOps {
     /// Runs `callback` on all logical processors one by one.
     // This function cannot be called in a nested manner.
-    fn run_on_all_processors(&self, callback: fn());
+    fn run_on_all_processors(&self, callback: fn(index: u32));
 
     // Returns a physical address of a linear address specified by `va`.
     fn pa(&self, va: *const core::ffi::c_void) -> u64;
