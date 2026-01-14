@@ -1,17 +1,16 @@
+use wdk_sys::ntddk::IoGetCurrentProcess;
+use crate::{services};
 use hv::hypervisor::host::Guest;
+use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::call::HypervisorCall;
-use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
+use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::func::ServiceFunction::Authorize;
-use hxposed_core::hxposed::requests::auth::AuthorizationRequest;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::responses::status::StatusResponse;
+use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
-use hxposed_core::services::async_service::UnsafeAsyncInfo;
-use crate::plugins::PluginTable;
-use crate::services::authorize_plugin;
-use crate::{services, write_response};
+use crate::nt::guard::hxguard::HxGuard;
+use crate::nt::process::NtProcess;
 
 ///
 /// # Called when a CPUID with RCX = 2009 is executed.
@@ -22,8 +21,8 @@ use crate::{services, write_response};
 /// info - Information about the call. See [HypervisorCall].
 ///
 /// ## Return
-/// There is no return value of this function, however, the return value of the vmcall will be in RSI.
-/// Which you *may* want to utilize. See documentation on GitHub page for more information about trap ABI.
+/// If true, that means HxPosed handled the call.
+/// If false, that means HxPosed did NOT handle the call on purpose, and this call should be treated as a CPUID.
 ///
 /// ## Warning
 ///
@@ -37,20 +36,21 @@ use crate::{services, write_response};
 /// ### This is a VMEXIT handler
 /// Don't you dare to "take your time". This interrupts the whole CPU and making the kernel scheduler forget its purpose.
 ///
-pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
-    log::trace!("Handling vmcall function: {:?}", info.func());
-
-    if info.func() == ServiceFunction::GetState {
-        write_response(
-            guest,
-            StatusResponse {
-                state: HypervisorStatus::SystemVirtualized,
-                version: 1,
+pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> bool {
+    // check
+    {
+        let process = NtProcess::current();
+        match HxGuard::is_valid_caller(process.get_path_hash()) {
+            true => {}
+            false => {
+                log::warn!("Caller failed verification.");
+                return false
             }
-                .into_raw(),
-        );
-        return;
+        }
     }
+
+
+    log::trace!("Handling vmcall function: {:?}", info.func());
 
     let mut async_info = UnsafeAsyncInfo::default();
 
@@ -69,6 +69,9 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         async_info = UnsafeAsyncInfo {
             handle: guest.regs().r11,
             result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
+            process: unsafe {
+                IoGetCurrentProcess()
+            } as _,
         };
 
         log::trace!(
@@ -78,36 +81,25 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         )
     }
 
-    let plugin = match PluginTable::current() {
-        None => {
-            log::trace!("Plugin is not authorized.");
-            if info.func() == Authorize {
-                log::trace!("Authorizing...");
-                authorize_plugin(guest, AuthorizationRequest::from_raw(&request));
-                return;
-            }
-            log::warn!("Plugin tried to use HxPosed without authorizing first.");
-            write_response(
-                guest,
-                HypervisorResponse::not_allowed(NotAllowedReason::PluginNotLoaded),
-            );
-            return;
-        }
-        Some(x) => x,
-    };
-
     // we could actually use a bit mask that defines which category the service belongs to.
     // so we would spare ourselves from checking the func 2 times.
     // but rust enums aren't that easy, so we got this.
     // TODO: do what I said.
-    match info.func() {
+    let result = match info.func() {
+        ServiceFunction::GetState => {
+            StatusResponse {
+                state: HypervisorStatus::SystemVirtualized,
+                version: 1,
+            }
+                .into_raw()
+        },
         ServiceFunction::OpenProcess
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess
         | ServiceFunction::GetProcessField
         | ServiceFunction::SetProcessField
         | ServiceFunction::GetProcessThreads => {
-            services::handle_process_services(guest, &request, plugin, async_info);
+            services::handle_process_services(&request, async_info)
         }
         ServiceFunction::OpenThread
         | ServiceFunction::CloseThread
@@ -115,27 +107,35 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) {
         | ServiceFunction::KillThread
         | ServiceFunction::GetThreadField
         | ServiceFunction::SetThreadField => {
-            services::handle_thread_services(guest, &request, plugin, async_info);
+            services::handle_thread_services(&request, async_info)
         }
         ServiceFunction::ProcessVMOperation
         | ServiceFunction::ProtectProcessMemory
         | ServiceFunction::AllocateMemory
         | ServiceFunction::MapMemory
         | ServiceFunction::FreeMemory => {
-            services::handle_memory_services(guest, &request, plugin, async_info);
+            services::handle_memory_services(&request, async_info)
         }
         ServiceFunction::OpenToken
         | ServiceFunction::CloseToken
         | ServiceFunction::GetTokenField
         | ServiceFunction::SetTokenField => {
-            services::handle_security_services(guest, &request, plugin, async_info);
+            services::handle_security_services(&request, async_info)
+        }
+        ServiceFunction::RegisterNotifyEvent
+        | ServiceFunction::AwaitNotifyEvent
+        | ServiceFunction::UnregisterNotifyEvent => {
+            services::handle_callback_services(&request, async_info)
         }
         _ => {
             log::warn!("Unsupported vmcall: {:?}", info.func());
-            write_response(
-                guest,
-                HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction),
+            HypervisorResponse::not_found_what(
+                NotFoundReason::ServiceFunction,
             )
         }
-    }
+    };
+
+    guest.write_response(result);
+
+    true
 }
