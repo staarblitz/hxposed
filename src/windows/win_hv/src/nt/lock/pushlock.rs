@@ -24,7 +24,7 @@ impl PushLock {
     }
 }
 
-enum LockType {
+pub enum LockType {
     Exclusive,
     Shared,
 }
