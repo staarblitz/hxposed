@@ -28,8 +28,16 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::Authorize)
     }
 
+    pub(crate) fn unregister_notify_event() -> Self {
+        Self::new().with_func(ServiceFunction::UnregisterNotifyEvent)
+    }
+
+    pub(crate) fn register_notify_event() -> Self {
+        Self::new().with_func(ServiceFunction::RegisterNotifyEvent)
+    }
+
     pub(crate) fn await_notify_event() -> Self {
-        Self::new().with_func(ServiceFunction::NotifyEvent).with_is_async(true)
+        Self::new().with_func(ServiceFunction::AwaitNotifyEvent)
     }
 
     pub(crate) fn open_process() -> Self {
