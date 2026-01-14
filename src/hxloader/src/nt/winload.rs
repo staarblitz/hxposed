@@ -1,7 +1,10 @@
-use crate::nt::{BlImgAllocateImageBufferType, OslFwpKernelSetupPhase1Type, BL_IMG_ALLOCATE_IMAGE_BUFFER_PATTERN, OSL_FWP_KERNEL_SETUP_PHASE1_PATTERN};
-use crate::{BL_IMG_ALLOCATE_IMAGE_BUFFER_DETOUR, OSL_FWP_KERNEL_SETUP_PHASE1_DETOUR};
+use crate::nt::{
+    BL_IMG_ALLOCATE_IMAGE_BUFFER_PATTERN, BlImgAllocateImageBufferType,
+    OSL_FWP_KERNEL_SETUP_PHASE1_PATTERN, OslFwpKernelSetupPhase1Type,
+};
 use crate::pe::hooks::{bl_img_allocate_image_buffer, osl_fwp_kernel_setup_phase1};
 use crate::utils::scanner::Scanner;
+use crate::{BL_IMG_ALLOCATE_IMAGE_BUFFER_DETOUR, OSL_FWP_KERNEL_SETUP_PHASE1_DETOUR};
 
 pub struct Winload {
     base: *const u8,

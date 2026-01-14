@@ -1,10 +1,10 @@
+use crate::pe::map::get_nt_headers;
 use crate::utils::get_fs;
 use crate::{EFI_DRIVER_ALLOCATION, EFI_DRIVER_SIZE};
 use core::ptr::copy_nonoverlapping;
 use core::sync::atomic::Ordering;
 use uefi::boot::{AllocateType, MemoryType};
 use uefi::{Status, boot, cstr16};
-use crate::pe::map::get_nt_headers;
 
 pub struct HxPosed;
 
@@ -22,13 +22,18 @@ impl HxPosed {
             }
         };
 
-
         log::info!("HxPosed image size: {:x}", read.len() as u64);
 
-        let nt_headers = unsafe{&*get_nt_headers(read.as_ptr())};
-        EFI_DRIVER_SIZE.store(nt_headers.OptionalHeader.SizeOfImage as _, Ordering::Relaxed);
+        let nt_headers = unsafe { &*get_nt_headers(read.as_ptr()) };
+        EFI_DRIVER_SIZE.store(
+            nt_headers.OptionalHeader.SizeOfImage as _,
+            Ordering::Relaxed,
+        );
 
-        log::info!("HxPosed PE size: {:x}", nt_headers.OptionalHeader.SizeOfImage as u64);
+        log::info!(
+            "HxPosed PE size: {:x}",
+            nt_headers.OptionalHeader.SizeOfImage as u64
+        );
 
         let alloc_count = (read.len() >> 12) + usize::from((read.len() & 0xff) != 0) + 1;
         log::info!("Allocating pages for HxPosed: {:x}", alloc_count);
@@ -42,7 +47,6 @@ impl HxPosed {
         log::info!("HxPosed EFI base: {:x}", pages.as_ptr() as u64);
 
         EFI_DRIVER_ALLOCATION.store(pages.as_ptr(), Ordering::Relaxed);
-
 
         log::info!("Copying HxPosed to EFI allocation...");
         unsafe {

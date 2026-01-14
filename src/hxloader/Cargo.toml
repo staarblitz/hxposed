@@ -12,7 +12,7 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-uefi = { version = "0.36.1", features = [ "panic_handler", "alloc", "global_allocator" ] }
-log = "0.4.29"
-spin = "0.10.0"
+uefi = { version = "0.36.1", features = [ "panic_handler", "alloc", "global_allocator" ], default-features = false }
+log = {version =  "0.4.29", default-features = false}
+spin = {version = "0.10.0"}
 com_logger = {version = "0.1.2", default-features = false}

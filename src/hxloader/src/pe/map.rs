@@ -42,7 +42,8 @@ pub unsafe fn manually_map(
             panic!("HxPosed section not found!");
         }
         Some(params) => {
-            let cfg = ((&*params).VirtualAddress as usize + new_base as usize) as *mut HxLoaderParameterBlock;
+            let cfg = ((&*params).VirtualAddress as usize + new_base as usize)
+                as *mut HxLoaderParameterBlock;
 
             log::info!(".hxprm found at: {:x}", cfg as usize);
 

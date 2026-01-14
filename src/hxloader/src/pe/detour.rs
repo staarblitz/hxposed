@@ -1,5 +1,5 @@
-use core::ptr::{copy_nonoverlapping, null};
 use crate::pe::HOOK_BYTES;
+use core::ptr::{copy_nonoverlapping, null};
 
 pub struct Detour<T> {
     pub original_address: *const T,
@@ -12,7 +12,6 @@ unsafe impl<T> Send for Detour<T> {}
 unsafe impl<T> Sync for Detour<T> {}
 
 impl<T> Detour<T> {
-
     // the Default trait isn't constant. so we got this one instead.
     pub const fn default() -> Self {
         Self {

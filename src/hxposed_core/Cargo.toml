@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 bitfield-struct = "0.12.1"
 uuid = {version = "1.18.1", default-features = false}
-bitflags = "2.10.0"
+bitflags = {version = "2.10.0", default-features = false}
 atomic_enum = {version = "0.3.0", default-features = false}
 spin = "0.10.0"
 

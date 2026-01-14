@@ -6,9 +6,7 @@ use alloc::vec::Vec;
 use uefi::boot::LoadImageSource;
 use uefi::proto::BootPolicy::ExactMatch;
 use uefi::proto::device_path::build::DevicePathBuilder;
-use uefi::proto::device_path::{
-     DeviceSubType, DeviceType, LoadedImageDevicePath, build,
-};
+use uefi::proto::device_path::{DeviceSubType, DeviceType, LoadedImageDevicePath, build};
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::{Handle, Status, boot, cstr16};
 

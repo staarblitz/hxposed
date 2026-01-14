@@ -7,7 +7,7 @@ pub(crate) mod winload;
 
 use core::ffi::c_void;
 use uefi::runtime::{VariableAttributes, VariableVendor};
-use uefi::{cstr16, Guid};
+use uefi::{Guid, cstr16};
 
 pub(crate) type ImgArchStartBootApplicationType = unsafe extern "C" fn(
     app_entry: *mut u8,
