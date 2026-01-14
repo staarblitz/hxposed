@@ -1,3 +1,4 @@
+#![feature(unboxed_closures)]
 #![no_std]
 
 extern crate alloc;
@@ -7,7 +8,7 @@ extern crate hv;
 mod boot;
 mod hypervisor;
 mod nt;
-mod plugins;
+mod objects;
 mod services;
 mod utils;
 mod win;
@@ -23,17 +24,14 @@ use crate::utils::logger::NtLogger;
 use core::ptr;
 use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
-use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::responses::HypervisorResponse;
 use wdk_alloc::WdkAllocator;
 use wdk_sys::ntddk::{KeBugCheckEx, KeDelayExecutionThread};
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::{
-    DRIVER_OBJECT, FALSE, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS,
-    STATUS_TOO_LATE,
+    DRIVER_OBJECT, FALSE, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS, STATUS_TOO_LATE,
 };
 
-static mut HX_GUARD: HxGuard = HxGuard::new(true);
+static mut HX_GUARD: HxGuard = HxGuard::new();
 
 static mut LOGGER: NtLogger = NtLogger::default();
 
@@ -109,6 +107,7 @@ extern "C" fn driver_entry(
     );
 
     log::info!("Initializing HxPosed");
+    objects::ObjectTracker::init_objects();
 
     // SAFETY: this is the only mutable access in entire lifecycle.
     unsafe {
@@ -119,9 +118,12 @@ extern "C" fn driver_entry(
 
     hypervisor::init::init_hypervisor();
 
-    log::info!("Initializing plugins...");
-
-    plugins::load_plugins();
+    match nt::callback::NtCallback::init() {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Failed to initialize callbacks: {:x}", err);
+        }
+    }
 
     match NtThread::create(Some(async_worker_thread), None) {
         STATUS_SUCCESS => {}
@@ -131,13 +133,6 @@ extern "C" fn driver_entry(
     }
 
     STATUS_SUCCESS
-}
-
-pub(crate) fn write_response(guest: &mut dyn Guest, response: HypervisorResponse) {
-    guest.regs().r8 = response.arg1;
-    guest.regs().r9 = response.arg2;
-    guest.regs().r10 = response.arg3;
-    guest.regs().rsi = response.result.into_bits() as _;
 }
 
 #[panic_handler]
