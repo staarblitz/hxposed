@@ -158,7 +158,7 @@ impl HxMemory {
             process: self.process,
             address: address as _,
             count: count * size_of::<T>(),
-            data: raw.as_mut_ptr(),
+            data: raw.as_mut_ptr() as _,
             data_len: count * size_of::<T>(),
             operation: ProcessMemoryOperation::Read,
         }
