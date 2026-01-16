@@ -1,9 +1,11 @@
+use crate::alloc::string::String;
 use crate::nt::context::ApcProcessContext;
 use crate::nt::lock::pushlock::PushLock;
 use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
 use crate::utils::danger::DangerPtr;
 use crate::utils::handlebox::HandleBox;
 use crate::win::PsTerminateProcess;
+use crate::win::unicode_string::UnicodeString;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
 use hxposed_core::services::types::process_fields::{
@@ -26,7 +28,6 @@ use wdk_sys::{
 #[allow(dead_code)]
 pub struct NtProcess {
     pub nt_process: PEPROCESS,
-    pub nt_path: PUNICODE_STRING,
     pub lock: PushLock,
     pub thread_list_head: PLIST_ENTRY,
     pub id: u32,
@@ -73,15 +74,8 @@ impl NtProcess {
     }
 
     fn open_process(ptr: PEPROCESS, owns: bool) -> Self {
-        let nt_path = unsafe {
-            get_eprocess_field::<*mut UNICODE_STRING>(
-                EProcessField::SeAuditProcessCreationInfo,
-                ptr,
-            )
-        };
         Self {
             nt_process: ptr,
-            nt_path: unsafe { *nt_path },
             id: unsafe { PsGetProcessId(ptr) } as _,
             lock: unsafe {
                 PushLock::from_ptr(get_eprocess_field::<u64>(EProcessField::Lock, ptr))
@@ -93,11 +87,23 @@ impl NtProcess {
         }
     }
 
+    pub fn get_nt_path(&self) -> UnicodeString {
+        let nt_path = unsafe {
+            &mut **get_eprocess_field::<*mut UNICODE_STRING>(
+                EProcessField::SeAuditProcessCreationInfo,
+                self.nt_process,
+            )
+        };
+
+        UnicodeString::from_unicode_string(nt_path)
+    }
+
     pub fn get_path_hash(&self) -> u64 {
-        let str = unsafe { self.nt_path.as_ref().unwrap() };
-        let name_slice =
-            unsafe { core::slice::from_raw_parts::<u8>(str.Buffer as _, str.Length as _) };
-        wyhash::wyhash(name_slice, 0x2009)
+        let path = self.get_nt_path();
+        wyhash::wyhash(
+            unsafe { core::slice::from_raw_parts(path.as_ptr() as *const u8, path.len() * 2) },
+            0x2009,
+        )
     }
 
     pub fn open_handle(&self) -> Result<HandleBox, NTSTATUS> {
