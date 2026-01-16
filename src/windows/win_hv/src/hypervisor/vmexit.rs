@@ -1,5 +1,6 @@
-use wdk_sys::ntddk::IoGetCurrentProcess;
-use crate::{services};
+use crate::nt::guard::hxguard::HxGuard;
+use crate::nt::process::NtProcess;
+use crate::services;
 use hv::hypervisor::host::Guest;
 use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::call::HypervisorCall;
@@ -9,8 +10,7 @@ use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
-use crate::nt::guard::hxguard::HxGuard;
-use crate::nt::process::NtProcess;
+use wdk_sys::ntddk::IoGetCurrentProcess;
 
 ///
 /// # Called when a CPUID with RCX = 2009 is executed.
@@ -44,11 +44,10 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
             true => {}
             false => {
                 log::warn!("Caller failed verification.");
-                return false
+                return false;
             }
         }
     }
-
 
     log::trace!("Handling vmcall function: {:?}", info.func());
 
@@ -69,9 +68,7 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         async_info = UnsafeAsyncInfo {
             handle: guest.regs().r11,
             result_values: guest.regs().r12 as *mut _, // rsi, r8, r9, r10. total 4
-            process: unsafe {
-                IoGetCurrentProcess()
-            } as _,
+            process: unsafe { IoGetCurrentProcess() } as _,
         };
 
         log::trace!(
@@ -86,13 +83,11 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
     // but rust enums aren't that easy, so we got this.
     // TODO: do what I said.
     let result = match info.func() {
-        ServiceFunction::GetState => {
-            StatusResponse {
-                state: HypervisorStatus::SystemVirtualized,
-                version: 1,
-            }
-                .into_raw()
-        },
+        ServiceFunction::GetState => StatusResponse {
+            state: HypervisorStatus::SystemVirtualized,
+            version: 1,
+        }
+        .into_raw(),
         ServiceFunction::OpenProcess
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess
@@ -106,16 +101,12 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         | ServiceFunction::SuspendResumeThread
         | ServiceFunction::KillThread
         | ServiceFunction::GetThreadField
-        | ServiceFunction::SetThreadField => {
-            services::handle_thread_services(&request, async_info)
-        }
+        | ServiceFunction::SetThreadField => services::handle_thread_services(&request, async_info),
         ServiceFunction::ProcessVMOperation
         | ServiceFunction::ProtectProcessMemory
         | ServiceFunction::AllocateMemory
         | ServiceFunction::MapMemory
-        | ServiceFunction::FreeMemory => {
-            services::handle_memory_services(&request, async_info)
-        }
+        | ServiceFunction::FreeMemory => services::handle_memory_services(&request, async_info),
         ServiceFunction::OpenToken
         | ServiceFunction::CloseToken
         | ServiceFunction::GetTokenField
@@ -129,9 +120,7 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         }
         _ => {
             log::warn!("Unsupported vmcall: {:?}", info.func());
-            HypervisorResponse::not_found_what(
-                NotFoundReason::ServiceFunction,
-            )
+            HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction)
         }
     };
 
