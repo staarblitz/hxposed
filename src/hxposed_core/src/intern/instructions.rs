@@ -1,3 +1,5 @@
+use alloc::sync::Arc;
+
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::error::{ErrorSource, InternalErrorCode};
@@ -10,7 +12,7 @@ use crate::events::AsyncInfo;
 #[allow(dead_code)]
 pub fn vmcall_typed<R: VmcallRequest>(
     req: R,
-    async_info: Option<&mut AsyncInfo>,
+    async_info: Option<Arc<AsyncInfo>>,
 ) -> Result<R::Response, HypervisorError> {
     let raw_resp = vmcall(&mut req.into_raw(), async_info);
     if raw_resp.result.is_error() {
@@ -22,7 +24,7 @@ pub fn vmcall_typed<R: VmcallRequest>(
 
 pub(crate) fn vmcall(
     request: &mut HypervisorRequest,
-    async_info: Option<&mut AsyncInfo>,
+    async_info: Option<Arc<AsyncInfo>>,
 ) -> HypervisorResponse {
     // SAFETY:we know it's a valid pointer.
 
