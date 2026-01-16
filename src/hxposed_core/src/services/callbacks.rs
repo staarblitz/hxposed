@@ -5,16 +5,10 @@ use crate::hxposed::requests::notify::*;
 use crate::hxposed::responses::HypervisorResponse;
 use crate::hxposed::responses::notify::AwaitNotificationResponse;
 use crate::hxposed::{CallbackObject, ObjectType};
-use alloc::boxed::Box;
-use alloc::collections::VecDeque;
-use core::arch::asm;
 use core::sync::atomic::{AtomicBool, Ordering};
-
-pub type ObjectCallback = Box<dyn Fn(Result<AwaitNotificationResponse, HypervisorError>)>;
 
 pub struct HxCallback {
     callback: CallbackObject,
-    func: ObjectCallback,
     pub active: AtomicBool,
     pub target: ObjectType,
 }
@@ -48,7 +42,6 @@ impl HxCallback {
     /// Remember that you may also need [`PluginPermissions::PROCESS_EXECUTIVE`] or [`PluginPermissions::THREAD_EXECUTIVE`] if you want to control those objects.
     ///
     /// ## Arguments
-    /// - `callback` - [`ObjectCallback`] that will be called when an event occurs.
     /// - `target` - Type of objects that will be intercepted. Valid values are:
     /// 1. [`ObjectType::Process`]
     /// 2. [`ObjectType::Thread`]
@@ -57,10 +50,7 @@ impl HxCallback {
     /// ## Return
     /// * [`HxCallback`] - An abstraction that represents the callback object. The callback is active upon return.
     /// * [`HypervisorResponse::invalid_params`] with [`ServiceParameter::Arg1`] - Invalid object type specified.
-    pub fn new(
-        callback: ObjectCallback,
-        target: ObjectType,
-    ) -> Result<HxCallback, HypervisorError> {
+    pub fn new(target: ObjectType) -> Result<HxCallback, HypervisorError> {
         match target {
             ObjectType::Process(_) => {}
             ObjectType::Thread(_) => {}
@@ -78,7 +68,6 @@ impl HxCallback {
 
         Ok(Self {
             callback: response.callback,
-            func: callback,
             active: AtomicBool::new(true),
             target,
         })
@@ -88,28 +77,26 @@ impl HxCallback {
     /// # Event Loop
     ///
     /// Main logic of the callback. Must be started on a separate task.
-    pub async fn event_loop(&self) {
-        unsafe{
-            asm!("int 0x3")
-        }
-
+    pub async fn event_loop<F>(&self, func: F)
+    where
+        F: Fn(Result<AwaitNotificationResponse, HypervisorError>),
+    {
         loop {
             if !self.active.load(Ordering::Relaxed) {
                 return;
             }
 
-            match (AwaitNotificationRequest {
-                callback: self.callback,
-            }
-            .send_async()
-            .await)
-            {
-                Ok(x) => (self.func)(Ok(x)),
-                Err(err) => {
-                    (self.func)(Err(err));
-                    return;
+            func(
+                match (AwaitNotificationRequest {
+                    callback: self.callback,
                 }
-            };
+                    .send_async()
+                    .await)
+                {
+                    Ok(x) => Ok(x),
+                    Err(err) => Err(err),
+                },
+            );
         }
     }
 }
