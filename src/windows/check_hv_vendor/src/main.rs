@@ -1,9 +1,9 @@
 use egui::{Color32, ViewportBuilder};
 use hxposed_core::error::HypervisorError;
-use hxposed_core::hxposed::requests::status::StatusRequest;
-use hxposed_core::hxposed::requests::Vmcall;
-use hxposed_core::hxposed::responses::notify::AwaitNotificationResponse;
 use hxposed_core::hxposed::ObjectType;
+use hxposed_core::hxposed::requests::Vmcall;
+use hxposed_core::hxposed::requests::status::StatusRequest;
+use hxposed_core::hxposed::responses::notify::AwaitNotificationResponse;
 use hxposed_core::services::callbacks::HxCallback;
 use hxposed_core::services::memory::HxMemory;
 use hxposed_core::services::memory_map::{HxMemoryDescriptor, HxMemoryGuard};
@@ -12,7 +12,7 @@ use hxposed_core::services::types::memory_fields::MemoryPool;
 use hxposed_core::services::types::process_fields::{
     ProcessProtection, ProtectionSigner, ProtectionType,
 };
-use std::borrow::ToOwned;
+use std::arch::asm;
 use std::mem;
 use std::ops::DerefMut;
 use std::str::FromStr;
@@ -93,37 +93,39 @@ struct ProcessState {
     protection_signer: ProtectionSigner,
 }
 
-struct GeneralState {
-    guid_text: String,
-}
-
 struct MemoryState {
     descriptor: Option<HxMemoryDescriptor<u64>>,
     guard: Option<HxMemoryGuard<'static, u64>>,
     current_value: String,
 }
 
-impl Default for GeneralState {
-    fn default() -> Self {
-        Self {
-            guid_text: "ca170835-4a59-4c6d-a04b-f5866f592c38".to_owned(),
-        }
-    }
-}
-
 fn log_callback(x: Result<AwaitNotificationResponse, HypervisorError>) {
-    match x {
-        Ok(x) => {
-            println!(
-                "Event for object {:?}, with state of {:?}",
-                x.object_type, x.object_state
-            );
+    async_std::task::block_on(async {
+        match x {
+            Ok(x) => match x.object_type {
+                ObjectType::Process(addr) => {
+                    let process = match HxProcess::open(addr as _) {
+                        Ok(x) => x,
+                        Err(err) => {
+                            async_std::eprintln!("Failed opening process: {:?}", err).await;
+                            return;
+                        }
+                    };
+                    async_std::println!(
+                        "Process: {}. State: {:?}",
+                        process.get_nt_path().await.unwrap(),
+                        x.object_state
+                    )
+                    .await;
+                }
+                ObjectType::Thread(_) => {}
+                _ => unreachable!(),
+            },
+            Err(err) => {
+                async_std::eprintln!("Callback returned error: {:?}", err).await;
+            }
         }
-        Err(err) => {
-            println!("Callback returned error: {:?}", err);
-            return;
-        }
-    }
+    });
 }
 
 impl eframe::App for HxTestApp {
@@ -158,10 +160,7 @@ impl eframe::App for HxTestApp {
                     AppState::Callbacks(state) => {
                         ui.horizontal(|ui| {
                             if ui.button("Register callbacks").clicked() {
-                                let cback1 = match HxCallback::new(
-                                    Box::new(log_callback),
-                                    ObjectType::Process(0),
-                                ) {
+                                let cback1 = match HxCallback::new(ObjectType::Process(0)) {
                                     Ok(x) => x,
                                     Err(err) => {
                                         error_update =
@@ -170,43 +169,27 @@ impl eframe::App for HxTestApp {
                                     }
                                 };
 
-                                let cback2 = match HxCallback::new(
-                                    Box::new(log_callback),
-                                    ObjectType::Thread(0),
-                                ) {
-                                    Ok(x) => x,
-                                    Err(err) => {
-                                        error_update =
-                                            Some(format!("Error registering callback: {:?}", err));
-                                        return;
-                                    }
-                                };
-
-                                state.cback1 = Some(cback1);
-                                state.cback2 = Some(cback2);
-
-                                let cback1: &'static HxCallback =
-                                    unsafe { mem::transmute(state.cback1.as_ref().unwrap()) };
-
-                                let cback2: &'static HxCallback =
-                                    unsafe { mem::transmute(state.cback1.as_ref().unwrap()) };
-
-                                async_std::task::spawn(async {
+                                std::thread::spawn(move || {
                                     println!("Beginning event loop on cback1!");
-                                    cback1.event_loop().await;
+
+                                    async_std::task::block_on(cback1.event_loop(log_callback));
+
+                                    println!("Oh...");
                                 });
 
-                                async_std::task::spawn(async {
+                                /*                    async_std::task::spawn(async {
                                     println!("Beginning event loop on cback2!");
-                                    cback2.event_loop().await;
-                                });
+                                    unsafe {
+                                        CALLBACKS_STATE.cback2.as_ref().unwrap().event_loop().await;
+                                    }
+                                });*/
                             }
                             if ui.button("Unregister callbacks").clicked() {
-                                drop(state.cback2.take().unwrap());
+                                drop(state.cback1.take().unwrap());
+                                //drop(state.cback2.take().unwrap());
                             }
                         });
                         ui.separator();
-                        ui.text_edit_multiline(&mut state.events.lock().unwrap().join("\n"));
                     }
                     AppState::Memory(state) => {
                         ui.horizontal(|ui| {
