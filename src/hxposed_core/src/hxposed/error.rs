@@ -10,6 +10,7 @@ pub enum InternalErrorCode {
     /// See [NotFoundReason]. Put on arg1
     NotFound = 4,
     InvalidParams = 5,
+    TimeOut = 6
 }
 
 impl InternalErrorCode {
@@ -25,6 +26,7 @@ impl InternalErrorCode {
             3 => Self::NotLoaded,
             4 => Self::NotFound,
             5 => Self::InvalidParams,
+            6 => Self::TimeOut,
             _ => Self::Unknown,
         }
     }
