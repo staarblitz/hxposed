@@ -5,8 +5,8 @@
 #![allow(static_mut_refs)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-pub(crate) mod utf_to_unicode;
-pub(crate) mod utils;
+pub(crate) mod rtl_utils;
+pub(crate) mod unicode_string;
 
 use crate::utils::danger::DangerPtr;
 use ::alloc::boxed::Box;

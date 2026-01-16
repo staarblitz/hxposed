@@ -7,19 +7,19 @@ use hxposed_core::hxposed::responses::HypervisorResponse;
 
 pub struct OpenTokenAsyncCommand {
     pub command: OpenTokenRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct GetTokenFieldAsyncCommand {
     pub command: GetTokenFieldRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct SetTokenFieldAsyncCommand {
     pub command: SetTokenFieldRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 

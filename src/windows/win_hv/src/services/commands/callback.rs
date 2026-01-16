@@ -3,11 +3,13 @@ use core::any::Any;
 use hxposed_core::events::UnsafeAsyncInfo;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::notify::AwaitNotificationRequest;
-use hxposed_core::hxposed::responses::HypervisorResponse;
+use hxposed_core::hxposed::responses::notify::AwaitNotificationResponse;
+use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
 pub struct AwaitNotificationRequestAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
     pub command: AwaitNotificationRequest,
+    pub response: HypervisorResponse,
 }
 
 impl AsyncCommand for AwaitNotificationRequestAsyncCommand {
@@ -19,9 +21,9 @@ impl AsyncCommand for AwaitNotificationRequestAsyncCommand {
         &self.async_info
     }
 
-    fn complete(&mut self, result: HypervisorResponse) {
+    fn complete(&mut self, _result: HypervisorResponse) {
         write_and_set(
-            &result,
+            &self.response,
             self.async_info.result_values as *mut _,
             self.async_info.handle as _,
         );

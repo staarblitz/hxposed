@@ -1,7 +1,9 @@
 use crate::nt::callback::NtCallback;
 use crate::objects::ObjectTracker;
 use crate::services::commands::callback::AwaitNotificationRequestAsyncCommand;
+use core::mem;
 use hxposed_core::events::UnsafeAsyncInfo;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -11,7 +13,6 @@ use hxposed_core::hxposed::requests::notify::{
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::notify::RegisterNotifyHandlerResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::hxposed::ObjectType;
 
 pub(crate) fn register_callback(
     request: RegisterNotifyHandlerRequest,
@@ -50,6 +51,7 @@ pub(crate) fn await_notification(
             x.queue_callback_waiter(AwaitNotificationRequestAsyncCommand {
                 async_info,
                 command: request,
+                response: EmptyResponse::with_service(ServiceFunction::AwaitNotifyEvent),
             });
             EmptyResponse::with_service(ServiceFunction::AwaitNotifyEvent)
         }
@@ -67,7 +69,7 @@ pub(crate) fn unregister_callback(
     match ObjectTracker::get_callback(request.callback) {
         None => HypervisorResponse::not_found_what(NotFoundReason::Callback),
         Some(x) => {
-            x.take(); // forget
+            x.take();
             EmptyResponse::with_service(ServiceFunction::UnregisterNotifyEvent)
         }
     }

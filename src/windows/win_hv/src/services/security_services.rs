@@ -1,6 +1,8 @@
 use crate::nt::token::NtToken;
 use crate::nt::{SYSTEM_TOKEN, probe};
+use crate::objects::ObjectTracker;
 use crate::services::commands::security::*;
+use crate::utils::pop_guard::PopGuard;
 use alloc::boxed::Box;
 use core::sync::atomic::Ordering;
 use hv::hypervisor::host::Guest;
@@ -18,25 +20,20 @@ use hxposed_core::services::types::security_fields::TokenPrivilege;
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{ObOpenObjectByPointer, ObReferenceObjectByPointer};
 use wdk_sys::{HANDLE, PACCESS_TOKEN, STATUS_SUCCESS, SeTokenObjectType, TOKEN_ALL_ACCESS};
-use crate::objects::ObjectTracker;
-use crate::utils::pop_guard::PopGuard;
 
 pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> HypervisorResponse {
-
-    let mut token = match ObjectTracker::get_open_token(request.command.token as _)
-    {
+    let mut token = match ObjectTracker::get_open_token(request.command.token as _) {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
     };
 
-   match request.command.field {
+    match request.command.field {
         TokenField::EnabledPrivileges => {
             if request.command.data_len != size_of::<TokenPrivilege>() {
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match probe::probe_for_read(request.command.data as _, request.command.data_len as _, 1)
-            {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len as _) {
                 Ok(_) => {
                     let user_field = unsafe { &*(request.command.data as *mut TokenPrivilege) };
                     token.set_enabled_privileges(user_field.clone());
@@ -73,14 +70,13 @@ pub(crate) fn set_token_field_async(
 }
 
 pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> HypervisorResponse {
-    let token = match ObjectTracker::get_open_token(request.command.token as _)
-    {
+    let token = match ObjectTracker::get_open_token(request.command.token as _) {
         Some(x) => x,
         None if request.command.token == 0 => match request.command.field {
             // asking for SYSTEM token
-            TokenField::PresentPrivileges => {
-                PopGuard::no_src(NtToken::from_ptr(SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN))
-            }
+            TokenField::PresentPrivileges => PopGuard::no_src(NtToken::from_ptr(
+                SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN,
+            )),
             _ => return HypervisorResponse::not_found_what(NotFoundReason::Token),
         },
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
@@ -96,7 +92,6 @@ pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> Hyper
                 match probe::probe_for_write(
                     request.command.data as _,
                     request.command.data_len as _,
-                    1,
                 ) {
                     Ok(_) => {
                         unsafe {

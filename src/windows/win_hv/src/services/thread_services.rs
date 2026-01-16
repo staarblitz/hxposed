@@ -4,6 +4,7 @@ use crate::services::commands::thread::*;
 use crate::win::{ZwResumeThread, ZwSuspendThread};
 use alloc::boxed::Box;
 use hxposed_core::events::UnsafeAsyncInfo;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -12,7 +13,6 @@ use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::thread::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::hxposed::ObjectType;
 use wdk_sys::{STATUS_SUCCESS, ULONG};
 
 pub(crate) fn kill_thread_sync(request: &KillThreadAsyncCommand) -> HypervisorResponse {

@@ -149,20 +149,20 @@ pub(crate) fn protect_vm_async(
 ) -> HypervisorResponse {
     request.protection = request
         .protection
-        .bitand(!(MemoryProtection::GUARD | MemoryProtection::NO_CACHE));
+        .bitand(!(MemoryProtection::Guard | MemoryProtection::NoCache));
 
     let prot = request.protection.bits();
 
     if !matches!(
         prot,
-        x if x == MemoryProtection::NO_CACHE.bits()
-            || x == MemoryProtection::READONLY.bits()
-            || x == MemoryProtection::READWRITE.bits()
-            || x == MemoryProtection::WRITECOPY.bits()
-            || x == MemoryProtection::EXECUTE.bits()
-            || x == MemoryProtection::EXECUTE_READ.bits()
-            || x == MemoryProtection::EXECUTE_READWRITE.bits()
-            || x == MemoryProtection::EXECUTE_WRITECOPY.bits()
+        x if x == MemoryProtection::None.bits()
+            || x == MemoryProtection::ReadOnly.bits()
+            || x == MemoryProtection::ReadWrite.bits()
+            || x == MemoryProtection::WriteCopy.bits()
+            || x == MemoryProtection::Execute.bits()
+            || x == MemoryProtection::ExecuteRead.bits()
+            || x == MemoryProtection::ExecuteReadWrite.bits()
+            || x == MemoryProtection::ExecuteWriteCopy.bits()
     ) {
         return HypervisorResponse::nt_error(STATUS_INVALID_PAGE_PROTECTION as _);
     }

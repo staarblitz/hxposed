@@ -1,34 +1,39 @@
 use crate::utils::alloc::PoolAllocSized;
 use crate::utils::handlebox::HandleBox;
-use crate::win::utf_to_unicode::Utf8ToUnicodeString;
-use crate::win::utils::init_object_attributes;
+use crate::win::rtl_utils::init_object_attributes;
+use crate::win::unicode_string::UnicodeString;
 use crate::{as_pvoid, get_data};
 use alloc::boxed::Box;
-use alloc::string::ToString;
+use alloc::string::String;
 use core::ptr::null_mut;
+use core::str::FromStr;
 use wdk_sys::_KEY_INFORMATION_CLASS::KeyFullInformation;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{ZwOpenKey, ZwQueryKey, ZwQueryValueKey};
-use wdk_sys::{HANDLE, KEY_ALL_ACCESS, KEY_FULL_INFORMATION, KEY_VALUE_FULL_INFORMATION, NTSTATUS, OBJ_KERNEL_HANDLE, PVOID, STATUS_BUFFER_TOO_SMALL, STATUS_SUCCESS, UNICODE_STRING};
+use wdk_sys::{
+    HANDLE, KEY_ALL_ACCESS, KEY_FULL_INFORMATION, KEY_VALUE_FULL_INFORMATION, NTSTATUS,
+    OBJ_KERNEL_HANDLE, PVOID, STATUS_BUFFER_TOO_SMALL, STATUS_SUCCESS, UNICODE_STRING,
+};
 
 pub struct NtKey {
-    pub path: Box<UNICODE_STRING>,
+    pub path: String,
     pub num_values: usize,
     handle: HandleBox,
 }
 
 impl NtKey {
     pub fn open(path: &str) -> Result<NtKey, NTSTATUS> {
-        let path = path.to_string();
+        let mut unicode_string = UnicodeString::new(path);
+        let mut str = unicode_string.to_unicode_string();
         let mut attr = init_object_attributes(
-            path.clone(),
+            &mut str,
             OBJ_KERNEL_HANDLE,
             Default::default(),
             Default::default(),
         );
         let mut handle = HANDLE::default();
 
-        match unsafe { ZwOpenKey(&mut handle, KEY_ALL_ACCESS, attr.as_mut()) } {
+        match unsafe { ZwOpenKey(&mut handle, KEY_ALL_ACCESS, &mut attr) } {
             STATUS_SUCCESS => {}
             err => return Err(err),
         }
@@ -50,7 +55,7 @@ impl NtKey {
         }
 
         Ok(Self {
-            path: path.to_unicode_string(),
+            path: String::from_str(path).unwrap(),
             handle: HandleBox::new(handle),
             num_values: info.Values as _,
         })
@@ -59,11 +64,13 @@ impl NtKey {
     pub fn get_value<T>(&self, value: &str) -> Result<&mut T, NTSTATUS> {
         let mut return_size = u32::default();
         let mut info: Box<KEY_VALUE_FULL_INFORMATION>;
+        let mut string = UnicodeString::new(value);
+        let mut value_name = string.to_unicode_string();
 
         match unsafe {
             ZwQueryValueKey(
                 self.handle.get_danger(),
-                value.to_unicode_string().as_mut(),
+                &mut value_name,
                 KeyValueFullInformation,
                 null_mut(),
                 0,
@@ -79,7 +86,7 @@ impl NtKey {
         match unsafe {
             ZwQueryValueKey(
                 self.handle.get_danger(),
-                value.to_unicode_string().as_mut(),
+                &mut value_name,
                 KeyValueFullInformation,
                 as_pvoid!(info),
                 return_size,

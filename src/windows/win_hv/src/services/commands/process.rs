@@ -10,12 +10,11 @@ use hxposed_core::hxposed::responses::HypervisorResponse;
 
 pub struct GetProcessFieldAsyncCommand {
     pub async_info: UnsafeAsyncInfo,
-    
+
     pub command: GetProcessFieldRequest,
 }
 
 pub struct SetProcessFieldAsyncCommand {
-    
     pub command: SetProcessFieldRequest,
     pub async_info: UnsafeAsyncInfo,
 }
@@ -23,19 +22,16 @@ pub struct SetProcessFieldAsyncCommand {
 pub struct KillProcessAsyncCommand {
     pub command: KillProcessRequest,
     pub async_info: UnsafeAsyncInfo,
-    
 }
 
 pub struct OpenProcessAsyncCommand {
     pub command: OpenProcessRequest,
     pub async_info: UnsafeAsyncInfo,
-    
 }
 
 pub struct GetProcessThreadsAsyncCommand {
     pub command: GetProcessThreadsRequest,
     pub async_info: UnsafeAsyncInfo,
-    
 }
 
 impl AsyncCommand for GetProcessThreadsAsyncCommand {

@@ -11,31 +11,30 @@ use crate::services::thread_services::*;
 use crate::utils::timing;
 use crate::win::KeGetCurrentThread;
 use hxposed_core::hxposed::func::ServiceFunction;
-use wdk_sys::ntddk::{KeDelayExecutionThread, KeSetPriorityThread};
+use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::ZwWaitForSingleObject;
+use wdk_sys::ntddk::{KeDelayExecutionThread, KeSetPriorityThread};
 use wdk_sys::{FALSE, LARGE_INTEGER, LOW_REALTIME_PRIORITY, PVOID};
-
-///
 /// # Async Worker Thread
 ///
 /// Dequeues commands from each plugin's async command queue, "works" them, fires the result callback.
 pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
-    let mut interval = timing::relative(timing::milliseconds(20));
-
-    // KeGetCurrentThread is not export by bindgen. lmao
-    unsafe { KeSetPriorityThread(KeGetCurrentThread(), LOW_REALTIME_PRIORITY as _) };
-
-    loop {
+    'begin: loop {
         let mut command = match ObjectTracker::dequeue_command() {
             None => {
-                let _ = unsafe {
-                    KeDelayExecutionThread(
-                        KernelMode as _,
+                match unsafe {
+                    ZwWaitForSingleObject(
+                        ObjectTracker::get_async_event() as _,
                         FALSE as _,
-                        &mut interval as *mut _ as *mut LARGE_INTEGER, // weirdo nt api types
+                        Default::default(),
                     )
-                };
-                continue;
+                } {
+                    STATUS_SUCCESS => {}
+                    _ => {}
+                }
+
+                continue 'begin;
             }
             Some(x) => x,
         };
@@ -153,6 +152,9 @@ pub unsafe extern "C" fn async_worker_thread(_argument: PVOID) {
                         .downcast_ref::<OpenProcessAsyncCommand>()
                         .unwrap(),
                 ),
+                ServiceFunction::AwaitNotifyEvent => {
+                    EmptyResponse::with_service(ServiceFunction::AwaitNotifyEvent)
+                }
                 _ => unreachable!("Forgot to implement this one!"),
             }
         };

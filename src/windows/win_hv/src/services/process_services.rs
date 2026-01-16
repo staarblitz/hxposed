@@ -3,9 +3,11 @@ use crate::nt::*;
 use crate::objects::ObjectTracker;
 use crate::services::commands::process::*;
 use alloc::boxed::Box;
+use core::mem;
 use core::ptr::copy_nonoverlapping;
 use hv::hypervisor::host::Guest;
 use hxposed_core::events::UnsafeAsyncInfo;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -13,7 +15,6 @@ use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::process::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::services::types::process_fields::*;
 use wdk_sys::ntddk::ObfDereferenceObject;
 
@@ -43,7 +44,7 @@ pub(crate) fn get_process_threads_sync(
     let thread_numbers = process.get_threads();
 
     if !request.command.data == 0 {
-        match probe::probe_for_write(request.command.data as _, request.command.data_len, 1) {
+        match probe::probe_for_write(request.command.data as _, request.command.data_len) {
             Ok(_) => {}
             Err(_) => return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
         }
@@ -159,7 +160,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match probe::probe_for_read(request.command.data as _, request.command.data_len, 1) {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len) {
                 Ok(_) => {
                     let new_field = unsafe { *(request.command.data as *mut ProcessProtection) };
 
@@ -175,7 +176,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match probe::probe_for_read(request.command.data as _, request.command.data_len, 1) {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len) {
                 Ok(_) => {
                     let new_field =
                         unsafe { *(request.command.data as *mut ProcessSignatureLevel) };
@@ -192,7 +193,7 @@ pub(crate) fn set_process_field_sync(request: &SetProcessFieldAsyncCommand) -> H
                 return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
             }
 
-            match probe::probe_for_read(request.command.data as _, request.command.data_len, 1) {
+            match probe::probe_for_read(request.command.data as _, request.command.data_len) {
                 Ok(_) => {
                     let mitigations = unsafe { *(request.command.data as *mut MitigationOptions) };
 
@@ -291,24 +292,24 @@ pub(crate) fn get_process_field_sync(request: &GetProcessFieldAsyncCommand) -> H
 
     match request.command.field {
         ProcessField::NtPath => {
-            let field = unsafe { &*process.nt_path };
+            let field = unsafe { process.get_nt_path() };
 
             if request.command.data_len == 0 {
-                GetProcessFieldResponse::NtPath(field.Length)
+                GetProcessFieldResponse::NtPath((field.len() * 2) as _)
             } else {
                 match probe::probe_for_write(
                     request.command.data as _,
                     request.command.data_len as _,
-                    1,
                 ) {
                     Ok(_) => {
                         unsafe {
-                            field.Buffer.copy_to_nonoverlapping(
-                                request.command.data as *mut u16,
-                                field.Length as usize / 2,
+                            core::ptr::copy_nonoverlapping::<u8>(
+                                field.as_ptr() as _,
+                                request.command.data as _,
+                                field.len() * 2,
                             )
                         }
-                        GetProcessFieldResponse::NtPath(field.Length)
+                        GetProcessFieldResponse::NtPath((field.len() * 2) as _)
                     }
                     Err(_) => {
                         return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
@@ -411,9 +412,6 @@ pub(crate) fn close_process(request: CloseProcessRequest) -> HypervisorResponse 
     match ObjectTracker::get_open_process(request.process as _) {
         None => HypervisorResponse::not_found(),
         Some(process) => {
-            unsafe {
-                ObfDereferenceObject(process.nt_process as _);
-            }
             process.take();
             EmptyResponse::with_service(ServiceFunction::CloseProcess)
         }

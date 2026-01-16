@@ -7,31 +7,31 @@ use hxposed_core::hxposed::responses::HypervisorResponse;
 
 pub struct OpenThreadAsyncCommand {
     pub command: OpenThreadRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct SuspendResumeThreadAsyncCommand {
     pub command: SuspendResumeThreadRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct GetThreadFieldAsyncCommand {
     pub command: GetThreadFieldRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct SetThreadFieldAsyncCommand {
     pub command: SetThreadFieldRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct KillThreadAsyncCommand {
     pub command: KillThreadRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 

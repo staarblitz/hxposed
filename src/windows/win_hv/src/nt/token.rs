@@ -1,9 +1,9 @@
-use core::hash::{Hash, Hasher};
 use crate::nt::{
     _SEP_TOKEN_PRIVILEGES, AccessTokenField, LogonSessionField, PSEP_LOGON_SESSION_REFERENCES,
     get_access_token_field, get_logon_session_field,
 };
 use crate::utils::handlebox::HandleBox;
+use core::hash::{Hash, Hasher};
 use hxposed_core::services::types::security_fields::{
     ImpersonationLevel, TokenPrivilege, TokenType,
 };

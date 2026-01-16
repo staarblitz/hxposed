@@ -99,14 +99,14 @@ impl log::Log for NtLogger {
         )
         .to_string();
 
-        {
+        /*{
             let mut lock = self.serial.lock();
             let _ = lock.get_mut().unwrap().write_str(args.as_str());
         }
         {
             let mut lock = self.log_buffer.lock();
             let _ = lock.get_mut().unwrap().write_str(args.as_str());
-        }
+        }*/
 
         print!("{}", args);
     }

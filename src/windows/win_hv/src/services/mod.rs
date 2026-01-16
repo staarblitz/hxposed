@@ -16,7 +16,7 @@ use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use hxposed_core::hxposed::responses::{HypervisorResponse};
+use hxposed_core::hxposed::responses::HypervisorResponse;
 
 mod callback_services;
 pub(crate) mod commands;

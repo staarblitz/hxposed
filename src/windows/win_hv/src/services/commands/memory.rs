@@ -6,32 +6,30 @@ use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::HypervisorResponse;
 
 pub struct RWProcessMemoryAsyncCommand {
-    
     pub command: RWProcessMemoryRequest,
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct ProtectProcessMemoryAsyncCommand {
-    
     pub command: ProtectProcessMemoryRequest,
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct AllocateMemoryAsyncCommand {
     pub command: AllocateMemoryRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct MapMemoryAsyncCommand {
     pub command: MapMemoryRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
 pub struct FreeMemoryAsyncCommand {
     pub command: FreeMemoryRequest,
-    
+
     pub async_info: UnsafeAsyncInfo,
 }
 
