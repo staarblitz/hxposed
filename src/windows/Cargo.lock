@@ -431,6 +431,7 @@ dependencies = [
  "async-global-executor",
  "async-io",
  "async-lock",
+ "async-process",
  "crossbeam-utils",
  "futures-channel",
  "futures-core",
@@ -603,6 +604,26 @@ name = "bitfield-struct"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8769c4854c5ada2852ddf6fd09d15cf43d4c2aaeccb4de6432f5402f08a6003b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "bitflag"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3beac6a55fd5b7b4f4e857cc74d09f8b3e7c063fe147a83e38a76773750fdb1b"
+dependencies = [
+ "bitflag-attr-macros",
+]
+
+[[package]]
+name = "bitflag-attr-macros"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b618aab4883d58a2d2ed1f59d8d9cb2c8c735588f873f4a4b7966626f3fdad50"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1824,9 +1845,8 @@ version = "0.1.0"
 dependencies = [
  "atomic_enum",
  "bitfield-struct",
- "bitflags 2.10.0",
+ "bitflag",
  "spin 0.10.0",
- "uuid",
 ]
 
 [[package]]
@@ -4191,7 +4211,6 @@ dependencies = [
  "log",
  "microseh",
  "spin 0.10.0",
- "uuid",
  "wdk",
  "wdk-alloc",
  "wdk-build",

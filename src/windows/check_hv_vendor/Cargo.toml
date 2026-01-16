@@ -17,6 +17,6 @@ codegen-units = 1
 [dependencies]
 hxposed_core = { path = "../../hxposed_core", features = ["usermode"], default-features = false}
 uuid = { version = "1.18.1", default-features = false }
-async-std = "1.13.2"
+async-std = { version = "1.13.2", features = ["unstable"] }
 egui = "0.33.3"
 eframe = "0.33.3"
