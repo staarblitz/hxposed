@@ -1,14 +1,13 @@
 use crate::nt::process::NtProcess;
 use crate::nt::registry::NtKey;
 use crate::utils::alloc::PoolAllocSized;
-use crate::win::utf_to_unicode::Utf8ToUnicodeString;
-use crate::win::utils::{RtlBufferContainsBuffer, _RtlDuplicateUnicodeString};
+use crate::win::unicode_string::{self, UnicodeString};
+use alloc::string::ToString;
 use core::arch::x86_64::{
     __m128i, _mm_cmpeq_epi64, _mm_loadu_si128, _mm_movemask_pd, _mm_set1_epi64x,
 };
-use wdk::dbg_break;
-use wdk_sys::ntddk::*;
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::*;
 use wdk_sys::*;
 
 pub static mut VALID_CALLERS: [u64; 256] = [0; 256];
@@ -213,53 +212,25 @@ impl HxGuard {
                     }
                 }
 
-                // UNICODE_STRING boilerplate to get absolute path for the registry notification
+                let remaining_name =
+                    UnicodeString::from_unicode_string(unsafe { &*op_info.RemainingName });
+                let mut path = UnicodeString::from_unicode_string(&alloc.Name);
+                path.concat("\\");
+                path.concat_from_unicode_string(&remaining_name);
 
-                let mut dup = unsafe { _RtlDuplicateUnicodeString(&mut alloc.as_mut().Name, 256) };
+                if path.contains("HxPosed") {
+                    let process = NtProcess::current();
 
-                let _ = unsafe {
-                    RtlAppendUnicodeStringToString(dup.as_mut(), "\\".to_unicode_string().as_mut())
-                };
-                let _ =
-                    unsafe { RtlAppendUnicodeStringToString(dup.as_mut(), op_info.RemainingName) };
+                    let process_path = process.get_nt_path();
 
-                let path = "SOFTWARE\\HxPosed".to_unicode_string();
-
-                // RtlCompareUnicodeString won't work, because "target" is inside "source", but unknown where.
-                let result = unsafe {
-                    RtlBufferContainsBuffer(
-                        dup.as_ref().Buffer as _,
-                        dup.as_ref().Length as _,
-                        path.as_ref().Buffer as _,
-                        path.as_ref().Length as _,
-                    )
-                };
-
-                if !result {
-                    return STATUS_SUCCESS;
+                    return if !process_path.contains("HxPosed.GUI.exe") {
+                        STATUS_ACCESS_DENIED
+                    } else {
+                        STATUS_SUCCESS
+                    };
                 }
 
-                let process = NtProcess::current();
-
-                // we need to convert this to a DOS path. Otherwise, it will be vulnerable to attacks from other drives. like F:\Program Files\\HxPosed\\HxPosed.GUI.exe
-                let path = "HxPosed.GUI.exe".to_unicode_string();
-
-                let process_path = &unsafe { *process.nt_path };
-
-                let result = unsafe {
-                    RtlBufferContainsBuffer(
-                        process_path.Buffer as _,
-                        process_path.Length as _,
-                        path.as_ref().Buffer as _,
-                        path.as_ref().Length as _,
-                    )
-                };
-
-                return if result {
-                    STATUS_SUCCESS
-                } else {
-                    STATUS_ACCESS_DENIED
-                };
+                return STATUS_SUCCESS;
             }
             _ => {}
         }
