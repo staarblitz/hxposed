@@ -2,7 +2,7 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 #[repr(u16)]
 pub enum GetProcessFieldResponse {
     NtPath(u16) = 1,

@@ -15,7 +15,7 @@ pub struct RWProcessMemoryRequest {
     pub operation: ProcessMemoryOperation,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct ProtectProcessMemoryRequest {
     pub process: ProcessObject,
     pub address: usize,

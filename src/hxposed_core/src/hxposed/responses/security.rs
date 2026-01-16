@@ -3,7 +3,7 @@ use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::services::types::security_fields::{ImpersonationLevel, TokenPrivilege, TokenType};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 #[repr(u16)]
 pub enum GetTokenFieldResponse {
     SourceName(u64), // actually a char[8] lol

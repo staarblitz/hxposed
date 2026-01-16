@@ -9,7 +9,7 @@ pub struct RWProcessMemoryResponse {
     pub bytes_processed: usize,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default)]
 pub struct ProtectProcessMemoryResponse {
     pub old_protection: MemoryProtection,
     pub base_address: u64,
