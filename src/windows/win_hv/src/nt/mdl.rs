@@ -1,5 +1,5 @@
-use core::hash::{Hash, Hasher};
 use crate::utils::danger::DangerPtr;
+use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
 use wdk_sys::_MEMORY_CACHING_TYPE::{MmCached, MmNonCached};
 use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;

@@ -8,10 +8,10 @@ mod lock;
 pub(crate) mod mdl;
 pub(crate) mod probe;
 pub(crate) mod process;
+mod registry;
 pub(crate) mod thread;
 pub(crate) mod token;
 pub(crate) mod worker;
-mod registry;
 
 use crate::win::*;
 use core::ptr::null_mut;
