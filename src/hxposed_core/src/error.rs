@@ -32,6 +32,22 @@ impl HypervisorError {
         }
     }
 
+    pub fn async_cancel() -> HypervisorError {
+        Self {
+            error_source: ErrorSource::Hx,
+            error_code: InternalErrorCode::InvalidParams as _,
+            error_reason: 0
+        }
+    }
+
+    pub fn async_time_out() -> HypervisorError {
+        Self {
+            error_source: ErrorSource::Hx,
+            error_code: InternalErrorCode::TimeOut as _,
+            error_reason: 0
+        }
+    }
+
     pub fn not_found() -> HypervisorError {
         Self {
             error_source: ErrorSource::Hx,
