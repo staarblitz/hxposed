@@ -25,8 +25,8 @@ use core::ptr;
 use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
 use wdk_alloc::WdkAllocator;
-use wdk_sys::ntddk::{KeBugCheckEx, KeDelayExecutionThread};
 use wdk_sys::_MODE::KernelMode;
+use wdk_sys::ntddk::{KeBugCheckEx, KeDelayExecutionThread};
 use wdk_sys::{
     DRIVER_OBJECT, FALSE, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS, STATUS_TOO_LATE,
 };
