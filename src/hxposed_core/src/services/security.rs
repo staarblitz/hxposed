@@ -2,15 +2,15 @@
 #![allow(unused_parens)]
 
 use crate::error::HypervisorError;
+use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::security::*;
-use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::security::GetTokenFieldResponse;
+use crate::services::types::security_fields::TokenPrivilege;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
-use crate::services::types::security_fields::TokenPrivilege;
 
 #[derive(Debug)]
 pub struct HxToken {
@@ -24,13 +24,12 @@ impl Drop for HxToken {
 }
 
 impl HxToken {
-    pub(crate) async fn from_raw_object(addr: u64) -> Result<HxToken, HypervisorError> {
+    pub(crate) fn from_raw_object(addr: u64) -> Result<HxToken, HypervisorError> {
         OpenTokenRequest {
             token: addr,
             open_type: ObjectOpenType::Hypervisor,
         }
-        .send_async()
-        .await?;
+        .send()?;
 
         Ok(Self { addr })
     }
@@ -48,13 +47,12 @@ impl HxToken {
     ///
     /// ## Returns
     /// * Handle as an u64.
-    pub(crate) async fn open_handle(&self) -> Result<u64, HypervisorError> {
+    pub(crate) fn open_handle(&self) -> Result<u64, HypervisorError> {
         let resp = OpenTokenRequest {
             token: self.addr,
             open_type: ObjectOpenType::Handle,
         }
-        .send_async()
-        .await?;
+        .send()?;
 
         Ok(resp.object.into())
     }
@@ -76,8 +74,7 @@ impl HxToken {
     pub fn get_present_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
             token: self.addr,
-            field: TokenField::PresentPrivileges,
-            ..Default::default()
+            field: TokenField::PresentPrivileges(TokenPrivilege::None),
         }
         .send()?)
         {
@@ -103,10 +100,9 @@ impl HxToken {
     pub fn get_system_present_privileges() -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
             token: 0,
-            field: TokenField::PresentPrivileges,
-            ..Default::default()
+            field: TokenField::PresentPrivileges(TokenPrivilege::None),
         }
-            .send()?)
+        .send()?)
         {
             GetTokenFieldResponse::PresentPrivileges(privileges) => Ok(privileges),
             _ => unreachable!(),
@@ -133,10 +129,11 @@ impl HxToken {
         &self,
         privileges: TokenPrivilege,
     ) -> Result<EmptyResponse, HypervisorError> {
-        let mut boxed = Box::new(privileges);
-        SetTokenFieldRequest::set_enabled_privileges(self.addr, boxed.as_mut())
-            .send_async()
-            .await
+        SetTokenFieldRequest {
+            token: self.addr,
+            field: TokenField::EnabledPrivileges(privileges),
+        }
+        .send()
     }
 
     ///
@@ -155,8 +152,7 @@ impl HxToken {
     pub fn get_enabled_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
             token: self.addr,
-            field: TokenField::EnabledPrivileges,
-            ..Default::default()
+            field: TokenField::EnabledPrivileges(TokenPrivilege::None),
         }
         .send()?)
         {
@@ -181,8 +177,7 @@ impl HxToken {
     pub fn get_default_enabled_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
         match (GetTokenFieldRequest {
             token: self.addr,
-            field: TokenField::EnabledByDefaultPrivileges,
-            ..Default::default()
+            field: TokenField::EnabledByDefaultPrivileges(TokenPrivilege::None),
         }
         .send()?)
         {
@@ -205,14 +200,12 @@ impl HxToken {
     ///
     /// ## Return
     /// * [`String`] - A beautiful string.
-    pub async fn get_source_name(&self) -> Result<String, HypervisorError> {
+    pub fn get_source_name(&self) -> Result<String, HypervisorError> {
         match (GetTokenFieldRequest {
             token: self.addr,
-            field: TokenField::SourceName,
-            ..Default::default()
+            field: TokenField::SourceName(0),
         })
-        .send_async()
-        .await?
+        .send()?
         {
             GetTokenFieldResponse::SourceName(name) => {
                 // did I tell this u64 is a char[8]?
@@ -244,42 +237,20 @@ impl HxToken {
     /// ## Return
     /// * [`String`] - A beautiful string.
     pub async fn get_account_name(&self) -> Result<String, HypervisorError> {
-        let bytes = match (GetTokenFieldRequest {
-            token: self.addr,
-            field: TokenField::AccountName,
-            ..Default::default()
-        })
-        .send_async()
-        .await?
-        {
-            GetTokenFieldResponse::AccountName(len) => len,
-            _ => unreachable!(),
-        };
-
-        let mut buffer = Vec::<u16>::with_capacity(bytes as usize / 2);
-        assert_eq!(buffer.capacity(), bytes as usize / 2);
-
         match (GetTokenFieldRequest {
             token: self.addr,
-            field: TokenField::AccountName,
-            data: buffer.as_mut_ptr() as _,
-            data_len: buffer.capacity() as _,
+            field: TokenField::AccountName(0),
         })
-        .send_async()
-        .await?
+        .send()?
         {
-            GetTokenFieldResponse::AccountName(length) => {
-                assert_eq!(length, bytes);
-
-                unsafe {
-                    buffer.set_len(bytes as usize / 2);
-                }
-
-                match String::from_utf16(buffer.as_slice()) {
-                    Ok(str) => Ok(str),
-                    Err(_) => Err(HypervisorError::not_found()),
-                }
-            }
+            GetTokenFieldResponse::AccountName(offset) => unsafe {
+                let length = *((0x20090000 + offset) as *const usize);
+                Ok(String::from_utf16(core::slice::from_raw_parts(
+                    (0x20090000usize + (offset as usize) + size_of::<usize>()) as *const u16,
+                    length,
+                ))
+                .unwrap())
+            },
             _ => unreachable!(),
         }
     }

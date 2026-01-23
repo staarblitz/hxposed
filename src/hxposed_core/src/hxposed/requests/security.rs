@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
+use crate::hxposed::TokenObject;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use crate::hxposed::responses::security::*;
-use crate::services::types::security_fields::TokenPrivilege;
-use crate::hxposed::TokenObject;
+use crate::services::types::security_fields::{ImpersonationLevel, TokenPrivilege, TokenType};
 
 pub struct OpenTokenRequest {
     pub token: TokenObject,
@@ -17,45 +17,28 @@ pub struct CloseTokenRequest {
     pub token: TokenObject,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct GetTokenFieldRequest {
     pub token: TokenObject,
     pub field: TokenField,
-    pub data: usize,
-    pub data_len: usize,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct SetTokenFieldRequest {
     pub token: TokenObject,
     pub field: TokenField,
-    pub data: usize,
-    pub data_len: usize,
-}
-
-impl SetTokenFieldRequest {
-    pub(crate) fn set_enabled_privileges(addr: u64, new_privileges: &mut TokenPrivilege) -> Self {
-        Self {
-            token: addr,
-            field: TokenField::EnabledPrivileges,
-            data: new_privileges as *mut _ as _,
-            data_len: size_of::<TokenPrivilege>(),
-        }
-    }
 }
 
 impl VmcallRequest for SetTokenFieldRequest {
     type Response = EmptyResponse;
 
     fn into_raw(self) -> HypervisorRequest {
+        let args = self.field.into_raw_enum();
         HypervisorRequest {
             call: HypervisorCall::set_token_field(),
             arg1: self.token,
-            arg2: self.field.clone().into_bits() as _,
-
-            extended_arg1: self.data as _,
-            extended_arg2: self.data_len as _,
-
+            arg2: args.0,
+            arg3: args.1,
             ..Default::default()
         }
     }
@@ -63,9 +46,7 @@ impl VmcallRequest for SetTokenFieldRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             token: request.arg1,
-            field: TokenField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as _,
-            data_len: request.extended_arg2 as _,
+            field: TokenField::from_raw_enum(request.arg2, request.arg3),
         }
     }
 }
@@ -74,13 +55,12 @@ impl VmcallRequest for GetTokenFieldRequest {
     type Response = GetTokenFieldResponse;
 
     fn into_raw(self) -> HypervisorRequest {
+        let args = self.field.into_raw_enum();
         HypervisorRequest {
             call: HypervisorCall::get_token_field(),
             arg1: self.token,
-            arg2: self.field.clone().into_bits() as _,
-
-            extended_arg1: self.data as _,
-            extended_arg2: self.data_len as _,
+            arg2: args.0,
+            arg3: args.1,
 
             ..Default::default()
         }
@@ -89,9 +69,7 @@ impl VmcallRequest for GetTokenFieldRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             token: request.arg1,
-            field: TokenField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as _,
-            data_len: request.extended_arg2 as _,
+            field: TokenField::from_raw_enum(request.arg2, request.arg3),
         }
     }
 }
@@ -109,7 +87,9 @@ impl VmcallRequest for CloseTokenRequest {
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
-        Self { token: request.arg1 }
+        Self {
+            token: request.arg1,
+        }
     }
 }
 
@@ -134,39 +114,48 @@ impl VmcallRequest for OpenTokenRequest {
     }
 }
 
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TokenField {
-    #[default]
-    Unknown,
-    SourceName = 1,
-    AccountName = 2,
-    Type = 3,
-    IntegrityLevelIndex = 4,
-    MandatoryPolicy = 5,
-    ImpersonationLevel = 6,
-    PresentPrivileges = 7,
-    EnabledPrivileges = 8,
-    EnabledByDefaultPrivileges = 9,
+    SourceName(u64), // actually a char[8] lol
+    AccountName(u16),
+    Type(TokenType),
+    IntegrityLevelIndex(u32),
+    MandatoryPolicy(u32),
+    ImpersonationLevel(ImpersonationLevel),
+    EnabledPrivileges(TokenPrivilege),
+    PresentPrivileges(TokenPrivilege),
+    EnabledByDefaultPrivileges(TokenPrivilege),
 }
 
 impl TokenField {
-    pub const fn into_bits(self) -> u8 {
-        self as _
+    pub fn into_raw_enum(self) -> (u64, u64) {
+        match self {
+            TokenField::SourceName(x) => (1, x),
+            TokenField::AccountName(x) => (2, x as _),
+            TokenField::Type(x) => (3, x.into_bits() as _),
+            TokenField::IntegrityLevelIndex(x) => (4, x as _),
+            TokenField::MandatoryPolicy(x) => (5, x as _),
+            TokenField::ImpersonationLevel(x) => (6, x.into_bits() as _),
+            TokenField::EnabledPrivileges(x) => (7, x.bits() as _),
+            TokenField::PresentPrivileges(x) => (8, x.bits() as _),
+            TokenField::EnabledByDefaultPrivileges(x) => (9, x.bits() as _),
+        }
     }
 
-    pub const fn from_bits(bits: u8) -> Self {
-        match bits {
-            0 => TokenField::Unknown,
-            1 => TokenField::SourceName,
-            2 => TokenField::AccountName,
-            3 => TokenField::Type,
-            4 => TokenField::IntegrityLevelIndex,
-            5 => TokenField::MandatoryPolicy,
-            6 => TokenField::ImpersonationLevel,
-            7 => TokenField::PresentPrivileges,
-            8 => TokenField::EnabledPrivileges,
-            9 => TokenField::EnabledByDefaultPrivileges,
-            _ => TokenField::Unknown,
+    pub fn from_raw_enum(object: u64, value: u64) -> Self {
+        match object {
+            1 => TokenField::SourceName(value as _),
+            2 => TokenField::AccountName(value as _),
+            3 => TokenField::Type(TokenType::from_bits(value as _)),
+            4 => TokenField::IntegrityLevelIndex(value as _),
+            5 => TokenField::MandatoryPolicy(value as _),
+            6 => TokenField::ImpersonationLevel(ImpersonationLevel::from_bits(value as _)),
+            7 => TokenField::EnabledPrivileges(TokenPrivilege::from_bits_truncate(value as _)),
+            8 => TokenField::PresentPrivileges(TokenPrivilege::from_bits_truncate(value as _)),
+            9 => TokenField::EnabledByDefaultPrivileges(TokenPrivilege::from_bits_truncate(
+                value as _,
+            )),
+            _ => panic!(),
         }
     }
 }

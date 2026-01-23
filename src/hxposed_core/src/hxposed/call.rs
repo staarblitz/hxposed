@@ -7,14 +7,10 @@ use bitfield_struct::bitfield;
 pub struct HypervisorCall {
     #[bits(16)]
     pub func: ServiceFunction,
-    pub is_fast: bool,
     pub ignore_result: bool,
-    pub buffer_by_user: bool,
-    pub yield_execution: bool,
-    pub is_async: bool,
     pub extended_args_present: bool,
 
-    #[bits(10)]
+    #[bits(14)]
     pub reserved: u64,
 }
 
@@ -22,6 +18,14 @@ impl HypervisorCall {
     pub(crate) fn get_status() -> Self {
         // For this call, other fields are ignored.
         Self::new().with_func(ServiceFunction::GetState)
+    }
+
+    pub(crate) fn cancel_async_call() -> Self {
+        Self::new().with_func(ServiceFunction::CancelAsyncCall)
+    }
+
+    pub(crate) fn set_page_attr() -> Self {
+        Self::new().with_func(ServiceFunction::GetSetPageAttribute).with_extended_args_present(true)
     }
 
     pub(crate) fn auth() -> Self {
@@ -107,7 +111,7 @@ impl HypervisorCall {
     }
 
     pub(crate) fn mem_map() -> Self {
-        Self::new().with_func(ServiceFunction::MapMemory).with_extended_args_present(true)
+        Self::new().with_func(ServiceFunction::MapVaToPa)
     }
 
     pub(crate) fn free_mem() -> Self {
@@ -125,19 +129,16 @@ impl HypervisorCall {
     pub(crate) fn process_vm_op() -> Self {
         Self::new()
             .with_func(ServiceFunction::ProcessVMOperation)
-            .with_extended_args_present(true)
     }
 
     pub(crate) fn get_process_field() -> Self {
         Self::new()
             .with_func(ServiceFunction::GetProcessField)
-            .with_extended_args_present(true)
     }
 
     pub(crate) fn set_process_field() -> Self {
         Self::new()
             .with_func(ServiceFunction::SetProcessField)
-            .with_extended_args_present(true)
     }
 
     pub(crate) fn close_process() -> Self {

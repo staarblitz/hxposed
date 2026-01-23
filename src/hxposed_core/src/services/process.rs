@@ -11,12 +11,9 @@ use crate::intern::win::GetCurrentProcessId;
 use crate::services::memory::HxMemory;
 use crate::services::security::HxToken;
 use crate::services::types::process_fields::*;
-use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::pin::Pin;
-use core::ptr::null_mut;
-use crate::events::async_service::AsyncPromise;
+use core::arch::asm;
 
 #[derive(Debug)]
 pub struct HxProcess {
@@ -35,9 +32,11 @@ impl Drop for HxProcess {
     }
 }
 
-pub type AsyncFuture<T, X> = Pin<Box<AsyncPromise<T, X>>>;
-
 impl HxProcess {
+    pub fn system() -> Self {
+        Self::open(4).unwrap()
+    }
+
     ///
     /// # Current
     ///
@@ -61,13 +60,12 @@ impl HxProcess {
     ///
     /// ## Returns
     /// * Handle as an u64.
-    pub async fn open_handle(id: u32) -> Result<u64, HypervisorError> {
+    pub fn open_handle(id: u32) -> Result<u64, HypervisorError> {
         let result = OpenProcessRequest {
             process_id: id,
             open_type: ObjectOpenType::Handle,
         }
-        .send_async()
-        .await?;
+        .send()?;
 
         Ok(match result.object {
             ObjectType::Handle(handle) => handle,
@@ -86,16 +84,15 @@ impl HxProcess {
     ///
     /// ## Returns
     /// * [`HxToken`]
-    pub async fn get_primary_token(&self) -> Result<HxToken, HypervisorError> {
+    pub fn get_primary_token(&self) -> Result<HxToken, HypervisorError> {
         match (GetProcessFieldRequest {
             process: self.addr,
-            field: ProcessField::Token,
-            ..Default::default()
+            field: ProcessField::Token(0),
         }
-        .send_async()
-        .await?)
+        .send()?)
+        .field
         {
-            GetProcessFieldResponse::Token(addr) => Ok(HxToken::from_raw_object(addr).await?),
+            ProcessField::Token(addr) => Ok(HxToken::from_raw_object(addr)?),
             _ => unreachable!(),
         }
     }
@@ -117,15 +114,12 @@ impl HxProcess {
     ///
     /// ## Arguments
     /// - `token` - New token. See [`HxToken`]
-    pub async fn swap_token(&self, token: &HxToken) -> Result<EmptyResponse, HypervisorError> {
+    pub fn swap_token(&self, token: &HxToken) -> Result<EmptyResponse, HypervisorError> {
         SetProcessFieldRequest {
             process: self.addr,
-            field: ProcessField::Token,
-            data: token.addr as _,
-            data_len: 8,
+            field: ProcessField::Token(token.addr),
         }
-        .send_async()
-        .await
+        .send()
     }
 
     ///
@@ -136,14 +130,15 @@ impl HxProcess {
     /// ## Permissions
     /// * [`PluginPermissions::PROCESS_EXECUTIVE`]
     ///
-    pub async fn set_mitigation_options(
+    pub fn set_mitigation_options(
         &self,
         options: MitigationOptions,
     ) -> Result<EmptyResponse, HypervisorError> {
-        let mut boxed_options = Box::new(options);
-        SetProcessFieldRequest::set_mitigation_options(self.addr, boxed_options.as_mut())
-            .send_async()
-            .await
+        SetProcessFieldRequest {
+            process: self.addr,
+            field: ProcessField::MitigationFlags(options),
+        }
+        .send()
     }
 
     ///
@@ -159,13 +154,12 @@ impl HxProcess {
     pub fn get_mitigation_options(&self) -> Result<MitigationOptions, HypervisorError> {
         let result = GetProcessFieldRequest {
             process: self.addr,
-            field: ProcessField::MitigationFlags,
-            ..Default::default()
+            field: ProcessField::MitigationFlags(MitigationOptions::default()),
         }
         .send()?;
 
-        match result {
-            GetProcessFieldResponse::Mitigation(x) => Ok(MitigationOptions::from(x)),
+        match result.field {
+            ProcessField::MitigationFlags(x) => Ok(MitigationOptions::from(x)),
             _ => unreachable!(),
         }
     }
@@ -183,32 +177,22 @@ impl HxProcess {
     ///
     /// ## Returns
     /// * [`Vec<u32>`] - Vector containing the ids of threads under specified process.
-    pub async fn get_threads(&self) -> Result<Vec<u32>, HypervisorError> {
-        let result = GetProcessThreadsRequest {
+    pub fn get_threads(&self) -> Result<&[u32], HypervisorError> {
+        match (GetProcessFieldRequest {
             process: self.addr,
-            data: 0 as _,
-            data_len: 0,
+            field: ProcessField::Threads(0),
+        })
+        .send()?.field
+        {
+            ProcessField::Threads(offset) => unsafe {
+                let length = *((0x20090000 + offset) as *const usize);
+                Ok(core::slice::from_raw_parts(
+                    (0x20090000usize + (offset as usize) + size_of::<usize>()) as *const u32,
+                    length,
+                ))
+            },
+            _ => unreachable!(),
         }
-        .send_async()
-        .await?;
-
-        let mut buffer = Vec::<u32>::with_capacity(result.number_of_threads as _);
-
-        let result = GetProcessThreadsRequest {
-            process: self.addr,
-            data: buffer.as_mut_ptr() as _,
-            data_len: (buffer.capacity() as i32 * 4) as _,
-        }
-        .send_async()
-        .await?;
-
-        assert_eq!(buffer.capacity(), result.number_of_threads as _);
-
-        unsafe {
-            buffer.set_len(result.number_of_threads as _);
-        }
-
-        Ok(buffer)
     }
 
     ///
@@ -240,9 +224,9 @@ impl HxProcess {
         Ok(Self {
             id,
             memory: HxMemory {
-                process: call.object.into(),
+                process: call.object.into_raw().1,
             },
-            addr: call.object.into(),
+            addr: call.object.into_raw().1,
         })
     }
 
@@ -273,9 +257,12 @@ impl HxProcess {
     pub fn set_protection(
         &mut self,
         new_protection: ProcessProtection,
-    ) -> AsyncFuture<SetProcessFieldRequest, EmptyResponse> {
-        let mut boxed_protection = Box::new(new_protection);
-        SetProcessFieldRequest::set_protection(self.addr, boxed_protection.as_mut()).send_async()
+    ) -> Result<EmptyResponse, HypervisorError> {
+        SetProcessFieldRequest {
+            process: self.addr,
+            field: ProcessField::Protection(new_protection),
+        }
+        .send()
     }
 
     ///
@@ -307,9 +294,12 @@ impl HxProcess {
     pub fn set_signature_levels(
         &mut self,
         new_levels: ProcessSignatureLevels,
-    ) -> AsyncFuture<SetProcessFieldRequest, EmptyResponse> {
-        let mut boxed_levels = Box::new(new_levels);
-        SetProcessFieldRequest::set_signature_levels(self.addr, boxed_levels.as_mut()).send_async()
+    ) -> Result<EmptyResponse, HypervisorError> {
+        SetProcessFieldRequest {
+            process: self.addr,
+            field: ProcessField::Signers(new_levels),
+        }
+        .send()
     }
 
     ///
@@ -340,15 +330,12 @@ impl HxProcess {
     pub fn get_signature_levels(&self) -> Result<ProcessSignatureLevels, HypervisorError> {
         let result = GetProcessFieldRequest {
             process: self.addr,
-            field: ProcessField::Signers,
-            ..Default::default()
+            field: ProcessField::Signers(ProcessSignatureLevels::default()),
         }
         .send()?;
 
-        match result {
-            GetProcessFieldResponse::Signers(signers) => {
-                Ok(ProcessSignatureLevels::from_bits(signers))
-            }
+        match result.field {
+            ProcessField::Signers(signers) => Ok(signers),
             _ => unreachable!(),
         }
     }
@@ -377,15 +364,12 @@ impl HxProcess {
     pub fn get_protection(&self) -> Result<ProcessProtection, HypervisorError> {
         let result = GetProcessFieldRequest {
             process: self.addr,
-            field: ProcessField::Protection,
-            ..Default::default()
+            field: ProcessField::Protection(ProcessProtection::default()),
         }
         .send()?;
 
-        match result {
-            GetProcessFieldResponse::Protection(protection) => {
-                Ok(ProcessProtection::from_bits(protection as _))
-            }
+        match result.field {
+            ProcessField::Protection(signers) => Ok(signers),
             _ => unreachable!(),
         }
     }
@@ -407,54 +391,27 @@ impl HxProcess {
     /// ## Return
     /// * [`String`] - Full path of the process.
     /// * [`HypervisorError::not_found`] - Unable to decode string from UTF16.
-    pub async fn get_nt_path(&self) -> Result<String, HypervisorError> {
-
-        let promise = GetProcessFieldRequest {
+    pub fn get_nt_path(&self) -> Result<String, HypervisorError> {
+        match (GetProcessFieldRequest {
             process: self.addr,
-            field: ProcessField::NtPath,
-            data: 0,
-            data_len: 0,
-        }
-        .send_async();
-
-        let bytes = match promise.await {
-            Ok(GetProcessFieldResponse::NtPath(length)) => length,
-            Ok(_) => unreachable!(),
-            Err(e) => return Err(e),
-        };
-
-        let mut buffer = Vec::<u16>::with_capacity(bytes as usize / 2);
-        assert_eq!(buffer.capacity(), bytes as usize / 2);
-
-        let promise = GetProcessFieldRequest {
-            process: self.addr,
-            field: ProcessField::NtPath,
-            data: buffer.as_mut_ptr() as _,
-            data_len: buffer.capacity() as _,
-        }
-        .send_async();
-
-        match promise.await {
-            Ok(resp) => match resp {
-                GetProcessFieldResponse::NtPath(length) => {
-                    assert_eq!(length, bytes);
-
-                    unsafe {
-                        buffer.set_len(bytes as usize / 2);
-                    }
-
-                    match String::from_utf16(buffer.as_slice()) {
-                        Ok(str) => Ok(str),
-                        Err(_) => Err(HypervisorError::not_found()),
-                    }
-                }
-                _ => unreachable!(),
+            field: ProcessField::NtPath(0),
+        })
+        .send()?.field
+        {
+            ProcessField::NtPath(offset) => unsafe {
+                //TODO: Move this into a helper function
+                let length = *((0x20090000 + offset) as *const u32);
+                Ok(String::from_utf16(core::slice::from_raw_parts(
+                    (0x20090000usize + (offset as usize) + size_of::<u32>()) as *const u16,
+                    length as _,
+                ))
+                .unwrap())
             },
-            Err(e) => Err(e),
+            _ => unreachable!(),
         }
     }
 
-    ///
+    /*///
     /// # Kill
     ///
     /// Uses `PspTerminateProces` internally to terminate the process object.
@@ -491,5 +448,5 @@ impl HxProcess {
             exit_code,
         }
         .send_async()
-    }
+    }*/
 }

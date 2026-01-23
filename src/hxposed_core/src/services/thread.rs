@@ -51,9 +51,7 @@ impl HxThread {
         let result = SuspendResumeThreadRequest {
             thread: self.addr,
             operation: SuspendResumeThreadOperation::Suspend,
-        }
-        .send_async()
-        .await?;
+        }.send()?;
 
         Ok(result.previous_count)
     }
@@ -72,9 +70,7 @@ impl HxThread {
         let result = SuspendResumeThreadRequest {
             thread: self.addr,
             operation: SuspendResumeThreadOperation::Resume,
-        }
-        .send_async()
-        .await?;
+        }.send()?;
 
         Ok(result.previous_count)
     }
@@ -102,12 +98,8 @@ impl HxThread {
     ) -> Result<EmptyResponse, HypervisorError> {
         SetThreadFieldRequest {
             thread: self.addr,
-            field: ThreadField::AdjustedClientToken,
-            data: token.addr as _,
-            data_len: size_of::<u64>(),
-        }
-        .send_async()
-        .await
+            field: ThreadField::AdjustedClientToken(token.addr),
+        }.send()
     }
 
     ///
@@ -125,15 +117,11 @@ impl HxThread {
     pub async fn get_impersonation_token(&self) -> Result<HxToken, HypervisorError> {
         match (GetThreadFieldRequest {
             thread: self.addr,
-            field: ThreadField::AdjustedClientToken,
-
-            ..Default::default()
-        })
-        .send_async()
-        .await?
+            field: ThreadField::AdjustedClientToken(0),
+        }).send()?
         {
             GetThreadFieldResponse::AdjustedClientToken(x) => {
-                Ok(HxToken::from_raw_object(x).await?)
+                Ok(HxToken::from_raw_object(x)?)
             }
             _ => unreachable!(),
         }
@@ -153,9 +141,7 @@ impl HxThread {
     pub fn is_impersonating(&self) -> Result<bool, HypervisorError> {
         match (GetThreadFieldRequest {
             thread: self.addr,
-            field: ThreadField::ActiveImpersonationInfo,
-
-            ..Default::default()
+            field: ThreadField::ActiveImpersonationInfo(false),
         }
         .send()?)
         {
@@ -258,9 +244,7 @@ impl HxThread {
         KillThreadRequest {
             thread: self.addr,
             exit_code,
-        }
-        .send_async()
-        .await?;
+        }.send()?;
 
         Ok(())
     }
@@ -276,9 +260,7 @@ impl HxThread {
         let result = SuspendResumeThreadRequest {
             thread: self.addr,
             operation: SuspendResumeThreadOperation::Freeze,
-        }
-        .send_async()
-        .await?;
+        }.send()?;
 
         Ok(result.previous_count)
     }
@@ -301,9 +283,7 @@ impl HxThread {
             pid: 0,
             tid: id,
             open_type: ObjectOpenType::Handle,
-        }
-        .send_async()
-        .await?;
+        }.send()?;
 
         Ok(result.object.into())
     }

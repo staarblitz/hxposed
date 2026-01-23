@@ -81,22 +81,7 @@ impl HxCallback {
     where
         F: Fn(Result<AwaitNotificationResponse, HypervisorError>),
     {
-        loop {
-            if !self.active.load(Ordering::Relaxed) {
-                return;
-            }
 
-            func(
-                match (AwaitNotificationRequest {
-                    callback: self.callback,
-                }
-                    .send_async()
-                    .await)
-                {
-                    Ok(x) => Ok(x),
-                    Err(err) => Err(err),
-                },
-            );
-        }
+        loop {}
     }
 }

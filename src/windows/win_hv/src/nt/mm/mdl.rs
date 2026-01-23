@@ -1,23 +1,24 @@
+use crate::utils::alloc::PoolAllocSized;
 use crate::utils::danger::DangerPtr;
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
 use wdk_sys::_MEMORY_CACHING_TYPE::{MmCached, MmNonCached};
 use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
 use wdk_sys::ntddk::{
-    ExFreePool, IoAllocateMdl, MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool,
-    MmFreePagesFromMdl, MmMapLockedPagesSpecifyCache, MmUnmapLockedPages,
+    ExAllocatePool2, ExFreePool, IoAllocateMdl, MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl, MmMapLockedPagesSpecifyCache, MmProtectMdlSystemAddress, MmUnmapLockedPages
 };
 use wdk_sys::{
-    _MDL, FALSE, KPROCESSOR_MODE, MM_ALLOCATE_PREFER_CONTIGUOUS, NTSTATUS, PHYSICAL_ADDRESS, PIRP,
-    PVOID, STATUS_ACCESS_VIOLATION, STATUS_MEMORY_NOT_ALLOCATED,
+    _MDL, FALSE, KPROCESSOR_MODE, MM_ALLOCATE_PREFER_CONTIGUOUS, NTSTATUS, PFN_NUMBER, PHYSICAL_ADDRESS, PIRP, POOL_FLAG_NON_PAGED, PVOID, STATUS_ACCESS_VIOLATION, STATUS_MEMORY_NOT_ALLOCATED, STATUS_SUCCESS
 };
 
 /// Abstraction over MDL with Rust safety.
+#[derive(Debug)]
 pub struct MemoryDescriptor {
     pub mdl: DangerPtr<_MDL>,
     pub status: MapStatus,
     pub length: usize,
     pub owns: bool,
+    pub init: bool,
 }
 
 impl Hash for MemoryDescriptor {
@@ -29,6 +30,7 @@ impl Hash for MemoryDescriptor {
 unsafe impl Send for MemoryDescriptor {}
 unsafe impl Sync for MemoryDescriptor {}
 
+#[derive(Debug)]
 pub enum MapStatus {
     NotInitialized,
     Mapped(usize),
@@ -56,7 +58,22 @@ impl MemoryDescriptor {
             length: 0,
             status: MapStatus::NotInitialized,
             owns: false,
+            init:false,
         }
+    }
+
+    pub fn from_raw(ptr: PVOID, length: usize) -> Self {
+        let mut me = Self::default();
+        let mdl = unsafe {
+            ExAllocatePool2(POOL_FLAG_NON_PAGED, (size_of::<_MDL>() + size_of::<PFN_NUMBER>() * (((ptr as usize) + length + 4095) >> 12)) as u64, 0x2009)
+        };
+        me.mdl = DangerPtr { ptr: mdl as _ };
+        me.init = true;
+        me.owns = true;
+        me.length = length;
+        me.status = MapStatus::Allocated;
+
+        me
     }
 
     pub fn new_describe(ptr: PVOID, length: u32) -> Self {
@@ -67,6 +84,7 @@ impl MemoryDescriptor {
             length: length as _,
             status: MapStatus::Allocated,
             owns: true,
+            init:true
         };
         // this is crucial. because we should let the mdl know it's for non paged pool after IoAllocateMdl when it's going to be mapped to a user process.
         unsafe {
@@ -86,7 +104,9 @@ impl MemoryDescriptor {
         const ZERO: PHYSICAL_ADDRESS = PHYSICAL_ADDRESS { QuadPart: 0 };
         const MAX: PHYSICAL_ADDRESS = PHYSICAL_ADDRESS { QuadPart: i64::MAX };
 
-        let mdl = DangerPtr {
+        self.status = MapStatus::Allocated;
+        self.length = length;
+        self.mdl = DangerPtr {
             ptr: unsafe {
                 MmAllocatePagesForMdlEx(
                     ZERO,
@@ -98,11 +118,8 @@ impl MemoryDescriptor {
                 )
             },
         };
-
-        self.status = MapStatus::Allocated;
-        self.length = length;
-        self.mdl = mdl;
         self.owns = true;
+        self.init = true;
     }
 
     pub fn unmap(&mut self) -> Result<(), ()> {
@@ -115,10 +132,27 @@ impl MemoryDescriptor {
         }
     }
 
+    pub fn get_system_address(&self) -> usize {
+        self.mdl.MappedSystemVa as _
+    }
+
+    pub fn protect(
+        &self,
+        protection: u32
+    ) -> Result<(), NTSTATUS> {
+        match unsafe {
+            MmProtectMdlSystemAddress(self.mdl.ptr, protection)
+        } {
+            STATUS_SUCCESS => Ok(()),
+            err => Err(err)
+        }
+    }
+
     pub fn map(
         &mut self,
         address: Option<usize>,
         mode: KPROCESSOR_MODE,
+        flags: i32,
     ) -> Result<usize, NTSTATUS> {
         let address = match microseh::try_seh(|| unsafe {
             MmMapLockedPagesSpecifyCache(
@@ -127,7 +161,7 @@ impl MemoryDescriptor {
                 MmCached,
                 address.unwrap_or(0) as _,
                 FALSE as _,
-                HighPagePriority as _,
+                flags as _,
             )
         }) {
             Ok(ptr) => match ptr as usize {

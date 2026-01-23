@@ -1,183 +1,116 @@
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::ptr::null_mut;
+use core::sync::atomic::{AtomicPtr, Ordering};
 
 use crate::nt::callback::NtCallback;
-use crate::nt::mdl::MemoryDescriptor;
+
+use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
 use crate::nt::thread::NtThread;
 use crate::nt::token::NtToken;
-use crate::services::commands::AsyncCommand;
-use crate::utils::handlebox::HandleBox;
-use crate::utils::pop_guard::PopGuard;
+use crate::utils::alloc::PoolAlloc;
+use crate::utils::danger::DangerPtr;
 use alloc::boxed::Box;
 use alloc::collections::VecDeque;
 use hashbrown::HashMap;
 use hxposed_core::hxposed::{CallbackObject, MdlObject, ProcessObject, ThreadObject, TokenObject};
+use spin::mutex::SpinMutex;
 use spin::Once;
-use spin::mutex::{SpinMutex, SpinMutexGuard};
-use wdk_sys::_EVENT_TYPE::NotificationEvent;
-use wdk_sys::ntddk::{ZwCreateEvent, ZwSetEvent};
-use wdk_sys::{EVENT_ALL_ACCESS, FALSE, STATUS_SUCCESS};
+use wdk_sys::KEVENT;
 
-static GLOBAL_CALLBACKS: SpinMutex<Once<HashMap<u64, NtCallback>>> = SpinMutex::new(Once::new());
-static GLOBAL_THREADS: SpinMutex<Once<HashMap<u64, NtThread>>> = SpinMutex::new(Once::new());
-static GLOBAL_MDLS: SpinMutex<Once<HashMap<u64, MemoryDescriptor>>> = SpinMutex::new(Once::new());
-static GLOBAL_PROCESSES: SpinMutex<Once<HashMap<u64, NtProcess>>> = SpinMutex::new(Once::new());
-static GLOBAL_TOKENS: SpinMutex<Once<HashMap<u64, NtToken>>> = SpinMutex::new(Once::new());
-static GLOBAL_ASYNC_COMMANDS: SpinMutex<Once<VecDeque<Box<dyn AsyncCommand>>>> =
+pub(crate) mod async_obj;
+
+// reserved for guests
+static GLOBAL_CALLBACKS: SpinMutex<Once<HashMap<CallbackObject, NtCallback>>> =
     SpinMutex::new(Once::new());
-static GLOBAL_ASYNC_EVENT: AtomicU64 = AtomicU64::new(0);
-pub struct ObjectTracker {}
+static GLOBAL_THREADS: SpinMutex<Once<HashMap<ThreadObject, NtThread>>> =
+    SpinMutex::new(Once::new());
+static GLOBAL_MDLS: SpinMutex<Once<HashMap<MdlObject, MemoryDescriptor>>> =
+    SpinMutex::new(Once::new());
+static GLOBAL_PROCESSES: SpinMutex<Once<HashMap<ProcessObject, NtProcess>>> =
+    SpinMutex::new(Once::new());
+static GLOBAL_TOKENS: SpinMutex<Once<HashMap<TokenObject, NtToken>>> = SpinMutex::new(Once::new());
+
+#[repr(C)]
+pub struct ObjectTracker {
+    pub callbacks: HashMap<CallbackObject, NtCallback>,
+    pub threads: HashMap<ThreadObject, NtThread>,
+    pub tokens: HashMap<TokenObject, NtToken>,
+    pub processes: HashMap<ProcessObject, NtProcess>,
+    pub mdls: HashMap<MdlObject, MemoryDescriptor>,
+}
 
 impl ObjectTracker {
-    pub fn init_objects() {
-        GLOBAL_CALLBACKS.lock().call_once(|| HashMap::new());
-        GLOBAL_THREADS.lock().call_once(|| HashMap::new());
-        GLOBAL_MDLS.lock().call_once(|| HashMap::new());
-        GLOBAL_PROCESSES.lock().call_once(|| HashMap::new());
-        GLOBAL_TOKENS.lock().call_once(|| HashMap::new());
-        GLOBAL_ASYNC_COMMANDS.lock().call_once(|| VecDeque::new());
-        unsafe {
-            match ZwCreateEvent(
-                GLOBAL_ASYNC_EVENT.as_ptr() as _,
-                EVENT_ALL_ACCESS,
-                Default::default(),
-                NotificationEvent,
-                FALSE as _,
-            ) {
-                STATUS_SUCCESS => {}
-                err => {
-                    panic!("Failed to register async worker event!");
-                }
-            }
-        }
+    pub fn alloc_new() -> *mut Self {
+        let mut me = DangerPtr {
+            ptr: Box::into_raw(Self::alloc()),
+        };
+
+        me.callbacks = HashMap::new();
+        me.threads = HashMap::new();
+        me.tokens = HashMap::new();
+        me.processes = HashMap::new();
+        me.mdls = HashMap::new();
+
+        me.ptr
     }
 
-    pub fn queue_command(command: Box<dyn AsyncCommand>) {
-        {
-            unsafe {
-                GLOBAL_ASYNC_COMMANDS
-                    .lock()
-                    .get_mut_unchecked()
-                    .push_back(command);
-            }
-        }
-
-        let result = unsafe { ZwSetEvent(Self::get_async_event() as _, Default::default()) };
-        assert!(result == STATUS_SUCCESS)
+    pub fn add_mdl(&mut self, mdl: MemoryDescriptor) {
+        self.mdls.insert(mdl.mdl.ptr as _, mdl);
     }
 
-    pub fn dequeue_command() -> Option<Box<dyn AsyncCommand>> {
-        unsafe { GLOBAL_ASYNC_COMMANDS.lock().get_mut_unchecked().pop_front() }
+    pub fn add_callback(&mut self, callback: NtCallback) {
+        self.callbacks.insert(callback.callback, callback);
     }
 
-    pub fn add_mdl(mdl: MemoryDescriptor) {
-        unsafe {
-            GLOBAL_MDLS
-                .lock()
-                .get_mut_unchecked()
-                .insert(mdl.mdl.ptr as _, mdl);
-        }
+    pub fn add_open_process(&mut self, process: NtProcess) {
+        self.processes.insert(process.nt_process as _, process);
     }
 
-    pub fn add_callback(callback: NtCallback) {
-        unsafe {
-            GLOBAL_CALLBACKS
-                .lock()
-                .get_mut_unchecked()
-                .insert(callback.callback, callback);
-        }
+    pub fn add_open_thread(&mut self, thread: NtThread) {
+        self.threads.insert(thread.nt_thread as _, thread);
     }
 
-    pub fn add_open_process(process: NtProcess) {
-        unsafe {
-            GLOBAL_PROCESSES
-                .lock()
-                .get_mut_unchecked()
-                .insert(process.nt_process as _, process);
-        }
+    pub fn add_open_token(&mut self, token: NtToken) {
+        self.tokens.insert(token.nt_token as _, token);
     }
 
-    pub fn add_open_thread(thread: NtThread) {
-        unsafe {
-            GLOBAL_THREADS
-                .lock()
-                .get_mut_unchecked()
-                .insert(thread.nt_thread as _, thread);
-        }
+    pub fn get_allocated_mdl(&mut self, mdl_addr: MdlObject) -> Option<&mut MemoryDescriptor> {
+        self.mdls.get_mut(&mdl_addr)
     }
 
-    pub fn add_open_token(token: NtToken) {
-        unsafe {
-            GLOBAL_TOKENS
-                .lock()
-                .get_mut_unchecked()
-                .insert(token.nt_token as _, token);
-        }
+    pub fn get_open_thread(&mut self, thread: ThreadObject) -> Option<&mut NtThread> {
+        self.threads.get_mut(&thread)
     }
 
-    pub fn get_allocated_mdl(
-        mdl_addr: MdlObject,
-    ) -> Option<PopGuard<'static, MdlObject, MemoryDescriptor>> {
-        let mut lock = GLOBAL_MDLS.lock();
-        unsafe {
-            match lock.get_mut_unchecked().remove(&mdl_addr) {
-                None => None,
-                Some(x) => Some(PopGuard::new(x.mdl.ptr as u64, x, &GLOBAL_MDLS)),
-            }
-        }
+    pub fn get_open_token(&mut self, token: TokenObject) -> Option<&mut NtToken> {
+        self.tokens.get_mut(&token)
     }
 
-    pub fn get_open_thread(
-        addr: ThreadObject,
-    ) -> Option<PopGuard<'static, ThreadObject, NtThread>> {
-        let mut lock = GLOBAL_THREADS.lock();
-        unsafe {
-            match lock.get_mut_unchecked().remove(&addr) {
-                None => None,
-                Some(x) => Some(PopGuard::new(x.nt_thread as u64, x, &GLOBAL_THREADS)),
-            }
-        }
+    pub fn get_open_process(&mut self, process: ProcessObject) -> Option<&mut NtProcess> {
+        self.processes.get_mut(&process)
     }
 
-    pub fn get_open_process(
-        addr: ProcessObject,
-    ) -> Option<PopGuard<'static, ProcessObject, NtProcess>> {
-        let mut lock = GLOBAL_PROCESSES.lock();
-        unsafe {
-            match lock.get_mut_unchecked().remove(&addr) {
-                None => None,
-                Some(x) => Some(PopGuard::new(x.nt_process as u64, x, &GLOBAL_PROCESSES)),
-            }
-        }
+    pub fn get_callback(&mut self, mdl_addr: CallbackObject) -> Option<&mut NtCallback> {
+        self.callbacks.get_mut(&mdl_addr)
     }
 
-    pub fn get_open_token(addr: TokenObject) -> Option<PopGuard<'static, TokenObject, NtToken>> {
-        let mut lock = GLOBAL_TOKENS.lock();
-        unsafe {
-            match lock.get_mut_unchecked().remove(&addr) {
-                None => None,
-                Some(x) => Some(PopGuard::new(x.nt_token as u64, x, &GLOBAL_TOKENS)),
-            }
-        }
+    pub fn pop_open_process(&mut self, process: ProcessObject) -> Option<NtProcess> {
+        self.processes.remove(&process)
     }
 
-    pub fn get_callback(
-        callback: CallbackObject,
-    ) -> Option<PopGuard<'static, CallbackObject, NtCallback>> {
-        let mut lock = GLOBAL_CALLBACKS.lock();
-        unsafe {
-            match lock.get_mut_unchecked().remove(&callback) {
-                None => None,
-                Some(x) => Some(PopGuard::new(x.callback as u64, x, &GLOBAL_CALLBACKS)),
-            }
-        }
+    pub fn pop_open_thread(&mut self, thread: ThreadObject) -> Option<NtThread> {
+        self.threads.remove(&thread)
     }
 
-    pub fn get_callbacks_lock<'a>() -> SpinMutexGuard<'a, Once<HashMap<u64, NtCallback>>> {
-        GLOBAL_CALLBACKS.lock()
+    pub fn pop_allocated_mdl(&mut self, mdl: MdlObject) -> Option<MemoryDescriptor> {
+        self.mdls.remove(&mdl)
     }
 
-    pub fn get_async_event() -> u64 {
-        GLOBAL_ASYNC_EVENT.load(Ordering::Relaxed)
+    pub fn pop_open_token(&mut self, token: ProcessObject) -> Option<NtToken> {
+        self.tokens.remove(&token)
+    }
+
+    pub fn pop_open_callback(&mut self, callback: CallbackObject) -> Option<NtCallback> {
+        self.callbacks.remove(&callback)
     }
 }

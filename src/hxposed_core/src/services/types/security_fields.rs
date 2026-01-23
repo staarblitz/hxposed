@@ -10,7 +10,7 @@ pub struct Luid {
     pub high: i32,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(C)]
 pub enum TokenType {
     Primary = 0,
@@ -31,7 +31,7 @@ impl TokenType {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(C)]
 pub enum ImpersonationLevel {
     Anonymous = 0,
@@ -88,7 +88,7 @@ pub enum TokenFlags {
 
 // why cargo fmt doesn't work?
 #[bitflag(u64)]
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq)]
 pub enum TokenPrivilege {
     #[default]
     None = 0,

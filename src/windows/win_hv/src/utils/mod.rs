@@ -1,10 +1,11 @@
 pub(crate) mod alloc;
+pub(crate) mod benchmark;
 pub(crate) mod danger;
 pub(crate) mod handlebox;
 pub(crate) mod logger;
 pub(crate) mod macros;
-pub(crate) mod pop_guard;
 pub(crate) mod rng;
 pub(crate) mod scanner;
-mod sehptr;
 pub(crate) mod timing;
+pub(crate) mod transaction;
+pub(crate) mod intrinsic;

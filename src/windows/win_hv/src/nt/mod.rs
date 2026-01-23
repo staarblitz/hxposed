@@ -4,23 +4,30 @@
 pub(crate) mod callback;
 pub(crate) mod context;
 pub(crate) mod guard;
-mod lock;
-pub(crate) mod mdl;
+pub(crate) mod lock;
+pub(crate) mod object;
 pub(crate) mod probe;
 pub(crate) mod process;
-mod registry;
+pub(crate )mod registry;
 pub(crate) mod thread;
 pub(crate) mod token;
-pub(crate) mod worker;
+pub(crate) mod event;
+pub(crate) mod mm;
+pub(crate) mod arch;
 
+use alloc::string::String;
+use alloc::vec::Vec;
 use crate::win::*;
 use core::ptr::null_mut;
+use core::str::FromStr;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use hxposed_core::services::types::security_fields::TokenPrivilege;
 use wdk_sys::ntddk::{PsGetVersion, PsLookupProcessByProcessId, PsReferencePrimaryToken};
-use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, ULONG};
+use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, ULONG, WCHAR};
+use crate::nt::registry::NtKey;
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
+pub(crate) static NT_UBR: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_BASE: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 pub(crate) static SYSTEM_TOKEN: AtomicPtr<u64> = AtomicPtr::new(null_mut());
 
@@ -41,22 +48,25 @@ pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 ///
 /// - No values returned. [`NT_BASE`] and [`NT_BUILD`] are changed accordingly.
 #[allow(static_mut_refs)]
-pub(crate) fn get_nt_info(custom: Option<u32>) -> Result<(), ()> {
-    let build_number = {
-        if let Some(build_number) = custom {
-            build_number
-        } else {
-            let mut build = ULONG::default();
-            unsafe { PsGetVersion(null_mut(), null_mut(), &mut build, null_mut()) };
+pub(crate) fn get_nt_info() -> Result<(), ()> {
+    // kys
+    let current_version = NtKey::open("\\Registry\\Machine\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion").unwrap();
 
-            build
-        }
-    };
+    // kys
+    let lcu_ver = current_version.get_value_string("LCUVer").unwrap().to_alloc_string();
+
+    let version_data = lcu_ver.split('.').collect::<Vec<&str>>();
+
+    let build_number = u32::from_str(version_data[2]).unwrap();
+    let ubr_ver = u32::from_str(version_data[3]).unwrap();
 
     NT_BUILD.store(build_number as _, Ordering::Relaxed);
+    NT_UBR.store(ubr_ver as _, Ordering::Relaxed);
 
-    match build_number {
-        26200 => {}
+    match (build_number, ubr_ver) {
+        (26100, 6584) => {
+            log::info!("Running on 25H2")
+        }
         _ => {
             log::error!(
                 "HxPosed does not support your Windows version: {}",
@@ -81,6 +91,12 @@ pub(crate) fn get_nt_info(custom: Option<u32>) -> Result<(), ()> {
         // NT_PS_GET_CONTEXT_THREAD_INTERNAL =
         //     get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspGetContextThreadInternal)
         //         as _;
+
+        NT_EXP_LOOKUP_HANDLE_TABLE_ENTRY = get_nt_proc::<ExpLookupHandleTableEntryType>(
+            NtProcedure::ExpLookupHandleTableEntry
+        ) as _;
+
+        NT_EX_CREATE_HANDLE = get_nt_proc::<ExCreateHandleType>(NtProcedure::ExCreateHandle) as _;
 
         NT_PS_TERMINATE_THREAD =
             get_nt_proc::<PsTerminateThreadType>(NtProcedure::PspTerminateThreadByPointer) as _;
@@ -124,18 +140,21 @@ fn get_system_token() {
 ///
 pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
+    let ubr = NT_UBR.load(Ordering::Relaxed);
     let base = NT_BASE.load(Ordering::Relaxed) as *mut u8;
     unsafe {
-        base.add(match build {
-            26200 /* 25H2 */ => {
+        base.add(match (build, ubr) {
+            (26100, 6584) /* 25H2 */ => {
                 match proc {
                     NtProcedure::PsTerminateProcessProc => 0x91f3d4,
                     NtProcedure::PspGetContextThreadInternal => 0x909940,
                     NtProcedure::PspSetContextThreadInternal => 0x9095f0,
                     NtProcedure::PspTerminateThreadByPointer => 0x8f48f0,
+                    NtProcedure::ExpLookupHandleTableEntry => 0x850180,
+                    NtProcedure::ExCreateHandle => 0xa1b200,
                 }
             }
-            _ => panic!("Unknown NT build {}", build)
+            _ => panic!("Unknown NT build {}, {}", build, ubr)
         }) as *mut T
     }
 }
@@ -159,9 +178,10 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
     process: PEPROCESS,
 ) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
+    let ubr = NT_UBR.load(Ordering::Relaxed);
     unsafe {
-        process.byte_offset(match build {
-            26200 /* 25H2 */ => {
+        process.byte_offset(match (build, ubr) {
+            (26100, 6584) /* 25H2 */ => {
                 match field {
                     EProcessField::CreateTime => 0x1f8,
                     EProcessField::Token => 0x248,
@@ -178,10 +198,13 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
                     EProcessField::MitigationFlags3 => 0x7d8,
                     EProcessField::ThreadListHead => 0x370,
                     EProcessField::Lock => 0x1c8,
+                    EProcessField::ObjectTable => 0x300,
+                    EProcessField::Pad => 0xc0,
+                    EProcessField::DirectoryTableBase => 0x28
                 }
             }
             _ => {
-                panic!("Unknown NT build {}", build)
+                panic!("Unknown NT build {}, {}", build, ubr)
             }
         }) as *mut T
     }
@@ -206,9 +229,10 @@ pub(crate) unsafe fn get_ethread_field<T: 'static>(
     thread: PETHREAD,
 ) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
+    let ubr = NT_UBR.load(Ordering::Relaxed);
     unsafe {
-        thread.byte_offset(match build {
-            26200 /* 25H2 */ => {
+        thread.byte_offset(match (build, ubr) {
+            (26100, 6584) /* 25H2 */ => {
                 match field {
                     EThreadField::Lock => 0x590,
                     EThreadField::OffsetFromListEntry => -0x578, // returns the pointer to actual ETHREAD
@@ -218,7 +242,7 @@ pub(crate) unsafe fn get_ethread_field<T: 'static>(
                 }
             }
             _ => {
-                panic!("Unknown NT build {}", build)
+                panic!("Unknown NT build {}, {}", build, ubr)
             }
         }) as *mut T
     }
@@ -243,9 +267,10 @@ pub(crate) unsafe fn get_access_token_field<T: 'static>(
     token: PACCESS_TOKEN,
 ) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
+    let ubr = NT_UBR.load(Ordering::Relaxed);
     unsafe {
-        token.byte_offset(match build {
-            26200 /* 25H2 */ => {
+        token.byte_offset(match (build, ubr) {
+            (26100, 6584) /* 25H2 */ => {
                 match field {
                     AccessTokenField::TokenSource => 0x0,
                     AccessTokenField::LogonSession => 0xd8,
@@ -257,7 +282,7 @@ pub(crate) unsafe fn get_access_token_field<T: 'static>(
                 }
             }
             _ => {
-                panic!("Unknown NT build {}", build)
+                panic!("Unknown NT build {}, {}", build, ubr)
             }
         }) as *mut T
     }
@@ -282,9 +307,10 @@ pub(crate) unsafe fn get_logon_session_field<T: 'static>(
     token: PSEP_LOGON_SESSION_REFERENCES,
 ) -> *mut T {
     let build = NT_BUILD.load(Ordering::Relaxed);
+    let ubr = NT_UBR.load(Ordering::Relaxed);
     unsafe {
-        token.byte_offset(match build {
-            26200 /* 25H2 */ => {
+        token.byte_offset(match (build, ubr) {
+            (26100, 6584) /* 25H2 */ => {
                 match field {
                     LogonSessionField::LogonId => 0x8,
                     LogonSessionField::Flags => 0x20,
@@ -294,9 +320,21 @@ pub(crate) unsafe fn get_logon_session_field<T: 'static>(
                 }
             }
             _ => {
-                panic!("Unknown NT build {}", build)
+                panic!("Unknown NT build {}, {}", build, ubr)
             }
         }) as *mut T
+    }
+}
+
+pub(crate) unsafe fn get_object_header(object: *mut u64) -> *mut u64 {
+    unsafe {
+        object.byte_offset(-0x30)
+    }
+}
+
+pub(crate) unsafe fn get_object_body(object_header: *mut  u64) -> *mut u64 {
+    unsafe {
+        object_header.byte_offset(0x30)
     }
 }
 
@@ -305,6 +343,8 @@ pub enum NtProcedure {
     PspSetContextThreadInternal,
     PspGetContextThreadInternal,
     PspTerminateThreadByPointer,
+    ExpLookupHandleTableEntry,
+    ExCreateHandle
 }
 
 pub enum LogonSessionField {
@@ -350,6 +390,9 @@ pub enum EProcessField {
     MitigationFlags1,
     MitigationFlags2,
     MitigationFlags3,
+    ObjectTable,
+    Pad,
+    DirectoryTableBase
 }
 
 #[derive(Default, Debug, Clone)]

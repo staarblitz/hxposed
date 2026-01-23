@@ -11,6 +11,7 @@ pub(crate) mod unicode_string;
 use crate::utils::danger::DangerPtr;
 use ::alloc::boxed::Box;
 use ::alloc::vec::Vec;
+use bitfield_struct::bitfield;
 use core::arch::{asm, naked_asm};
 use core::ffi::c_void;
 use core::mem;
@@ -20,15 +21,12 @@ use wdk_sys::ntddk::{
     ExAllocatePool2, RtlCompareMemory, RtlCompareUnicodeString, RtlCopyUnicodeString,
     RtlFreeUnicodeString, RtlInitUTF8String, RtlUTF8StringToUnicodeString,
 };
-use wdk_sys::{
-    _DRIVER_OBJECT, BOOLEAN, CHAR, FALSE, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS,
-    OBJECT_ATTRIBUTES, PCLIENT_ID, PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES,
-    POOL_FLAG_NON_PAGED, PSECURITY_DESCRIPTOR, PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T,
-    STATUS_SUCCESS, TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING,
-};
+use wdk_sys::{_DRIVER_OBJECT, BOOLEAN, CHAR, FALSE, HANDLE, KPROCESSOR_MODE, LIST_ENTRY, NTSTATUS, OBJECT_ATTRIBUTES, PCLIENT_ID, PCONTEXT, PEPROCESS, PETHREAD, PHANDLE, POBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PSECURITY_DESCRIPTOR, PSIZE_T, PULONG, PUNICODE_STRING, PVOID, SIZE_T, STATUS_SUCCESS, TRUE, ULONG, UNICODE_STRING, USHORT, UTF8_STRING, INT32, _RTL_BALANCED_NODE, RTL_BITMAP, UCHAR};
 
 pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(PEPROCESS, NTSTATUS) -> NTSTATUS;
 pub(crate) type PsTerminateThreadType = unsafe extern "C" fn(PETHREAD, NTSTATUS, CHAR) -> NTSTATUS;
+pub(crate) type ExpLookupHandleTableEntryType = unsafe extern "C" fn(PHANDLE_TABLE, _EXHANDLE) -> *mut u64;
+pub(crate) type ExCreateHandleType = unsafe extern "C" fn(PHANDLE_TABLE, PVOID) -> *mut u64;
 
 #[unsafe(no_mangle)]
 pub(crate) static mut NT_PS_TERMINATE_PROCESS: u64 = 0;
@@ -38,6 +36,20 @@ pub(crate) static mut NT_PS_GET_CONTEXT_THREAD_INTERNAL: u64 = 0;
 pub(crate) static mut NT_PS_SET_CONTEXT_THREAD_INTERNAL: u64 = 0;
 #[unsafe(no_mangle)]
 pub(crate) static mut NT_PS_TERMINATE_THREAD: u64 = 0;
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_EXP_LOOKUP_HANDLE_TABLE_ENTRY: u64 = 0;
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_EX_CREATE_HANDLE: u64 = 0;
+
+pub unsafe extern "C" fn ExpLookupHandleTableEntry(Table: PHANDLE_TABLE, Handle: _EXHANDLE) -> *mut u64 {
+    let func: ExpLookupHandleTableEntryType = mem::transmute(NT_EXP_LOOKUP_HANDLE_TABLE_ENTRY);
+    func(Table, Handle)
+}
+
+pub unsafe extern "C" fn ExCreateHandle(Table: PHANDLE_TABLE, ObjectHeader: PVOID) -> *mut u64 {
+    let func: ExCreateHandleType = mem::transmute(NT_EX_CREATE_HANDLE);
+    func(Table, ObjectHeader)
+}
 
 pub unsafe extern "C" fn PsTerminateProcess(Process: PEPROCESS, ExitCode: NTSTATUS) -> NTSTATUS {
     let func: PsTerminateProcessType = mem::transmute(NT_PS_TERMINATE_PROCESS);
@@ -134,6 +146,31 @@ pub struct _LDR_DATA_TABLE_ENTRY {
     pub TlsIndex: USHORT,
     pub HashLinks: LIST_ENTRY,
     pub TimeDateStamp: ULONG,
+}
+
+/// This structure hasn't changed for 3 major updates.
+/// I think it's safe to manually use it.
+#[repr(C)]
+#[derive(Default, Clone)]
+pub struct _HANDLE_TABLE {
+    pub NextHandleNeedingPool: u32,
+    pub ExtraInfoPages: i32,
+    pub TableCode: u64,
+    pub QuotaProcess: PEPROCESS,
+    pub HandleTableList: LIST_ENTRY,
+    pub UniqueProcessId: u32,
+    pub Flags: u32,
+    pub HandleContentionEvent: u64, // push lock
+    pub HandleTableLock: u64,       // push lock
+                                    // rest is not required
+}
+
+pub type PHANDLE_TABLE = *mut _HANDLE_TABLE;
+
+#[repr(C)]
+#[derive(Default, Clone)]
+pub struct _EXHANDLE {
+    pub Value: u64
 }
 
 #[repr(u32)]

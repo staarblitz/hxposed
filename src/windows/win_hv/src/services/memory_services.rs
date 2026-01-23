@@ -1,313 +1,290 @@
-use crate::nt::mdl::MemoryDescriptor;
+use wdk_sys::ntddk::{ExAllocatePool2, ExFreePool, MmAllocateContiguousMemory, MmFreeContiguousMemory};
+use wdk_sys::{PHYSICAL_ADDRESS, POOL_FLAG_NON_PAGED};
+use crate::nt::arch::pt::{PageMapLevel5, PagingEntry};
+use crate::nt::arch::{phys_to_virt, virt_to_phys};
 use crate::nt::process::NtProcess;
-use crate::objects::ObjectTracker;
-use crate::services::commands::memory::*;
-use crate::utils::pop_guard::PopGuard;
-use crate::win::{MmCopyVirtualMemory, ZwProtectVirtualMemory};
-use alloc::boxed::Box;
-use core::ops::{BitAnd, Deref};
-use hv::hypervisor::host::Guest;
-use hxposed_core::events::UnsafeAsyncInfo;
-use hxposed_core::hxposed::call::ServiceParameter;
-use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::memory::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::services::types::memory_fields::MemoryProtection;
-use wdk_sys::_MODE::{KernelMode, UserMode};
-use wdk_sys::{SIZE_T, STATUS_INVALID_PAGE_PROTECTION, STATUS_SUCCESS, ULONG};
+use crate::nt::mm::rmd::RawMemoryDescriptor;
 
-pub(crate) fn free_mdl_sync(request: &FreeMemoryAsyncCommand) -> HypervisorResponse {
-    match ObjectTracker::get_allocated_mdl(request.command.mdl as _) {
-        Some(mdl) => {
-            mdl.take();
+pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorResponse {
+    let cr = NtProcess::from_ptr(request.addr_space as _).get_dtb();
+    match request.operation {
+        PageAttributeOperation::Set => {
+            match request.paging_type {
+                PagingType::Pml5(index) => {
+                    let field = PageMapLevel5::from_phys(cr, index);
+                    match request.attributes {
+                        PageAttributes::Present(x) => field.set_present(x),
+                        PageAttributes::Writable(x) => field.set_write(x),
+                        PageAttributes::UserAccessible(x) => field.set_user(x),
+                        PageAttributes::WriteThrough(x) => field.set_pwt(x),
+                        PageAttributes::NoCache(x) => field.set_pcd(x),
+                        PageAttributes::Accessed(x) => field.set_accessed(x),
+                        PageAttributes::Large(x) => field.set_large(x),
+                        PageAttributes::Global(x) => field.set_global(x),
+                        PageAttributes::Pfn(x) => field.set_pfn(Pfn::from_bits(x)),
+                        PageAttributes::ExecuteDisable(x) => field.set_nx(x),
+                        PageAttributes::CopyOnWrite(x) => field.set_cow(x),
+                        PageAttributes::SoftwareWrite(x) => field.set_sf_write(x),
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pml4(index, index2) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let field = pml5.walk_down(index2);
+                    match request.attributes {
+                        PageAttributes::Present(x) => field.set_present(x),
+                        PageAttributes::Writable(x) => field.set_write(x),
+                        PageAttributes::UserAccessible(x) => field.set_user(x),
+                        PageAttributes::WriteThrough(x) => field.set_pwt(x),
+                        PageAttributes::NoCache(x) => field.set_pcd(x),
+                        PageAttributes::Accessed(x) => field.set_accessed(x),
+                        PageAttributes::Large(x) => field.set_large(x),
+                        PageAttributes::Global(x) => field.set_global(x),
+                        PageAttributes::Pfn(x) => field.set_pfn(Pfn::from_bits(x)),
+                        PageAttributes::ExecuteDisable(x) => field.set_nx(x),
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pdp(index, index2, index3) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let pml4 = pml5.walk_down(index2);
+                    let field = pml4.walk_down(index3);
+                    match request.attributes {
+                        PageAttributes::Present(x) => field.set_present(x),
+                        PageAttributes::Writable(x) => field.set_write(x),
+                        PageAttributes::UserAccessible(x) => field.set_user(x),
+                        PageAttributes::WriteThrough(x) => field.set_pwt(x),
+                        PageAttributes::NoCache(x) => field.set_pcd(x),
+                        PageAttributes::Accessed(x) => field.set_accessed(x),
+                        PageAttributes::Large(x) => field.set_large(x),
+                        PageAttributes::Global(x) => field.set_global(x),
+                        PageAttributes::Pfn(x) => field.set_pfn(Pfn::from_bits(x)),
+                        PageAttributes::ExecuteDisable(x) => field.set_nx(x),
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pd(index, index2, index3, index4) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let pml4 = pml5.walk_down(index2);
+                    let pdp = pml4.walk_down(index3);
+                    let field = pdp.walk_down(index4);
+                    match request.attributes {
+                        PageAttributes::Present(x) => field.set_present(x),
+                        PageAttributes::Writable(x) => field.set_write(x),
+                        PageAttributes::UserAccessible(x) => field.set_user(x),
+                        PageAttributes::WriteThrough(x) => field.set_pwt(x),
+                        PageAttributes::NoCache(x) => field.set_pcd(x),
+                        PageAttributes::Accessed(x) => field.set_accessed(x),
+                        PageAttributes::Large(x) => field.set_large(x),
+                        PageAttributes::Pfn(x) => field.set_pfn(Pfn::from_bits(x)),
+                        PageAttributes::ExecuteDisable(x) => field.set_nx(x),
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pt(index, index2, index3, index4, index5) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let pml4 = pml5.walk_down(index2);
+                    let pdp = pml4.walk_down(index3);
+                    let pd = pdp.walk_down(index4);
+                    let field = pd.walk_down(index5);
+                    match request.attributes {
+                        PageAttributes::Present(x) => field.set_present(x),
+                        PageAttributes::Writable(x) => field.set_write(x),
+                        PageAttributes::UserAccessible(x) => field.set_user(x),
+                        PageAttributes::WriteThrough(x) => field.set_pwt(x),
+                        PageAttributes::NoCache(x) => field.set_pcd(x),
+                        PageAttributes::Accessed(x) => field.set_accessed(x),
+                        PageAttributes::Global(x) => field.set_global(x),
+                        PageAttributes::Pfn(x) => field.set_pfn(Pfn::from_bits(x)),
+                        PageAttributes::ExecuteDisable(x) => field.set_nx(x),
+                        PageAttributes::Dirty(x) => field.set_dirty(x),
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+            }
+
+            EmptyResponse::with_service(ServiceFunction::GetSetPageAttribute)
         }
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
-    };
-
-    EmptyResponse::with_service(ServiceFunction::FreeMemory)
-}
-
-pub(crate) fn free_mdl_async(
-    request: FreeMemoryRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    ObjectTracker::queue_command(Box::new(FreeMemoryAsyncCommand {
-        command: request,
-        async_info,
-    }));
-    EmptyResponse::with_service(ServiceFunction::MapMemory)
-}
-
-pub(crate) fn map_mdl_sync(request: &MapMemoryAsyncCommand) -> HypervisorResponse {
-    let mut mdl = match ObjectTracker::get_allocated_mdl(request.command.mdl as _) {
-        Some(mdl) => mdl,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
-    };
-
-    let process = match ObjectTracker::get_open_process(request.command.process as _) {
-        None => PopGuard::no_src(NtProcess::from_ptr(request.async_info.process as _)),
-        Some(x) => x,
-    };
-
-    let _ctx = process.begin_context();
-    let map_address = if request.command.map_address == 0 {
-        None
-    } else {
-        Some(request.command.map_address as _)
-    };
-
-    let result = match request.command.operation {
-        MapMemoryOperation::Map => {
-            let ptr = match mdl.map(map_address, UserMode as _) {
-                Ok(ptr) => ptr,
-                Err(err) => {
-                    return HypervisorResponse::nt_error(err as _);
+        PageAttributeOperation::Get => {
+            let response = match request.paging_type {
+                PagingType::Pml5(index) => {
+                    let field = PageMapLevel5::from_phys(cr, index);
+                    match request.attributes {
+                        PageAttributes::Present(_) => PageAttributes::Present(field.present()),
+                        PageAttributes::Writable(_) => PageAttributes::Writable(field.write()),
+                        PageAttributes::UserAccessible(_) => {
+                            PageAttributes::UserAccessible(field.user())
+                        }
+                        PageAttributes::WriteThrough(_) => {
+                            PageAttributes::WriteThrough(field.pwt())
+                        }
+                        PageAttributes::NoCache(_) => PageAttributes::NoCache(field.pcd()),
+                        PageAttributes::Accessed(_) => PageAttributes::Accessed(field.accessed()),
+                        PageAttributes::Large(_) => PageAttributes::Large(field.large()),
+                        PageAttributes::Global(_) => PageAttributes::Global(field.global()),
+                        PageAttributes::Pfn(_) => PageAttributes::Pfn(field.pfn().into_bits()),
+                        PageAttributes::ExecuteDisable(_) => {
+                            PageAttributes::ExecuteDisable(field.nx())
+                        }
+                        PageAttributes::CopyOnWrite(_) => PageAttributes::CopyOnWrite(field.cow()),
+                        PageAttributes::SoftwareWrite(_) => {
+                            PageAttributes::SoftwareWrite(field.sf_write())
+                        }
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pml4(index, index2) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let field = pml5.walk_down(index2);
+                    match request.attributes {
+                        PageAttributes::Present(_) => PageAttributes::Present(field.present()),
+                        PageAttributes::Writable(_) => PageAttributes::Writable(field.write()),
+                        PageAttributes::UserAccessible(_) => {
+                            PageAttributes::UserAccessible(field.user())
+                        }
+                        PageAttributes::WriteThrough(_) => {
+                            PageAttributes::WriteThrough(field.pwt())
+                        }
+                        PageAttributes::NoCache(_) => PageAttributes::NoCache(field.pcd()),
+                        PageAttributes::Accessed(_) => PageAttributes::Accessed(field.accessed()),
+                        PageAttributes::Large(_) => PageAttributes::Large(field.large()),
+                        PageAttributes::Global(_) => PageAttributes::Global(field.global()),
+                        PageAttributes::Pfn(_) => PageAttributes::Pfn(field.pfn().into_bits()),
+                        PageAttributes::ExecuteDisable(_) => {
+                            PageAttributes::ExecuteDisable(field.nx())
+                        }
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pdp(index, index2, index3) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let pml4 = pml5.walk_down(index2);
+                    let field = pml4.walk_down(index3);
+                    match request.attributes {
+                        PageAttributes::Present(_) => PageAttributes::Present(field.present()),
+                        PageAttributes::Writable(_) => PageAttributes::Writable(field.write()),
+                        PageAttributes::UserAccessible(_) => {
+                            PageAttributes::UserAccessible(field.user())
+                        }
+                        PageAttributes::WriteThrough(_) => {
+                            PageAttributes::WriteThrough(field.pwt())
+                        }
+                        PageAttributes::NoCache(_) => PageAttributes::NoCache(field.pcd()),
+                        PageAttributes::Accessed(_) => PageAttributes::Accessed(field.accessed()),
+                        PageAttributes::Large(_) => PageAttributes::Large(field.large()),
+                        PageAttributes::Global(_) => PageAttributes::Global(field.global()),
+                        PageAttributes::Pfn(_) => PageAttributes::Pfn(field.pfn().into_bits()),
+                        PageAttributes::ExecuteDisable(_) => {
+                            PageAttributes::ExecuteDisable(field.nx())
+                        }
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pd(index, index2, index3, index4) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let pml4 = pml5.walk_down(index2);
+                    let pdp = pml4.walk_down(index3);
+                    let field = pdp.walk_down(index4);
+                    match request.attributes {
+                        PageAttributes::Present(_) => PageAttributes::Present(field.present()),
+                        PageAttributes::Writable(_) => PageAttributes::Writable(field.write()),
+                        PageAttributes::UserAccessible(_) => {
+                            PageAttributes::UserAccessible(field.user())
+                        }
+                        PageAttributes::WriteThrough(_) => {
+                            PageAttributes::WriteThrough(field.pwt())
+                        }
+                        PageAttributes::NoCache(_) => PageAttributes::NoCache(field.pcd()),
+                        PageAttributes::Accessed(_) => PageAttributes::Accessed(field.accessed()),
+                        PageAttributes::Large(_) => PageAttributes::Large(field.large()),
+                        PageAttributes::Pfn(_) => PageAttributes::Pfn(field.pfn().into_bits()),
+                        PageAttributes::ExecuteDisable(_) => {
+                            PageAttributes::ExecuteDisable(field.nx())
+                        }
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
+                }
+                PagingType::Pt(index, index2, index3, index4, index5) => {
+                    let pml5 = PageMapLevel5::from_phys(cr, index);
+                    let pml4 = pml5.walk_down(index2);
+                    let pdp = pml4.walk_down(index3);
+                    let pd = pdp.walk_down(index4);
+                    let field = pd.walk_down(index5);
+                    match request.attributes {
+                        PageAttributes::Present(_) => PageAttributes::Present(field.present()),
+                        PageAttributes::Writable(_) => PageAttributes::Writable(field.write()),
+                        PageAttributes::UserAccessible(_) => {
+                            PageAttributes::UserAccessible(field.user())
+                        }
+                        PageAttributes::WriteThrough(_) => {
+                            PageAttributes::WriteThrough(field.pwt())
+                        }
+                        PageAttributes::NoCache(_) => PageAttributes::NoCache(field.pcd()),
+                        PageAttributes::Accessed(_) => PageAttributes::Accessed(field.accessed()),
+                        PageAttributes::Global(_) => PageAttributes::Global(field.global()),
+                        PageAttributes::Pfn(_) => PageAttributes::Pfn(field.pfn().into_bits()),
+                        PageAttributes::ExecuteDisable(_) => {
+                            PageAttributes::ExecuteDisable(field.nx())
+                        }
+                        PageAttributes::Dirty(_) => PageAttributes::Dirty(field.dirty()),
+                        _ => return HypervisorResponse::invalid_param(),
+                    }
                 }
             };
 
-            MapMemoryResponse {
-                mapped_address: ptr as _,
-            }
-            .into_raw()
+            PageAttributeResponse { result: response }.into_raw()
         }
-        MapMemoryOperation::Unmap => match mdl.unmap() {
-            Ok(_) => EmptyResponse::with_service(ServiceFunction::MapMemory),
-            Err(_) => HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
-        },
-    };
-
-    // paranoid
-    drop(_ctx);
-
-    result
-}
-
-pub(crate) fn map_mdl_async(
-    request: MapMemoryRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    ObjectTracker::queue_command(Box::new(MapMemoryAsyncCommand {
-        command: request,
-        async_info,
-    }));
-    EmptyResponse::with_service(ServiceFunction::MapMemory)
-}
-
-pub(crate) fn allocate_mdl_sync(request: &AllocateMemoryAsyncCommand) -> HypervisorResponse {
-    let mdl = match request.command.underlying_pages {
-        0 => MemoryDescriptor::new(request.command.size as _),
-        addr => MemoryDescriptor::new_describe(addr as _, request.command.size as _),
-    };
-
-    let ret = AllocateMemoryResponse {
-        mdl: mdl.mdl.ptr as _,
-        bytes_allocated: mdl.mdl.ByteCount,
     }
-    .into_raw();
-
-    ObjectTracker::add_mdl(mdl);
-    ret
 }
 
-pub(crate) fn allocate_mdl_async(
-    request: AllocateMemoryRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    ObjectTracker::queue_command(Box::new(AllocateMemoryAsyncCommand {
-        command: request,
-        async_info,
-    }));
-
-    EmptyResponse::with_service(ServiceFunction::AllocateMemory)
-}
-
-///
-/// # Protect Virtual Memory
-///
-/// Queues command for [`ProtectProcessMemoryAsyncCommand`] on specified plugin.
-///
-/// ## Arguments
-/// * `guest` - Currently unused.
-/// * `request` - Identifies the target process and the exit code to use. See [`ProtectProcessMemoryRequest`].
-/// * `plugin` - The plugin requesting the operation. See [`Plugin`].
-/// * `async_handle` - Handle object plugin created.
-///
-/// ## Warning
-/// - This function only enqueues the request; success does **not** imply the process was actually terminated.
-///
-/// ## Return
-/// * [`HypervisorResponse::not_found`] - The specified process does not exist.
-/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
-/// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
-/// * [`HypervisorResponse::nt_error`] - Invalid page protection specified.
-pub(crate) fn protect_vm_async(
-    mut request: ProtectProcessMemoryRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    request.protection = request
-        .protection
-        .bitand(!(MemoryProtection::Guard | MemoryProtection::NoCache));
-
-    let prot = request.protection.bits();
-
-    if !matches!(
-        prot,
-        x if x == MemoryProtection::None.bits()
-            || x == MemoryProtection::ReadOnly.bits()
-            || x == MemoryProtection::ReadWrite.bits()
-            || x == MemoryProtection::WriteCopy.bits()
-            || x == MemoryProtection::Execute.bits()
-            || x == MemoryProtection::ExecuteRead.bits()
-            || x == MemoryProtection::ExecuteReadWrite.bits()
-            || x == MemoryProtection::ExecuteWriteCopy.bits()
-    ) {
-        return HypervisorResponse::nt_error(STATUS_INVALID_PAGE_PROTECTION as _);
+pub fn map_va_to_pa(request: MapVaToPaRequest) -> HypervisorResponse {
+    if !request.virt.is_multiple_of(4096) {
+        return HypervisorResponse::invalid_param();
     }
 
-    ObjectTracker::queue_command(Box::new(ProtectProcessMemoryAsyncCommand {
-        command: request,
-        async_info,
-    }));
+    if !request.phys.is_multiple_of(4096) {
+        return HypervisorResponse::invalid_param();
+    }
 
-    EmptyResponse::with_service(ServiceFunction::ProtectProcessMemory)
+    let va = Va::from(request.virt);
+    let pa = Pa::from(request.phys);
+    let cr = NtProcess::from_ptr(request.addr_space as _);
+
+    match RawMemoryDescriptor::map(&cr, pa.into_pfn(), va) {
+        Ok(_) => EmptyResponse::with_service(ServiceFunction::MapVaToPa),
+        Err(_) => HypervisorResponse::not_found()
+    }
 }
 
-///
-/// # Protect Virtual Memory (sync)
-///
-/// Sets the protection of virtual memory
-///
-/// ## Arguments
-/// * `request` - Arguments for the request. See [`ProtectProcessMemoryAsyncCommand`].
-///
-/// ## Warning
-/// - Caller must signal the request *after* calling this function.
-///
-/// ## Return
-/// * [`HypervisorResponse::nt_error`] - An error occurred in `ZwProtectVirtualMemory`.
-/// * [`ProtectProcessMemoryResponse`] - Number of bytes processed.
-pub(crate) fn protect_vm_sync(request: &ProtectProcessMemoryAsyncCommand) -> HypervisorResponse {
-    let process = match ObjectTracker::get_open_process(request.command.process as _) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
-    };
-    let mut base = request.command.address;
-    let mut bytes_processed = 4096u64;
-    let mut protection = ULONG::default();
+pub fn allocate_memory(request: AllocateMemoryRequest) -> HypervisorResponse {
+    // we need to be in 4096 byte bound. or we die
 
-    let handle = match process.open_handle() {
-        Ok(handle) => handle,
-        Err(err) => return HypervisorResponse::nt_error(err as _),
-    };
+    let size = ((request.size + 4095) / 4096) * 4096;
 
-    let result = match unsafe {
-        ZwProtectVirtualMemory(
-            handle.get_danger(),
-            &mut base as *mut _ as u64 as _,
-            &mut bytes_processed as *mut _ as _,
-            request.command.protection.bits(),
-            &mut protection,
-        )
-    } {
-        STATUS_SUCCESS => ProtectProcessMemoryResponse {
-            bytes_processed: bytes_processed as _,
-            old_protection: MemoryProtection::from_bits(protection).unwrap(),
-            base_address: base as _,
+    let ptr = match request.memory_type {
+        MemoryType::NonPagedPool => unsafe {
+            ExAllocatePool2(POOL_FLAG_NON_PAGED, size as _, 0x2009)
         }
-        .into_raw(),
-        err => HypervisorResponse::nt_error(err as _),
-    };
-
-    result
-}
-
-///
-/// # Process VM (virtual memory, not virtual machine) Operation
-///
-/// Queues command for [`ProcessMemoryOperation`] on specified plugin.
-///
-/// ## Arguments
-/// * `guest` - Currently unused.
-/// * `request` - Identifies the target process and the exit code to use. See [`RWProcessMemoryRequest`].
-/// * `plugin` - The plugin requesting the operation. See [`Plugin`].
-/// * `async_handle` - Handle object plugin created.
-///
-/// ## Warning
-/// - This function only enqueues the request; success does **not** imply the process was actually terminated.
-///
-/// ## Return
-/// * [`HypervisorResponse::not_found`] - The specified process does not exist.
-/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
-/// * [`HypervisorResponse::ok`] - The request was successfully enqueued.
-pub(crate) fn process_vm_operation_async(
-    request: RWProcessMemoryRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    ObjectTracker::queue_command(Box::new(RWProcessMemoryAsyncCommand {
-        command: request,
-        async_info,
-    }));
-
-    EmptyResponse::with_service(ServiceFunction::ProcessVMOperation)
-}
-
-///
-/// # Process VM Operation (sync)
-///
-/// Reads or writes to process memory
-///
-/// ## Arguments
-/// * `request` - Arguments for the request. See [`RWProcessMemoryAsyncCommand`].
-///
-/// ## Warning
-/// - Caller must signal the request *after* calling this function.
-///
-/// ## Return
-/// * [`HypervisorResponse::nt_error`] - An error occurred in `MmCopyVirtualMemory`. Most likely page protection error.
-/// * [`RWProcessMemoryResponse`] - Number of bytes processed.
-pub(crate) fn process_vm_operation_sync(
-    request: &RWProcessMemoryAsyncCommand,
-) -> HypervisorResponse {
-    if request.command.data_len > 4096 * 4 {
-        return HypervisorResponse::not_allowed(NotAllowedReason::Unknown);
-    }
-
-    let process = match ObjectTracker::get_open_process(request.command.process as _) {
-        Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
-    };
-
-    let mut return_size = SIZE_T::default();
-
-    let (source, target) = match request.command.operation {
-        ProcessMemoryOperation::Read => (
-            process.deref(),
-            &NtProcess::from_ptr(request.async_info.process as _),
-        ),
-        ProcessMemoryOperation::Write => (
-            &NtProcess::from_ptr(request.async_info.process as _),
-            process.deref(),
-        ),
-    };
-
-    match unsafe {
-        MmCopyVirtualMemory(
-            source.nt_process,
-            request.command.address as _,
-            target.nt_process,
-            request.command.data as _,
-            request.command.data_len as _,
-            KernelMode as _,
-            &mut return_size,
-        )
-    } {
-        STATUS_SUCCESS => RWProcessMemoryResponse {
-            bytes_processed: return_size as _,
+        MemoryType::ContiguousPhysical => unsafe{
+            MmAllocateContiguousMemory(size as _, PHYSICAL_ADDRESS {QuadPart: u64::MAX as _})
         }
-        .into_raw(),
-        err => HypervisorResponse::nt_error(err as _),
+    };
+
+    AllocateMemoryResponse {
+        system_pa: virt_to_phys(ptr as _)
+    }.into_raw()
+}
+
+pub fn free_memory(request: FreeMemoryRequest) -> HypervisorResponse {
+    match request.memory_type {
+        MemoryType::NonPagedPool => unsafe{ ExFreePool(request.system_va as _)},
+        MemoryType::ContiguousPhysical => unsafe{MmFreeContiguousMemory(request.system_va as _)},
     }
+
+    EmptyResponse::with_service(ServiceFunction::FreeMemory)
 }

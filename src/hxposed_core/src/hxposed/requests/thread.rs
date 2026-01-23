@@ -38,33 +38,28 @@ pub struct GetSetThreadContextRequest {
     pub data_len: usize,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct GetThreadFieldRequest {
     pub thread: ThreadObject,
     pub field: ThreadField,
-    pub data: usize,
-    pub data_len: usize,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct SetThreadFieldRequest {
     pub thread: ThreadObject,
     pub field: ThreadField,
-    pub data: usize,
-    pub data_len: usize,
 }
 
 impl VmcallRequest for GetThreadFieldRequest {
     type Response = GetThreadFieldResponse;
 
     fn into_raw(self) -> HypervisorRequest {
+        let args = self.field.into_raw_enum();
         HypervisorRequest {
             call: HypervisorCall::get_thread_field(),
             arg1: self.thread as _,
-            arg2: self.field.clone() as _,
-
-            extended_arg1: self.data as _,
-            extended_arg2: self.data_len as _,
+            arg2: args.0,
+            arg3: args.1,
             ..Default::default()
         }
     }
@@ -72,9 +67,7 @@ impl VmcallRequest for GetThreadFieldRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             thread: request.arg1 as _,
-            field: ThreadField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as usize,
-            data_len: request.extended_arg2 as _,
+            field: ThreadField::from_raw_enum(request.arg2, request.arg3)
         }
     }
 }
@@ -83,14 +76,12 @@ impl VmcallRequest for SetThreadFieldRequest {
     type Response = EmptyResponse;
 
     fn into_raw(self) -> HypervisorRequest {
+        let args = self.field.into_raw_enum();
         HypervisorRequest {
             call: HypervisorCall::set_thread_field(),
             arg1: self.thread as _,
-            arg2: self.field.clone() as _,
-
-            extended_arg1: self.data as _,
-            extended_arg2: self.data_len as _,
-
+            arg2: args.0,
+            arg3: args.1,
             ..Default::default()
         }
     }
@@ -98,9 +89,7 @@ impl VmcallRequest for SetThreadFieldRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             thread: request.arg1 as _,
-            field: ThreadField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as _,
-            data_len: request.extended_arg2 as _,
+            field: ThreadField::from_raw_enum(request.arg2, request.arg3)
         }
     }
 }
@@ -199,7 +188,7 @@ impl VmcallRequest for OpenThreadRequest {
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
             call: match self.open_type.clone() {
-                ObjectOpenType::Handle => HypervisorCall::open_thread().with_is_async(true),
+                ObjectOpenType::Handle => HypervisorCall::open_thread(),
                 ObjectOpenType::Hypervisor => HypervisorCall::open_thread(),
             },
             arg1: self.pid as _,
@@ -219,25 +208,25 @@ impl VmcallRequest for OpenThreadRequest {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub enum ThreadField {
-    #[default]
-    Unknown = 0,
-    ActiveImpersonationInfo = 1,
-    AdjustedClientToken = 2,
+    ActiveImpersonationInfo(bool),
+    AdjustedClientToken(u64),
 }
 
 impl ThreadField {
-    pub const fn into_bits(self) -> u8 {
-        self as _
+    pub fn into_raw_enum(self) -> (u64, u64) {
+        match self {
+            ThreadField::ActiveImpersonationInfo(x) => (1, x as _),
+            ThreadField::AdjustedClientToken(x) => (2, x as _),
+        }
     }
 
-    pub const fn from_bits(bits: u8) -> Self {
-        match bits {
-            0 => ThreadField::Unknown,
-            1 => ThreadField::ActiveImpersonationInfo,
-            2 => ThreadField::AdjustedClientToken,
-            _ => unreachable!(),
+    pub fn from_raw_enum(object: u64, value: u64) -> Self {
+        match object {
+            1 => ThreadField::ActiveImpersonationInfo(value == 1),
+            2 => ThreadField::AdjustedClientToken(value as _),
+            _ => panic!()
         }
     }
 }

@@ -10,6 +10,7 @@ pub type ThreadObject = u64;
 pub type TokenObject = u64;
 pub type MdlObject = u64;
 pub type CallbackObject = u64;
+pub type AsyncCookie = u64;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum ObjectType {

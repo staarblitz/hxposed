@@ -34,6 +34,13 @@ impl HypervisorResponse {
         }
     }
 
+    pub fn invalid_param() -> Self {
+        Self {
+            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::InvalidParams),
+            ..Default::default()
+        }
+    }
+
     pub fn nt_error(reason: u32) -> Self {
         Self {
             result: HypervisorResult::error(ErrorSource::Nt, InternalErrorCode::Unknown),

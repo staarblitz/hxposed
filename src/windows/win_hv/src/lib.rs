@@ -18,8 +18,9 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::boot::HX_LOADER_PARAMETER_BLOCK;
 use crate::nt::guard::hxguard::HxGuard;
+use crate::nt::object::NtObject;
+use crate::nt::process::NtProcess;
 use crate::nt::thread::NtThread;
-use crate::nt::worker::async_worker_thread;
 use crate::utils::logger::NtLogger;
 use core::ptr;
 use core::ptr::null_mut;
@@ -30,6 +31,7 @@ use wdk_sys::ntddk::{KeBugCheckEx, KeDelayExecutionThread};
 use wdk_sys::{
     DRIVER_OBJECT, FALSE, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS, STATUS_TOO_LATE,
 };
+use crate::objects::async_obj::AsyncState;
 
 static mut HX_GUARD: HxGuard = HxGuard::new();
 
@@ -63,7 +65,9 @@ extern "C" fn driver_entry(
         ptr::read_volatile(&HX_LOADER_PARAMETER_BLOCK)
     };
 
-    match cfg.booted_from_hxloader {
+    match cfg.booted_from_hxloader
+     && !_driver.is_null() && !_registry_path.is_null() /* Make sure we are called from delayed_start */
+     {
         true => {
             log::info!("Loaded from HxLoader!");
             log::info!("Delaying startup....");
@@ -72,12 +76,12 @@ extern "C" fn driver_entry(
 
             return STATUS_SUCCESS;
         }
-        false => match nt::get_nt_info(None) {
-            Ok(_) => {}
-            Err(_) => {
-                return STATUS_TOO_LATE;
-            }
-        },
+        false => {}
+    }
+
+    match nt::get_nt_info() {
+        Err(_) => return STATUS_TOO_LATE,
+        Ok(_) => {}
     }
 
     // SAFETY: we know there is no other accessor currently
@@ -107,7 +111,8 @@ extern "C" fn driver_entry(
     );
 
     log::info!("Initializing HxPosed");
-    objects::ObjectTracker::init_objects();
+
+    AsyncState::init_global();
 
     // SAFETY: this is the only mutable access in entire lifecycle.
     unsafe {
@@ -125,13 +130,6 @@ extern "C" fn driver_entry(
         }
     }
 
-    match NtThread::create(Some(async_worker_thread), None) {
-        STATUS_SUCCESS => {}
-        _ => {
-            panic!();
-        }
-    }
-
     STATUS_SUCCESS
 }
 
@@ -143,8 +141,8 @@ pub fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
         KeBugCheckEx(
             0x2009,
+            info.message().as_str().unwrap_or("Lol").as_ptr() as _,
             LOGGER.force_get_memory_buffer().as_ptr() as _,
-            0,
             0,
             0,
         );

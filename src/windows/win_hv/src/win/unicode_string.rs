@@ -1,4 +1,5 @@
 use alloc::{string::ToString, vec::Vec};
+use alloc::string::String;
 use wdk_sys::{
     UNICODE_STRING,
     ntddk::{RtlFreeUnicodeString, RtlInitUnicodeString},
@@ -12,6 +13,17 @@ impl UnicodeString {
     pub fn new(data: &str) -> Self {
         let mut buffer: Vec<u16> = data.encode_utf16().collect();
         Self { buffer }
+    }
+
+    pub fn from_raw(data: *const u16) -> Self {
+        let len = unsafe{get_wcstr_len(data)};
+        let mut vec: Vec<u16> = Vec::with_capacity(len / 2);
+        unsafe {
+            // not Vec::from_raw_parts because it does not copy, it owns the buffer
+            core::ptr::copy_nonoverlapping(data, vec.as_mut_ptr(), (len / 2) as _);
+            vec.set_len((len / 2) as _);
+        }
+        Self { buffer: vec }
     }
 
     pub fn len(&self) -> usize {
@@ -55,11 +67,27 @@ impl UnicodeString {
         self.buffer.extend(new_buffer);
     }
 
-    pub fn to_unicode_string<'a>(&mut self) -> UNICODE_STRING {
+    pub fn to_alloc_string(&self) -> String {
+        String::from_utf16_lossy(&self.buffer)
+    }
+
+    pub fn to_unicode_string(&self) -> UNICODE_STRING {
         UNICODE_STRING {
-            Buffer: self.buffer.as_mut_ptr(),
+            Buffer: self.buffer.as_ptr() as _,
             Length: (self.buffer.len() * 2) as _,
             MaximumLength: (self.buffer.capacity() * 2) as _,
         }
     }
+}
+
+unsafe fn get_wcstr_len(pointer: *const u16) -> usize {
+    let mut tmp: u64 = pointer as u64;
+
+    unsafe {
+        while *(tmp as *const u16) != 0 {
+            tmp += 2;
+        }
+    }
+
+    (tmp - pointer as u64) as _
 }

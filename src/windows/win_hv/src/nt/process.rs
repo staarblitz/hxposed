@@ -1,24 +1,26 @@
-use crate::alloc::string::String;
 use crate::nt::context::ApcProcessContext;
 use crate::nt::lock::pushlock::PushLock;
-use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
+use crate::nt::object::NtObject;
+use crate::nt::{get_eprocess_field, get_ethread_field, EProcessField, EThreadField};
+use crate::objects::async_obj::AsyncState;
+use crate::objects::ObjectTracker;
 use crate::utils::danger::DangerPtr;
 use crate::utils::handlebox::HandleBox;
-use crate::win::PsTerminateProcess;
 use crate::win::unicode_string::UnicodeString;
+use crate::win::{PsTerminateProcess, PHANDLE_TABLE};
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
+use hxposed_core::hxposed::requests::memory::{Pa, Pfn};
 use hxposed_core::services::types::process_fields::{
-    MitigationOptions, ProcessProtection, ProcessSignatureLevel,
+    MitigationOptions, ProcessProtection, ProcessSignatureLevels,
 };
-use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::{
-    IoGetCurrentProcess, ObOpenObjectByPointer, ObfDereferenceObject, ObfReferenceObject,
-    PsGetProcessId, PsGetThreadId, PsLookupProcessByProcessId,
+    ExFreePool, IoGetCurrentProcess, ObfDereferenceObject,
+    ObfReferenceObject, PsGetProcessId, PsGetThreadId, PsLookupProcessByProcessId,
 };
 use wdk_sys::{
-    _KTHREAD, HANDLE, LIST_ENTRY, NTSTATUS, PACCESS_TOKEN, PEPROCESS, PETHREAD, PLIST_ENTRY,
-    PROCESS_ALL_ACCESS, PUNICODE_STRING, PsProcessType, STATUS_SUCCESS, UNICODE_STRING,
+    LIST_ENTRY, NTSTATUS, PACCESS_TOKEN, PEPROCESS, PETHREAD, PLIST_ENTRY, STATUS_SUCCESS
+    , UNICODE_STRING, _KTHREAD,
 };
 
 ///
@@ -33,7 +35,6 @@ pub struct NtProcess {
     pub id: u32,
     pub owns: bool,
 }
-
 impl Hash for NtProcess {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64(self.nt_process as _);
@@ -87,6 +88,95 @@ impl NtProcess {
         }
     }
 
+    pub fn free_hx_info(&self) {
+        let state_ptr =
+            unsafe { *get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
+
+        if !state_ptr.is_null() {
+            unsafe {
+                ExFreePool(state_ptr as _);
+                (state_ptr as *mut u64).write(0);
+            }
+        }
+
+        let tracker_ptr = unsafe {
+            *get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process).byte_offset(8)
+        };
+
+        if !tracker_ptr.is_null() {
+            unsafe {
+                ExFreePool(tracker_ptr as _);
+                (tracker_ptr as *mut u64).write(0);
+            }
+        }
+    }
+
+    pub fn is_hx_info_present(&self) -> bool {
+        unsafe { *get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) }.is_null() == false
+    }
+
+    pub fn setup_hx_info(&self) -> Result<(), ()> {
+        if self.is_hx_info_present() {
+            return Err(());
+        }
+
+        let state_ptr = unsafe {
+            get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process)
+        };
+
+        let tracker_ptr = unsafe {
+            get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process).byte_offset(8)
+        };
+
+        unsafe {
+            (state_ptr as *mut u64)
+                .write(AsyncState::alloc_new(NtProcess::from_ptr(self.nt_process)).unwrap() as _)
+        };
+
+        unsafe { (tracker_ptr as *mut u64).write(ObjectTracker::alloc_new() as _) };
+
+        Ok(())
+    }
+
+    pub fn get_dtb(&self) -> Pa {
+        let dtb = unsafe {
+            *get_eprocess_field::<u64>(EProcessField::DirectoryTableBase, self.nt_process)
+        };
+        Pa::from(dtb)
+    }
+
+    pub fn get_hx_async_state(&self) -> Option<&mut AsyncState> {
+        if !self.is_hx_info_present() {
+            return None;
+        }
+
+        let state_ptr = unsafe {
+            get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process)
+        };
+
+        Some(unsafe { &mut **state_ptr })
+    }
+
+    pub fn get_object_tracker_unchecked(&self) -> &mut ObjectTracker {
+        Self::get_object_tracker(self).unwrap()
+    }
+
+    pub fn get_hx_async_state_unchecked(&self) -> &mut AsyncState {
+        Self::get_hx_async_state(self).unwrap()
+    }
+
+    pub fn get_object_tracker(&self) -> Option<&mut ObjectTracker> {
+        if !self.is_hx_info_present() {
+            return None;
+        }
+
+        let tracker_ptr = unsafe {
+            get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process).byte_offset(8)
+        };
+
+        Some(unsafe { &mut **tracker_ptr })
+    }
+
     pub fn get_nt_path(&self) -> UnicodeString {
         let nt_path = unsafe {
             &mut **get_eprocess_field::<*mut UNICODE_STRING>(
@@ -98,6 +188,7 @@ impl NtProcess {
         UnicodeString::from_unicode_string(nt_path)
     }
 
+    // not ImagePathHash
     pub fn get_path_hash(&self) -> u64 {
         let path = self.get_nt_path();
         wyhash::wyhash(
@@ -106,26 +197,19 @@ impl NtProcess {
         )
     }
 
-    pub fn open_handle(&self) -> Result<HandleBox, NTSTATUS> {
-        let mut handle = HANDLE::default();
-        match unsafe {
-            ObOpenObjectByPointer(
-                self.nt_process as _,
-                0,
-                Default::default(),
-                PROCESS_ALL_ACCESS,
-                *PsProcessType,
-                KernelMode as _,
-                &mut handle,
-            )
-        } {
-            STATUS_SUCCESS => Ok(HandleBox::new(handle)),
-            err => Err(err),
+    pub fn open_handle(&self) -> Result<HandleBox, ()> {
+        match NtObject::create_handle(self.nt_process as _, self.get_handle_table()) {
+            Ok(x) => Ok(HandleBox::new(x)),
+            Err(_) => Err(()),
         }
     }
 
     pub fn begin_context(&self) -> ApcProcessContext {
         ApcProcessContext::begin(self.nt_process as _)
+    }
+
+    pub fn get_handle_table(&self) -> PHANDLE_TABLE {
+        unsafe { *get_eprocess_field::<PHANDLE_TABLE>(EProcessField::ObjectTable, self.nt_process) }
     }
 
     pub fn get_protection(&self) -> ProcessProtection {
@@ -134,9 +218,9 @@ impl NtProcess {
         }
     }
 
-    pub fn get_signers(&self) -> ProcessSignatureLevel {
+    pub fn get_signers(&self) -> ProcessSignatureLevels {
         unsafe {
-            *get_eprocess_field::<ProcessSignatureLevel>(
+            *get_eprocess_field::<ProcessSignatureLevels>(
                 EProcessField::SignatureLevels,
                 self.nt_process,
             )
@@ -164,9 +248,9 @@ impl NtProcess {
         unsafe { ptr.write(protection) }
     }
 
-    pub fn set_signers(&mut self, signers: ProcessSignatureLevel) {
+    pub fn set_signers(&mut self, signers: ProcessSignatureLevels) {
         let ptr = unsafe {
-            get_eprocess_field::<ProcessSignatureLevel>(
+            get_eprocess_field::<ProcessSignatureLevels>(
                 EProcessField::SignatureLevels,
                 self.nt_process,
             )
@@ -198,6 +282,8 @@ impl NtProcess {
     }
 
     pub fn get_threads(&self) -> Vec<u32> {
+        // actually, we have to lock ThreadListLock.
+
         self.lock.acquire_shared();
 
         let threads = DangerPtr {

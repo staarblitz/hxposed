@@ -2,18 +2,16 @@ use egui::{Color32, ViewportBuilder};
 use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::requests::Vmcall;
+use hxposed_core::hxposed::requests::memory::MemoryType;
 use hxposed_core::hxposed::requests::status::StatusRequest;
 use hxposed_core::hxposed::responses::notify::AwaitNotificationResponse;
 use hxposed_core::services::callbacks::HxCallback;
 use hxposed_core::services::memory::HxMemory;
 use hxposed_core::services::memory_map::{HxMemoryDescriptor, HxMemoryGuard};
 use hxposed_core::services::process::HxProcess;
-use hxposed_core::services::types::memory_fields::MemoryPool;
 use hxposed_core::services::types::process_fields::{
     ProcessProtection, ProtectionSigner, ProtectionType,
 };
-use std::arch::asm;
-use std::mem;
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -99,42 +97,13 @@ struct MemoryState {
     current_value: String,
 }
 
-fn log_callback(x: Result<AwaitNotificationResponse, HypervisorError>) {
-    async_std::task::block_on(async {
-        match x {
-            Ok(x) => match x.object_type {
-                ObjectType::Process(addr) => {
-                    let process = match HxProcess::open(addr as _) {
-                        Ok(x) => x,
-                        Err(err) => {
-                            async_std::eprintln!("Failed opening process: {:?}", err).await;
-                            return;
-                        }
-                    };
-                    async_std::println!(
-                        "Process: {}. State: {:?}",
-                        process.get_nt_path().await.unwrap(),
-                        x.object_state
-                    )
-                    .await;
-                }
-                ObjectType::Thread(_) => {}
-                _ => unreachable!(),
-            },
-            Err(err) => {
-                async_std::eprintln!("Callback returned error: {:?}", err).await;
-            }
-        }
-    });
-}
-
 impl eframe::App for HxTestApp {
     #[allow(static_mut_refs)]
-    fn update(&mut self, ui: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, _ui: &egui::Context, _frame: &mut eframe::Frame) {
         let mut error_update: Option<String> = None;
         let mut ok_update: Option<String> = None;
 
-        egui::CentralPanel::default().show(ui, |ui| {
+        egui::CentralPanel::default().show(_ui, |ui| {
             ui.heading("HxTest");
             ui.horizontal(|ui| {
                 ui.colored_label(self.status_label_color, &mut self.status_label_text);
@@ -157,46 +126,11 @@ impl eframe::App for HxTestApp {
             ui.vertical(|ui| {
                 ui.separator();
                 match &mut self.state {
-                    AppState::Callbacks(state) => {
-                        ui.horizontal(|ui| {
-                            if ui.button("Register callbacks").clicked() {
-                                let cback1 = match HxCallback::new(ObjectType::Process(0)) {
-                                    Ok(x) => x,
-                                    Err(err) => {
-                                        error_update =
-                                            Some(format!("Error registering callback: {:?}", err));
-                                        return;
-                                    }
-                                };
-
-                                std::thread::spawn(move || {
-                                    println!("Beginning event loop on cback1!");
-
-                                    async_std::task::block_on(cback1.event_loop(log_callback));
-
-                                    println!("Oh...");
-                                });
-
-                                /*                    async_std::task::spawn(async {
-                                    println!("Beginning event loop on cback2!");
-                                    unsafe {
-                                        CALLBACKS_STATE.cback2.as_ref().unwrap().event_loop().await;
-                                    }
-                                });*/
-                            }
-                            if ui.button("Unregister callbacks").clicked() {
-                                drop(state.cback1.take().unwrap());
-                                //drop(state.cback2.take().unwrap());
-                            }
-                        });
-                        ui.separator();
-                    }
+                    AppState::Callbacks(state) => {}
                     AppState::Memory(state) => {
                         ui.horizontal(|ui| {
                             if ui.button("Allocate").clicked() {
-                                match async_std::task::block_on(HxMemory::alloc::<u64>(
-                                    MemoryPool::NonPaged,
-                                )) {
+                                match HxMemory::alloc::<u64>(MemoryType::NonPagedPool) {
                                     Ok(x) => {
                                         ok_update =
                                             Some(format!("Successfully allocated: {:?}", x));
@@ -224,15 +158,16 @@ impl eframe::App for HxTestApp {
                             if ui.button("Map").clicked() {
                                 let result = unsafe {
                                     let desc = state.descriptor.as_mut().unwrap();
-                                    async_std::task::block_on(
-                                        desc.map(PROCESS_STATE.current_process.as_mut(), None),
+                                    desc.map(
+                                        PROCESS_STATE.current_process.as_ref().unwrap(),
+                                        0x13370000,
                                     )
                                 };
 
                                 match result {
                                     Ok(guard) => {
                                         let static_guard: HxMemoryGuard<'static, u64> =
-                                            unsafe { mem::transmute(guard) };
+                                            unsafe { core::mem::transmute(guard) };
 
                                         ok_update = Some(format!(
                                             "Successfully mapped: {:?}",
@@ -247,21 +182,8 @@ impl eframe::App for HxTestApp {
                                 };
                             }
                             if ui.button("Unmap").clicked() {
-                                let result = {
-                                    let desc = state.guard.as_mut().unwrap();
-                                    async_std::task::block_on(desc.unmap())
-                                };
-
-                                match result {
-                                    Ok(x) => {
-                                        ok_update = Some(format!("Successfully unmapped: {:?}", x));
-                                        drop(state.guard.take());
-                                    }
-                                    Err(err) => {
-                                        error_update =
-                                            Some(format!("Error mapping memory: {:?}", err));
-                                    }
-                                }
+                                drop(state.guard.take());
+                                ok_update = Some(format!("Successfully unmapped"));
                             }
                         });
                         if state.guard.is_none() {
@@ -335,28 +257,11 @@ impl eframe::App for HxTestApp {
                             return;
                         }
 
-                        ui.horizontal(|ui| {
-                            if ui.button("Kill").clicked() {
-                                let process = state.current_process.take().unwrap();
-                                match async_std::task::block_on(process.kill(0)) {
-                                    Ok(_) => {
-                                        ok_update = Some("Successfully killed process".to_string());
-                                        drop(process);
-                                    }
-                                    Err(err) => {
-                                        error_update =
-                                            Some(format!("Error killing process: {:?}", err));
-                                    }
-                                }
-                            }
-                        });
                         ui.separator();
                         ui.horizontal(|ui| {
                             match state.current_process_path {
                                 None => {
-                                    match async_std::task::block_on(
-                                        state.current_process.as_mut().unwrap().get_nt_path(),
-                                    ) {
+                                    match state.current_process.as_mut().unwrap().get_nt_path() {
                                         Ok(x) => {
                                             state.current_process_path = Some(x);
                                         }
@@ -477,13 +382,12 @@ impl eframe::App for HxTestApp {
                                         .with_protection_type(state.protection_type)
                                         .with_signer(state.protection_signer)
                                         .with_audit(state.protection_audit);
-                                    match async_std::task::block_on(
-                                        state
-                                            .current_process
-                                            .as_mut()
-                                            .unwrap()
-                                            .set_protection(protection),
-                                    ) {
+                                    match state
+                                        .current_process
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_protection(protection)
+                                    {
                                         Ok(_) => {
                                             ok_update =
                                                 Some("Successfully protected process".to_string());

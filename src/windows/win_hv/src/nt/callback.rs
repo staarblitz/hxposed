@@ -1,10 +1,14 @@
+use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
+use crate::nt::thread::NtThread;
 use crate::objects::ObjectTracker;
-use crate::services::commands::AsyncCommand;
-use crate::services::commands::callback::AwaitNotificationRequestAsyncCommand;
 use crate::utils::rng::SimpleCounter;
 use alloc::boxed::Box;
 use alloc::collections::VecDeque;
+use alloc::collections::btree_map::Keys;
+use alloc::vec::Vec;
+use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
+use wdk_sys::_MODE::UserMode;
 use core::hash::{Hash, Hasher};
 use hxposed_core::hxposed::requests::notify::ObjectState;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
@@ -18,9 +22,10 @@ use wdk_sys::ntddk::{
     PsSetCreateThreadNotifyRoutineEx,
 };
 use wdk_sys::{
-    BOOLEAN, FALSE, HANDLE, NTSTATUS, OB_CALLBACK_REGISTRATION, PEPROCESS, PPS_CREATE_NOTIFY_INFO,
-    STATUS_SUCCESS,
+    BOOLEAN, FALSE, HANDLE, MdlMappingNoWrite, NTSTATUS, OB_CALLBACK_REGISTRATION, PEPROCESS, PPS_CREATE_NOTIFY_INFO, PVOID, STATUS_SUCCESS
 };
+use crate::nt::guard::hxguard::HxGuard;
+use crate::objects::async_obj::AsyncState;
 
 static RNG: Mutex<SimpleCounter> = Mutex::new(SimpleCounter { state: 1 });
 
@@ -28,7 +33,6 @@ pub struct NtCallback {
     pub object_type: ObjectType,
     pub active: bool,
     pub callback: CallbackObject,
-    callback_queue: RwLock<VecDeque<AwaitNotificationRequestAsyncCommand>>,
 }
 
 impl Hash for NtCallback {
@@ -46,28 +50,13 @@ impl NtCallback {
             object_type,
             active: true,
             callback: RNG.lock().next_u32() as _,
-            callback_queue: RwLock::new(VecDeque::new()),
         }
     }
 
-    pub fn queue_callback_waiter(&self, wait_request: AwaitNotificationRequestAsyncCommand) {
-        self.callback_queue.write().push_back(wait_request);
-    }
-
-    pub fn dequeue_callback_waiter(&self) -> Option<AwaitNotificationRequestAsyncCommand> {
-        self.callback_queue.write().pop_front()
-    }
 
     pub fn init() -> Result<(), NTSTATUS> {
         log::info!("Initializing callbacks...");
         unsafe {
-            match PsSetCreateThreadNotifyRoutineEx(
-                PsCreateThreadNotifyNonSystem,
-                Self::thread_callback as _,
-            ) {
-                STATUS_SUCCESS => {}
-                err => return Err(err),
-            }
             match PsSetCreateProcessNotifyRoutineEx(Some(Self::process_callback), FALSE as _) {
                 STATUS_SUCCESS => {}
                 err => return Err(err),
@@ -84,68 +73,18 @@ impl NtCallback {
         id: HANDLE,
         info: PPS_CREATE_NOTIFY_INFO,
     ) {
-        let mut lock = ObjectTracker::get_callbacks_lock();
-        let lock = unsafe { lock.get_mut_unchecked() };
+        let process = NtProcess::current();
 
-        'kv: for (_, value) in lock {
-            if !value.active {
-                continue;
-            }
-            if value.object_type != ObjectType::Process(0) {
-                continue;
-            }
-
-            log::trace!(
-                "Total of {} waiters in queue",
-                value.callback_queue.read().len()
-            );
-
-            loop {
-                match value.dequeue_callback_waiter() {
-                    Some(mut awaiter) => {
-                        awaiter.response = AwaitNotificationResponse {
-                            object_type: ObjectType::Process(id as _),
-                            object_state: match info.is_null() {
-                                true => ObjectState::Deleted,
-                                false => ObjectState::Created,
-                            },
-                        }
-                        .into_raw();
-                        ObjectTracker::queue_command(Box::new(awaiter));
-                    }
-                    None => break 'kv,
-                };
-            }
+        // we dont do it in vmexit so we save cycles
+        if info.is_null() && process.is_hx_info_present() {
+            process.free_hx_info();
+            return;
+        } else if !info.is_null() && !process.is_hx_info_present() && HxGuard::is_valid_caller(process.get_path_hash()) {
+            process.setup_hx_info().unwrap(); // we know it's not setup.
+            return;
         }
     }
     unsafe extern "C" fn thread_callback(_pid: HANDLE, tid: HANDLE, create: BOOLEAN) {
-        let mut lock = ObjectTracker::get_callbacks_lock();
-        let lock = unsafe { lock.get_mut_unchecked() };
 
-        'kv: for (_, value) in lock {
-            if !value.active {
-                continue;
-            }
-            if value.object_type != ObjectType::Thread(0) {
-                continue;
-            }
-            loop {
-                match value.dequeue_callback_waiter() {
-                    Some(mut awaiter) => {
-                        awaiter.response = AwaitNotificationResponse {
-                            object_type: ObjectType::Thread(tid as _),
-                            object_state: match create {
-                                1 => ObjectState::Deleted,
-                                0 => ObjectState::Created,
-                                _ => unreachable!(),
-                            },
-                        }
-                        .into_raw();
-                        ObjectTracker::queue_command(Box::new(awaiter));
-                    }
-                    None => break 'kv,
-                };
-            }
-        }
     }
 }

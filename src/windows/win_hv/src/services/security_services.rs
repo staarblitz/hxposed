@@ -1,13 +1,8 @@
+use crate::nt::object::NtObject;
+use crate::nt::process::NtProcess;
 use crate::nt::token::NtToken;
-use crate::nt::{SYSTEM_TOKEN, probe};
-use crate::objects::ObjectTracker;
-use crate::services::commands::security::*;
-use crate::utils::pop_guard::PopGuard;
-use alloc::boxed::Box;
+use crate::nt::SYSTEM_TOKEN;
 use core::sync::atomic::Ordering;
-use hv::hypervisor::host::Guest;
-use hxposed_core::events::UnsafeAsyncInfo;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -16,220 +11,110 @@ use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::security::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::services::types::security_fields::TokenPrivilege;
-use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{ObOpenObjectByPointer, ObReferenceObjectByPointer};
-use wdk_sys::{HANDLE, PACCESS_TOKEN, STATUS_SUCCESS, SeTokenObjectType, TOKEN_ALL_ACCESS};
+use hxposed_core::hxposed::ObjectType;
+use wdk_sys::PACCESS_TOKEN;
 
-pub(crate) fn set_token_field_sync(request: &SetTokenFieldAsyncCommand) -> HypervisorResponse {
-    let mut token = match ObjectTracker::get_open_token(request.command.token as _) {
+pub(crate) fn set_token_field_sync(request: SetTokenFieldRequest) -> HypervisorResponse {
+    let process = NtProcess::current();
+
+    let mut token = match process
+        .get_object_tracker_unchecked()
+        .get_open_token(request.token)
+    {
         Some(x) => x,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
     };
 
-    match request.command.field {
-        TokenField::EnabledPrivileges => {
-            if request.command.data_len != size_of::<TokenPrivilege>() {
-                return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
-            }
-
-            match probe::probe_for_read(request.command.data as _, request.command.data_len as _) {
-                Ok(_) => {
-                    let user_field = unsafe { &*(request.command.data as *mut TokenPrivilege) };
-                    token.set_enabled_privileges(user_field.clone());
-
-                    EmptyResponse::with_service(ServiceFunction::SetTokenField)
-                }
-                Err(_) => HypervisorResponse::invalid_params(ServiceParameter::BufferByUser),
-            }
+    match request.field {
+        TokenField::EnabledPrivileges(privs) => {
+            token.set_enabled_privileges(privs);
+            EmptyResponse::with_service(ServiceFunction::SetTokenField)
         }
         _ => HypervisorResponse::invalid_params(ServiceParameter::Function),
     }
 }
-
-pub(crate) fn set_token_field_async(
-    request: SetTokenFieldRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    let obj = SetTokenFieldAsyncCommand {
-        command: request,
-
-        async_info,
-    };
-
-    match obj.async_info.is_present() {
-        true => {
-            ObjectTracker::queue_command(Box::new(obj));
-
-            EmptyResponse::with_service(ServiceFunction::SetTokenField)
-        }
-        false => match obj.command.field {
-            _ => HypervisorResponse::invalid_params(ServiceParameter::IsAsync),
-        },
-    }
-}
-
-pub(crate) fn get_token_field_sync(request: &GetTokenFieldAsyncCommand) -> HypervisorResponse {
-    let token = match ObjectTracker::get_open_token(request.command.token as _) {
+pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HypervisorResponse {
+    let process = NtProcess::current();
+    let state = process.get_hx_async_state_unchecked();
+    let token = match process
+        .get_object_tracker_unchecked()
+        .get_open_token(request.token as _)
+    {
         Some(x) => x,
-        None if request.command.token == 0 => match request.command.field {
+        None if request.token == 0 => match request.field {
             // asking for SYSTEM token
-            TokenField::PresentPrivileges => PopGuard::no_src(NtToken::from_ptr(
-                SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN,
-            )),
+            TokenField::PresentPrivileges(_) => {
+                &mut NtToken::from_ptr(SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN)
+            }
             _ => return HypervisorResponse::not_found_what(NotFoundReason::Token),
         },
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
     };
 
-    match request.command.field {
-        TokenField::SourceName => GetTokenFieldResponse::SourceName(token.get_source_name()),
-        TokenField::AccountName => {
-            let account_name = unsafe { &*token.account_name };
-            if request.command.data_len == 0 {
-                GetTokenFieldResponse::AccountName(account_name.Length)
-            } else {
-                match probe::probe_for_write(
-                    request.command.data as _,
-                    request.command.data_len as _,
-                ) {
-                    Ok(_) => {
-                        unsafe {
-                            account_name.Buffer.copy_to_nonoverlapping(
-                                request.command.data as _,
-                                account_name.Length as usize / 2,
-                            )
-                        }
-
-                        GetTokenFieldResponse::AccountName(account_name.Length)
-                    }
-                    Err(_) => {
-                        return HypervisorResponse::invalid_params(ServiceParameter::BufferByUser);
-                    }
-                }
-            }
+    match request.field {
+        TokenField::SourceName(_) => GetTokenFieldResponse::SourceName(token.get_source_name()),
+        TokenField::AccountName(_) => {
+            let field = token.get_account_name();
+            let raw_string = field.get_raw_bytes();
+            let offset = state.write_result(&raw_string.len(), 1);
+            state.write_result(raw_string.as_ptr(), raw_string.len());
+            GetTokenFieldResponse::AccountName(offset)
         }
-        TokenField::Type => GetTokenFieldResponse::Type(token.get_type()),
-        TokenField::IntegrityLevelIndex => {
+        TokenField::Type(_) => GetTokenFieldResponse::Type(token.get_type()),
+        TokenField::IntegrityLevelIndex(_) => {
             GetTokenFieldResponse::IntegrityLevelIndex(token.get_integrity_level_index())
         }
-        TokenField::MandatoryPolicy => {
+        TokenField::MandatoryPolicy(_) => {
             GetTokenFieldResponse::MandatoryPolicy(token.get_mandatory_policy())
         }
-        TokenField::ImpersonationLevel => {
+        TokenField::ImpersonationLevel(_) => {
             GetTokenFieldResponse::ImpersonationLevel(token.get_impersonation_level())
         }
-        TokenField::EnabledPrivileges => {
+        TokenField::EnabledPrivileges(_) => {
             GetTokenFieldResponse::EnabledPrivileges(token.get_enabled_privileges())
         }
-        TokenField::PresentPrivileges => {
+        TokenField::PresentPrivileges(_) => {
             GetTokenFieldResponse::PresentPrivileges(token.get_present_privileges())
         }
-        TokenField::EnabledByDefaultPrivileges => {
+        TokenField::EnabledByDefaultPrivileges(_) => {
             GetTokenFieldResponse::EnabledByDefaultPrivileges(
                 token.get_default_enabled_privileges(),
             )
         }
-        _ => return HypervisorResponse::not_found(),
     }
     .into_raw()
 }
 
-pub(crate) fn get_token_field_async(
-    request: GetTokenFieldRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    let obj = GetTokenFieldAsyncCommand {
-        command: request,
-
-        async_info,
-    };
-
-    match obj.async_info.is_present() {
-        true => {
-            ObjectTracker::queue_command(Box::new(obj));
-            EmptyResponse::with_service(ServiceFunction::GetTokenField)
-        }
-        false => match obj.command.field {
-            TokenField::AccountName => {
-                HypervisorResponse::invalid_params(ServiceParameter::IsAsync)
-            }
-            _ => get_token_field_sync(&obj),
-        },
-    }
-}
-
-pub(crate) fn open_token_sync(request: &OpenTokenAsyncCommand) -> HypervisorResponse {
-    match request.command.open_type {
+pub(crate) fn open_token_sync(request: OpenTokenRequest) -> HypervisorResponse {
+    let process = NtProcess::current();
+    match request.open_type {
         ObjectOpenType::Handle => {
-            let mut handle = HANDLE::default();
-            match unsafe {
-                ObOpenObjectByPointer(
-                    request.command.token as _,
-                    0,
-                    Default::default(),
-                    TOKEN_ALL_ACCESS,
-                    *SeTokenObjectType,
-                    KernelMode as _,
-                    &mut handle,
-                )
-            } {
-                STATUS_SUCCESS => OpenObjectResponse {
+            match NtObject::<PACCESS_TOKEN>::create_handle(
+                request.token as _,
+                process.get_handle_table(),
+            ) {
+                Ok(handle) => OpenObjectResponse {
                     object: ObjectType::Handle(handle as _),
                 }
                 .into_raw(),
-                err => HypervisorResponse::nt_error(err as _),
+                Err(_) => HypervisorResponse::not_found_what(NotFoundReason::Token),
             }
         }
         ObjectOpenType::Hypervisor => {
-            match unsafe {
-                // verify object exists
-                ObReferenceObjectByPointer(
-                    request.command.token as _,
-                    TOKEN_ALL_ACCESS,
-                    *SeTokenObjectType,
-                    KernelMode as _,
-                )
-            } {
-                STATUS_SUCCESS => {
-                    ObjectTracker::add_open_token(NtToken::from_ptr(request.command.token as _));
-
-                    // ObDereferenceObject.....
-
-                    EmptyResponse::with_service(ServiceFunction::OpenToken)
-                }
-                err => HypervisorResponse::nt_error(err as _),
-            }
+            // we need more checking honestly
+            process
+                .get_object_tracker_unchecked()
+                .add_open_token(NtToken::from_ptr_owned(request.token as _));
+            EmptyResponse::with_service(ServiceFunction::OpenToken)
         }
     }
 }
 
-pub(crate) fn open_token_async(
-    request: OpenTokenRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    if !async_info.is_present() {
-        return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
-    }
-
-    ObjectTracker::queue_command(Box::new(OpenTokenAsyncCommand {
-        command: request,
-
-        async_info,
-    }));
-
-    EmptyResponse::with_service(ServiceFunction::OpenToken)
-}
-
-pub(crate) fn close_token_sync(
-    request: CloseTokenRequest,
-    async_info: UnsafeAsyncInfo,
-) -> HypervisorResponse {
-    if async_info.is_present() {
-        return HypervisorResponse::invalid_params(ServiceParameter::IsAsync);
-    }
-
-    ObjectTracker::get_open_token(request.token as _).take();
+pub(crate) fn close_token_sync(request: CloseTokenRequest) -> HypervisorResponse {
+    let process = NtProcess::current();
+    process
+        .get_object_tracker_unchecked()
+        .pop_open_token(request.token as _);
 
     EmptyResponse::with_service(ServiceFunction::CloseToken)
 }

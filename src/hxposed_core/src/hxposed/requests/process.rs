@@ -25,51 +25,16 @@ pub struct KillProcessRequest {
     pub exit_code: u32,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct GetProcessFieldRequest {
     pub process: ProcessObject,
     pub field: ProcessField,
-    pub data: usize,
-    pub data_len: usize,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct SetProcessFieldRequest {
     pub process: ProcessObject,
     pub field: ProcessField,
-    pub data: usize,
-    pub data_len: usize,
-}
-
-///TODO: Maybe merge with [GetProcessFieldRequest]?
-#[derive(Default, Debug)]
-pub struct GetProcessThreadsRequest {
-    pub process: ProcessObject,
-    pub data: usize,
-    pub data_len: usize,
-}
-
-impl VmcallRequest for GetProcessThreadsRequest {
-    type Response = GetProcessThreadsResponse;
-
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::get_process_threads(),
-            arg1: self.process as _,
-            arg2: self.data as _,
-            arg3: self.data_len as _,
-
-            ..Default::default()
-        }
-    }
-
-    fn from_raw(request: &HypervisorRequest) -> Self {
-        Self {
-            process: request.arg1 as _,
-            data: request.arg2 as _,
-            data_len: request.arg3 as _,
-        }
-    }
 }
 
 impl VmcallRequest for OpenProcessRequest {
@@ -78,7 +43,7 @@ impl VmcallRequest for OpenProcessRequest {
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
             call: match self.open_type.clone() {
-                ObjectOpenType::Handle => HypervisorCall::open_process().with_is_async(true),
+                ObjectOpenType::Handle => HypervisorCall::open_process(),
                 ObjectOpenType::Hypervisor => HypervisorCall::open_process(),
             },
             arg1: self.process_id as _,
@@ -139,13 +104,13 @@ impl VmcallRequest for GetProcessFieldRequest {
     type Response = GetProcessFieldResponse;
 
     fn into_raw(self) -> HypervisorRequest {
+        let objs = self.field.into_raw_enum();
         HypervisorRequest {
             call: HypervisorCall::get_process_field(),
             arg1: self.process as _,
-            arg2: self.field.clone() as _,
+            arg2: objs.0,
+            arg3: objs.1,
 
-            extended_arg1: self.data as _,
-            extended_arg2: self.data_len as _,
             ..Default::default()
         }
     }
@@ -153,9 +118,7 @@ impl VmcallRequest for GetProcessFieldRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             process: request.arg1 as _,
-            field: ProcessField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as usize,
-            data_len: request.extended_arg2 as _,
+            field: ProcessField::from_raw_enum(request.arg2, request.arg3)
         }
     }
 }
@@ -164,13 +127,12 @@ impl VmcallRequest for SetProcessFieldRequest {
     type Response = EmptyResponse;
 
     fn into_raw(self) -> HypervisorRequest {
+        let objs = self.field.into_raw_enum();
         HypervisorRequest {
             call: HypervisorCall::set_process_field(),
             arg1: self.process as _,
-            arg2: self.field.clone() as _,
-
-            extended_arg1: self.data as _,
-            extended_arg2: self.data_len as _,
+            arg2: objs.0,
+            arg3: objs.1,
 
             ..Default::default()
         }
@@ -179,69 +141,47 @@ impl VmcallRequest for SetProcessFieldRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             process: request.arg1 as _,
-            field: ProcessField::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as _,
-            data_len: request.extended_arg2 as _,
+            field: ProcessField::from_raw_enum(request.arg2, request.arg3)
         }
     }
 }
 
-impl SetProcessFieldRequest {
-    pub(crate) fn set_protection(addr: u64, new_protection: &mut ProcessProtection) -> Self {
-        Self {
-            process: addr,
-            field: ProcessField::Protection,
-            data: new_protection as *mut _ as _,
-            data_len: size_of::<ProcessProtection>(), // 1 byte
-        }
-    }
 
-    pub(crate) fn set_signature_levels(addr: u64, new_levels: &mut ProcessSignatureLevels) -> Self {
-        Self {
-            process: addr,
-            field: ProcessField::Signers,
-            data: new_levels as *mut _ as _,
-            data_len: size_of::<ProcessSignatureLevels>(),
-        }
-    }
-
-    pub(crate) fn set_mitigation_options(addr: u64, new_options: &mut MitigationOptions) -> Self {
-        Self {
-            process: addr,
-            field: ProcessField::MitigationFlags,
-            data: new_options as *mut _ as _,
-            data_len: size_of::<MitigationOptions>(),
-        }
-    }
-}
-
-#[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ProcessField {
-    #[default]
-    Unknown,
-    NtPath = 1,
-    Protection = 2,
-    Signers = 3,
-    MitigationFlags = 4,
-    Token = 5,
+    NtPath(u64),
+    Protection(ProcessProtection),
+    Signers(ProcessSignatureLevels),
+    MitigationFlags(MitigationOptions),
+    Token(u64),
+    Threads(u64)
 }
 
 impl ProcessField {
-    pub const fn from_bits(bits: u16) -> Self {
-        match bits {
-            1 => Self::NtPath,
-            2 => Self::Protection,
-            3 => Self::Signers,
-            4 => Self::MitigationFlags,
-            5 => Self::Token,
-            _ => Self::Unknown,
+    pub fn into_raw_enum(self) -> (u64, u64) {
+        match self {
+            ProcessField::NtPath(x) => (1, x),
+            ProcessField::Protection(x) => (2, x.into_bits() as _),
+            ProcessField::Signers(x) => (3, x.into_bits() as _),
+            ProcessField::MitigationFlags(x) => (4, x.into_bits() as _),
+            ProcessField::Token(x) => (5, x),
+            ProcessField::Threads(x) => (6, x)
         }
     }
 
-    pub const fn into_bits(self) -> u16 {
-        self as _
+    pub fn from_raw_enum(object: u64, value: u64) -> Self {
+        match object {
+            1 => ProcessField::NtPath(value),
+            2 => ProcessField::Protection(ProcessProtection::from_bits(value as _)),
+            3 => ProcessField::Signers(ProcessSignatureLevels::from_bits(value as _)),
+            4 => ProcessField::MitigationFlags(MitigationOptions::from_bits(value as _)),
+            5 => ProcessField::Token(value),
+            6 => ProcessField::Threads(value),
+            _ => panic!("Invalid  object id: {}", object)
+        }
     }
 }
+
 
 //TODO: move this
 #[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]

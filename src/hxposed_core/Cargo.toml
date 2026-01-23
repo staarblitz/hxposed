@@ -7,8 +7,7 @@ publish = false
 
 [dependencies]
 bitfield-struct = "0.12.1"
-atomic_enum = {version = "0.3.0", default-features = false}
-spin = "0.10.0"
+bit_field = "0.10.3"
 bitflag = {version = "0.10.1", default-features = false}
 
 [profile.dev]

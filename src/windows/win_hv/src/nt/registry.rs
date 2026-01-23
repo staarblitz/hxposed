@@ -10,10 +10,7 @@ use core::str::FromStr;
 use wdk_sys::_KEY_INFORMATION_CLASS::KeyFullInformation;
 use wdk_sys::_KEY_VALUE_INFORMATION_CLASS::KeyValueFullInformation;
 use wdk_sys::ntddk::{ZwOpenKey, ZwQueryKey, ZwQueryValueKey};
-use wdk_sys::{
-    HANDLE, KEY_ALL_ACCESS, KEY_FULL_INFORMATION, KEY_VALUE_FULL_INFORMATION, NTSTATUS,
-    OBJ_KERNEL_HANDLE, PVOID, STATUS_BUFFER_TOO_SMALL, STATUS_SUCCESS, UNICODE_STRING,
-};
+use wdk_sys::{HANDLE, KEY_ALL_ACCESS, KEY_FULL_INFORMATION, KEY_VALUE_FULL_INFORMATION, NTSTATUS, OBJ_KERNEL_HANDLE, PVOID, STATUS_BUFFER_TOO_SMALL, STATUS_SUCCESS, UNICODE_STRING, WCHAR};
 
 pub struct NtKey {
     pub path: String,
@@ -59,6 +56,11 @@ impl NtKey {
             handle: HandleBox::new(handle),
             num_values: info.Values as _,
         })
+    }
+
+    pub fn get_value_string(&self, value: &str) -> Result<UnicodeString, NTSTATUS> {
+        let value_ptr = self.get_value::<WCHAR>(value)?;
+        Ok(UnicodeString::from_raw(value_ptr))
     }
 
     pub fn get_value<T>(&self, value: &str) -> Result<&mut T, NTSTATUS> {

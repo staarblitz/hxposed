@@ -46,7 +46,6 @@ impl Write for LogBuffer {
 }
 
 pub struct NtLogger {
-    serial: Mutex<OnceCell<Serial>>,
     log_buffer: Mutex<OnceCell<LogBuffer>>,
     pub is_init: bool,
 }
@@ -57,7 +56,6 @@ unsafe impl Sync for NtLogger {}
 impl NtLogger {
     pub const fn default() -> Self {
         Self {
-            serial: Mutex::new(OnceCell::new()),
             log_buffer: Mutex::new(OnceCell::new()),
             is_init: false,
         }
@@ -65,16 +63,17 @@ impl NtLogger {
 
     pub fn force_get_memory_buffer(&mut self) -> &str {
         // SAFETY: this is executed during a panic. so its "safe" to assume we can force unlock it
+        // SAFET: Unless its absolutely init...
+        if !self.is_init {
+            return "Logger not initialized";
+        }
+
         unsafe { self.log_buffer.force_unlock() };
         let lock = self.log_buffer.get_mut();
         lock.get_mut().unwrap().as_str()
     }
 
     pub fn init(&mut self) {
-        {
-            let lock = self.serial.lock();
-            let _ = lock.set(Serial::new(0x3f8));
-        }
         {
             let lock = self.log_buffer.lock();
             let _ = lock.set(LogBuffer::new(4096 * 10));
@@ -102,11 +101,11 @@ impl log::Log for NtLogger {
         /*{
             let mut lock = self.serial.lock();
             let _ = lock.get_mut().unwrap().write_str(args.as_str());
-        }
+        }*/
         {
             let mut lock = self.log_buffer.lock();
             let _ = lock.get_mut().unwrap().write_str(args.as_str());
-        }*/
+        }
 
         print!("{}", args);
     }

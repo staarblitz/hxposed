@@ -7,7 +7,7 @@ use crate::services::types::security_fields::{ImpersonationLevel, TokenPrivilege
 #[repr(u16)]
 pub enum GetTokenFieldResponse {
     SourceName(u64), // actually a char[8] lol
-    AccountName(u16),
+    AccountName(u64),
     Type(TokenType),
     IntegrityLevelIndex(u32),
     MandatoryPolicy(u32),

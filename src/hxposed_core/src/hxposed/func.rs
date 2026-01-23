@@ -29,6 +29,9 @@ pub enum ServiceFunction {
     CloseToken = 25,
     SetTokenField = 26,
     AwaitNotifyEvent = 27,
+    CancelAsyncCall = 28,
+    GetSetPageAttribute = 29,
+    MapVaToPa= 30
 }
 
 impl ServiceFunction {
@@ -66,6 +69,9 @@ impl ServiceFunction {
             25 => ServiceFunction::CloseToken,
             26 => ServiceFunction::SetTokenField,
             27 => ServiceFunction::AwaitNotifyEvent,
+            28 => ServiceFunction::CancelAsyncCall,
+            29 => ServiceFunction::GetSetPageAttribute,
+            30 => ServiceFunction::MapVaToPa,
             _ => ServiceFunction::Unknown,
         }
     }

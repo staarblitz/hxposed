@@ -13,10 +13,10 @@ use wdk_sys::{
     HANDLE, NTSTATUS, PACCESS_TOKEN, PUNICODE_STRING, STATUS_SUCCESS, SeTokenObjectType,
     TOKEN_ALL_ACCESS, UNICODE_STRING,
 };
+use crate::win::unicode_string::UnicodeString;
 
 pub struct NtToken {
     pub nt_token: PACCESS_TOKEN,
-    pub account_name: PUNICODE_STRING,
     pub owns: bool,
 }
 
@@ -41,23 +41,33 @@ impl Drop for NtToken {
 
 impl NtToken {
     pub fn from_ptr(token: PACCESS_TOKEN) -> Self {
-        Self::open_thread(token, false)
+        Self::open_token(token, false)
+    }
+    pub fn from_ptr_owned(token: PACCESS_TOKEN) -> Self {
+        Self::open_token(token, true)
     }
 
-    fn open_thread(ptr: PACCESS_TOKEN, owns: bool) -> Self {
+    fn open_token(ptr: PACCESS_TOKEN, owns: bool) -> Self {
         Self {
             nt_token: ptr,
-            account_name: unsafe {
-                get_logon_session_field::<UNICODE_STRING>(
-                    LogonSessionField::AccountName,
-                    *get_access_token_field::<PSEP_LOGON_SESSION_REFERENCES>(
-                        AccessTokenField::LogonSession,
-                        ptr,
-                    ),
-                )
-            },
             owns,
         }
+    }
+
+    pub fn get_account_name(&self) -> UnicodeString {
+        let uc = unsafe {
+            get_logon_session_field::<UNICODE_STRING>(
+                LogonSessionField::AccountName,
+                *get_access_token_field::<PSEP_LOGON_SESSION_REFERENCES>(
+                    AccessTokenField::LogonSession,
+                    self.nt_token,
+                ),
+            )
+        };
+
+        UnicodeString::from_unicode_string(unsafe {
+            &*uc
+        })
     }
 
     pub fn open_handle(&self) -> Result<HandleBox, NTSTATUS> {

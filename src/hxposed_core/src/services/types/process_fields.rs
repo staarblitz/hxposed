@@ -1,6 +1,7 @@
 use bitfield_struct::bitfield;
 
 #[bitfield(u8)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct ProcessProtection {
     #[bits(3)]
     pub protection_type: ProtectionType,
@@ -26,6 +27,7 @@ pub struct ProcessFlags {
 }
 
 #[bitfield(u64)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct MitigationOptions {
     #[bits(32)]
     pub options1: MitigationOptions1,
@@ -231,6 +233,7 @@ impl ProtectionSigner {
 }
 
 #[bitfield(u16)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct ProcessSignatureLevels {
     #[bits(8)]
     pub signature_level: ProcessSignatureLevel,
@@ -238,7 +241,7 @@ pub struct ProcessSignatureLevels {
     pub section_signature_level: u8,
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum ProcessSignatureLevel {
     #[default]

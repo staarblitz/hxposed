@@ -9,6 +9,7 @@ use core::arch::x86_64::{
 use wdk_sys::_MODE::KernelMode;
 use wdk_sys::ntddk::*;
 use wdk_sys::*;
+use crate::HX_GUARD;
 
 pub static mut VALID_CALLERS: [u64; 256] = [0; 256];
 //pub static VALID_CALLER_COUNT: AtomicU32 = AtomicU32::new(0);
@@ -37,6 +38,10 @@ impl HxGuard {
     #[allow(static_mut_refs)]
     pub fn is_valid_caller(hash: u64) -> bool {
         unsafe {
+            if !HX_GUARD.caller_verification {
+                return true;
+            }
+
             let mut i = 0;
             let len = VALID_CALLERS.len();
 
