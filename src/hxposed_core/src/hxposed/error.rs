@@ -39,7 +39,9 @@ pub enum NotAllowedReason {
     Unknown = 0,
     PluginNotLoaded = u32::MAX,
     MissingPermissions = 1,
-    LockHeld = 2
+    LockHeld = 2,
+    PageNotPresent = 3,
+    MappingsExist = 4
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]

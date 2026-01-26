@@ -1,10 +1,19 @@
-use crate::nt::arch::{phys_to_virt};
+use crate::nt::arch::phys_to_virt;
 use bitfield_struct::bitfield;
 use hxposed_core::hxposed::requests::memory::{Pa, Pfn};
 
 pub trait PagingEntry {
     type DownType;
-    fn walk_down(&self, index: u16) -> &'static mut Self::DownType;
+    /// Caller must check that PFN is valid and present bit is set. Otherwise, a #GP or #PG whatever might occur.
+    /// We should return a DangerPtr, actually.
+    fn walk_down(&self, index: u16) -> &'static mut Self::DownType {
+        let addr: u64 = self.pfn().into_phys().into();
+
+        unsafe { &mut *(phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType) }
+    }
+
+    fn pfn(&self) -> Pfn;
+    fn make_user_accessible(&mut self);
 }
 
 #[bitfield(u64)]
@@ -15,7 +24,7 @@ pub struct PageMapLevel5 {
     pub pwt: bool,
     pub pcd: bool,
     pub accessed: bool,
-    pub ignored: bool,
+    pub dirty: bool,
     pub large: bool,
     pub global: bool,
     pub cow: bool,
@@ -30,10 +39,18 @@ pub struct PageMapLevel5 {
 
 impl PagingEntry for PageMapLevel5 {
     type DownType = PageMapLevel4;
-    fn walk_down(&self, index: u16) -> &'static mut Self::DownType {
-        let addr: u64 = self.pfn().into_phys().into();
+    fn pfn(&self) -> Pfn {
+        self.pfn()
+    }
 
-        unsafe { &mut *(phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType) }
+    fn make_user_accessible(&mut self) {
+        self.set_user(true);
+        self.set_write(true);
+        self.set_nx(false);
+
+        self.set_accessed(true);
+        self.set_dirty(true);
+        self.set_sf_write(true);
     }
 }
 
@@ -56,11 +73,11 @@ pub struct PageMapLevel4 {
     pub pwt: bool,
     pub pcd: bool,
     pub accessed: bool,
-    pub ignored: bool,
+    pub dirty: bool,
     pub large: bool,
     #[bits(3)]
     pub ignored2: u64,
-    pub global: bool,
+    pub sf_write: bool,
     #[bits(40)]
     pub pfn: Pfn,
     #[bits(11)]
@@ -81,10 +98,18 @@ impl PageMapLevel4 {
 
 impl PagingEntry for PageMapLevel4 {
     type DownType = PageDirectoryPointerEntry;
-    fn walk_down(&self, index: u16) -> &'static mut Self::DownType {
-        let addr: u64 = self.pfn().into_phys().into();
 
-        unsafe { &mut *(phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType) }
+    fn pfn(&self) -> Pfn {
+        self.pfn()
+    }
+    fn make_user_accessible(&mut self) {
+        self.set_user(true);
+        self.set_write(true);
+        self.set_nx(false);
+
+        self.set_accessed(true);
+        self.set_dirty(true);
+        self.set_sf_write(true);
     }
 }
 
@@ -96,11 +121,11 @@ pub struct PageDirectoryPointerEntry {
     pub pwt: bool,
     pub pcd: bool,
     pub accessed: bool,
-    pub ignored: bool,
+    pub dirty: bool,
     pub large: bool,
     #[bits(3)]
     pub ignored2: u64,
-    pub global: bool,
+    pub sf_write: bool,
     #[bits(40)]
     pub pfn: Pfn,
     #[bits(11)]
@@ -110,10 +135,17 @@ pub struct PageDirectoryPointerEntry {
 
 impl PagingEntry for PageDirectoryPointerEntry {
     type DownType = PageDirectoryEntry;
-    fn walk_down(&self, index: u16) -> &'static mut Self::DownType {
-        let addr: u64 = self.pfn().into_phys().into();
+    fn pfn(&self) -> Pfn {
+        self.pfn()
+    }
+    fn make_user_accessible(&mut self) {
+        self.set_user(true);
+        self.set_write(true);
+        self.set_nx(false);
 
-        unsafe { &mut *(phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType) }
+        self.set_accessed(true);
+        self.set_dirty(true);
+        self.set_sf_write(true);
     }
 }
 
@@ -125,10 +157,11 @@ pub struct PageDirectoryEntry {
     pub pwt: bool,
     pub pcd: bool,
     pub accessed: bool,
-    pub ignored: bool,
+    pub dirty: bool,
     pub large: bool,
-    #[bits(4)]
+    #[bits(3)]
     pub ignored2: u64,
+    pub sf_write: bool,
     #[bits(40)]
     pub pfn: Pfn,
     #[bits(11)]
@@ -138,10 +171,18 @@ pub struct PageDirectoryEntry {
 
 impl PagingEntry for PageDirectoryEntry {
     type DownType = PageTableEntry;
-    fn walk_down(&self, index: u16) -> &'static mut Self::DownType {
-        let addr: u64 = self.pfn().into_phys().into();
+    fn pfn(&self) -> Pfn {
+        self.pfn()
+    }
+    fn make_user_accessible(&mut self) {
+        self.set_user(true);
+        self.set_write(true);
+        self.set_nx(false);
 
-        unsafe { &mut *(phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType) }
+        // crucial to not get page faults
+        self.set_accessed(true);
+        self.set_dirty(true);
+        self.set_sf_write(true);
     }
 }
 
@@ -156,8 +197,9 @@ pub struct PageTableEntry {
     pub dirty: bool,
     pub pat: bool,
     pub global: bool,
-    #[bits(3)]
+    #[bits(2)]
     pub ignored2: u64,
+    pub sf_write: bool,
     #[bits(40)]
     pub pfn: Pfn,
     #[bits(7)]
@@ -169,8 +211,16 @@ pub struct PageTableEntry {
 
 impl PagingEntry for PageTableEntry {
     type DownType = u64;
-    fn walk_down(&self, index: u16) -> &'static mut Self::DownType {
-        let addr: u64 = self.pfn().into_phys().into();
-        unsafe { &mut *(phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType) }
+    fn pfn(&self) -> Pfn {
+        self.pfn()
+    }
+    fn make_user_accessible(&mut self) {
+        self.set_user(true);
+        self.set_write(true);
+        self.set_nx(false);
+
+        self.set_accessed(true);
+        self.set_dirty(true);
+        self.set_sf_write(true);
     }
 }

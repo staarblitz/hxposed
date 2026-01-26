@@ -8,7 +8,7 @@ pub mod status;
 pub type ProcessObject = u64;
 pub type ThreadObject = u64;
 pub type TokenObject = u64;
-pub type MdlObject = u64;
+pub type RmdObject = u64;
 pub type CallbackObject = u64;
 pub type AsyncCookie = u64;
 
@@ -18,7 +18,7 @@ pub enum ObjectType {
     Process(ProcessObject),
     Thread(ThreadObject),
     Token(TokenObject),
-    Mdl(MdlObject),
+    Rmd(RmdObject),
     Registry(u64),
 }
 
@@ -29,7 +29,7 @@ impl ObjectType {
             ObjectType::Process(p) => (1, p),
             ObjectType::Thread(t) => (2, t),
             ObjectType::Token(t) => (3, t),
-            ObjectType::Mdl(m) => (4, m),
+            ObjectType::Rmd(m) => (4, m),
             ObjectType::Registry(r) => (5, r),
         }
     }
@@ -40,7 +40,7 @@ impl ObjectType {
             1 => ObjectType::Process(value),
             2 => ObjectType::Thread(value),
             3 => ObjectType::Token(value),
-            4 => ObjectType::Mdl(value),
+            4 => ObjectType::Rmd(value),
             5 => ObjectType::Registry(value),
             _ => panic!("Invalid object id: {}", object),
         }
@@ -54,7 +54,7 @@ impl Into<u64> for ObjectType {
             ObjectType::Process(x) => x,
             ObjectType::Thread(x) => x,
             ObjectType::Token(x) => x,
-            ObjectType::Mdl(x) => x,
+            ObjectType::Rmd(x) => x,
             ObjectType::Registry(x) => x,
         }
     }

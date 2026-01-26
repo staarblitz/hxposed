@@ -8,4 +8,4 @@ pub(crate) mod rng;
 pub(crate) mod scanner;
 pub(crate) mod timing;
 pub(crate) mod transaction;
-pub(crate) mod intrinsic;
+pub(crate) mod intrin;

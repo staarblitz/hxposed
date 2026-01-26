@@ -4,6 +4,7 @@ use crate::hxposed::requests::memory::*;
 use crate::services::process::HxProcess;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
+use crate::hxposed::RmdObject;
 
 #[derive(Debug)]
 ///
@@ -14,7 +15,7 @@ use core::ops::{Deref, DerefMut};
 /// You can access the inner fields, but it's recommended for you to not do that.
 pub struct HxMemoryDescriptor<T> {
     pub memory_type: MemoryType,
-    pub system_pa: u64,
+    pub rmd: RmdObject,
     pub length: u32,
     phantom: PhantomData<T>,
 }
@@ -67,8 +68,7 @@ impl<'a, T> Drop for HxMemoryGuard<'a, T> {
 impl<T> Drop for HxMemoryDescriptor<T> {
     fn drop(&mut self) {
         let _ = FreeMemoryRequest {
-            system_va: self.system_pa,
-            memory_type: self.memory_type,
+            obj: self.rmd,
         }
         .send();
     }
@@ -82,8 +82,8 @@ impl<T> HxMemoryDescriptor<T> {
     ) -> Result<HxMemoryGuard<T>, HypervisorError> {
         MapVaToPaRequest {
             addr_space: process.addr,
-            phys: self.system_pa,
-            virt: address,
+            object: self.rmd,
+            map_addr: address
         }
         .send()?;
 
@@ -113,7 +113,7 @@ impl<T> HxMemoryDescriptor<T> {
     pub(crate) fn new(memory_type: MemoryType, system_pa: u64, length: u32) -> Self {
         Self {
             memory_type,
-            system_pa,
+            rmd: system_pa,
             length,
             phantom: PhantomData,
         }

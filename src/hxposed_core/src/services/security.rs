@@ -11,6 +11,7 @@ use crate::services::types::security_fields::TokenPrivilege;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use crate::hxposed::responses::read_response_as_string;
 
 #[derive(Debug)]
 pub struct HxToken {
@@ -244,12 +245,7 @@ impl HxToken {
         .send()?
         {
             GetTokenFieldResponse::AccountName(offset) => unsafe {
-                let length = *((0x20090000 + offset) as *const usize);
-                Ok(String::from_utf16(core::slice::from_raw_parts(
-                    (0x20090000usize + (offset as usize) + size_of::<usize>()) as *const u16,
-                    length,
-                ))
-                .unwrap())
+                Ok(read_response_as_string(offset))
             },
             _ => unreachable!(),
         }

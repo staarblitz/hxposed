@@ -200,7 +200,8 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
                     EProcessField::Lock => 0x1c8,
                     EProcessField::ObjectTable => 0x300,
                     EProcessField::Pad => 0xc0,
-                    EProcessField::DirectoryTableBase => 0x28
+                    EProcessField::DirectoryTableBase => 0x28,
+                    EProcessField::UserDirectoryTableBase => 0x158,
                 }
             }
             _ => {
@@ -392,7 +393,8 @@ pub enum EProcessField {
     MitigationFlags3,
     ObjectTable,
     Pad,
-    DirectoryTableBase
+    DirectoryTableBase,
+    UserDirectoryTableBase
 }
 
 #[derive(Default, Debug, Clone)]

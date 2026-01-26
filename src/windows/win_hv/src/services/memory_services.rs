@@ -1,17 +1,19 @@
-use wdk_sys::ntddk::{ExAllocatePool2, ExFreePool, MmAllocateContiguousMemory, MmFreeContiguousMemory};
-use wdk_sys::{PHYSICAL_ADDRESS, POOL_FLAG_NON_PAGED};
+
 use crate::nt::arch::pt::{PageMapLevel5, PagingEntry};
-use crate::nt::arch::{phys_to_virt, virt_to_phys};
+use crate::nt::arch::virt_to_phys;
+use crate::nt::mm::rmd::RawMemoryDescriptor;
 use crate::nt::process::NtProcess;
+use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::memory::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use crate::nt::mm::rmd::RawMemoryDescriptor;
 
+// I hate this so much
 pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorResponse {
-    let cr = NtProcess::from_ptr(request.addr_space as _).get_dtb();
+    let cr = NtProcess::from_ptr(request.addr_space as _).get_directory_table_base();
+
     match request.operation {
         PageAttributeOperation::Set => {
             match request.paging_type {
@@ -35,6 +37,9 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pml4(index, index2) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let field = pml5.walk_down(index2);
                     match request.attributes {
                         PageAttributes::Present(x) => field.set_present(x),
@@ -44,7 +49,6 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                         PageAttributes::NoCache(x) => field.set_pcd(x),
                         PageAttributes::Accessed(x) => field.set_accessed(x),
                         PageAttributes::Large(x) => field.set_large(x),
-                        PageAttributes::Global(x) => field.set_global(x),
                         PageAttributes::Pfn(x) => field.set_pfn(Pfn::from_bits(x)),
                         PageAttributes::ExecuteDisable(x) => field.set_nx(x),
                         _ => return HypervisorResponse::invalid_param(),
@@ -52,7 +56,14 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pdp(index, index2, index3) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pml4 = pml5.walk_down(index2);
+                    if !pml4.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let field = pml4.walk_down(index3);
                     match request.attributes {
                         PageAttributes::Present(x) => field.set_present(x),
@@ -62,7 +73,6 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                         PageAttributes::NoCache(x) => field.set_pcd(x),
                         PageAttributes::Accessed(x) => field.set_accessed(x),
                         PageAttributes::Large(x) => field.set_large(x),
-                        PageAttributes::Global(x) => field.set_global(x),
                         PageAttributes::Pfn(x) => field.set_pfn(Pfn::from_bits(x)),
                         PageAttributes::ExecuteDisable(x) => field.set_nx(x),
                         _ => return HypervisorResponse::invalid_param(),
@@ -70,8 +80,19 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pd(index, index2, index3, index4) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pml4 = pml5.walk_down(index2);
+                    if !pml4.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pdp = pml4.walk_down(index3);
+                    if !pdp.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let field = pdp.walk_down(index4);
                     match request.attributes {
                         PageAttributes::Present(x) => field.set_present(x),
@@ -88,9 +109,23 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pt(index, index2, index3, index4, index5) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pml4 = pml5.walk_down(index2);
+                    if !pml4.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pdp = pml4.walk_down(index3);
+                    if !pdp.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let pd = pdp.walk_down(index4);
+                    if !pd.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let field = pd.walk_down(index5);
                     match request.attributes {
                         PageAttributes::Present(x) => field.set_present(x),
@@ -140,6 +175,10 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pml4(index, index2) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let field = pml5.walk_down(index2);
                     match request.attributes {
                         PageAttributes::Present(_) => PageAttributes::Present(field.present()),
@@ -153,7 +192,6 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                         PageAttributes::NoCache(_) => PageAttributes::NoCache(field.pcd()),
                         PageAttributes::Accessed(_) => PageAttributes::Accessed(field.accessed()),
                         PageAttributes::Large(_) => PageAttributes::Large(field.large()),
-                        PageAttributes::Global(_) => PageAttributes::Global(field.global()),
                         PageAttributes::Pfn(_) => PageAttributes::Pfn(field.pfn().into_bits()),
                         PageAttributes::ExecuteDisable(_) => {
                             PageAttributes::ExecuteDisable(field.nx())
@@ -163,7 +201,14 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pdp(index, index2, index3) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pml4 = pml5.walk_down(index2);
+                    if !pml4.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let field = pml4.walk_down(index3);
                     match request.attributes {
                         PageAttributes::Present(_) => PageAttributes::Present(field.present()),
@@ -177,7 +222,6 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                         PageAttributes::NoCache(_) => PageAttributes::NoCache(field.pcd()),
                         PageAttributes::Accessed(_) => PageAttributes::Accessed(field.accessed()),
                         PageAttributes::Large(_) => PageAttributes::Large(field.large()),
-                        PageAttributes::Global(_) => PageAttributes::Global(field.global()),
                         PageAttributes::Pfn(_) => PageAttributes::Pfn(field.pfn().into_bits()),
                         PageAttributes::ExecuteDisable(_) => {
                             PageAttributes::ExecuteDisable(field.nx())
@@ -187,8 +231,19 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pd(index, index2, index3, index4) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pml4 = pml5.walk_down(index2);
+                    if !pml4.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pdp = pml4.walk_down(index3);
+                    if !pdp.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let field = pdp.walk_down(index4);
                     match request.attributes {
                         PageAttributes::Present(_) => PageAttributes::Present(field.present()),
@@ -211,9 +266,23 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                 }
                 PagingType::Pt(index, index2, index3, index4, index5) => {
                     let pml5 = PageMapLevel5::from_phys(cr, index);
+                    if !pml5.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pml4 = pml5.walk_down(index2);
+                    if !pml4.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
+
                     let pdp = pml4.walk_down(index3);
+                    if !pdp.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let pd = pdp.walk_down(index4);
+                    if !pd.present() {
+                        return HypervisorResponse::not_allowed(NotAllowedReason::PageNotPresent);
+                    }
                     let field = pd.walk_down(index5);
                     match request.attributes {
                         PageAttributes::Present(_) => PageAttributes::Present(field.present()),
@@ -243,48 +312,44 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
 }
 
 pub fn map_va_to_pa(request: MapVaToPaRequest) -> HypervisorResponse {
-    if !request.virt.is_multiple_of(4096) {
-        return HypervisorResponse::invalid_param();
-    }
+    let process = NtProcess::from_ptr(request.addr_space as _);
+    let tracker = process.get_object_tracker_unchecked();
+    let rmd = match tracker.get_rmd(request.object) {
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+        Some(x) => x,
+    };
 
-    if !request.phys.is_multiple_of(4096) {
-        return HypervisorResponse::invalid_param();
-    }
-
-    let va = Va::from(request.virt);
-    let pa = Pa::from(request.phys);
-    let cr = NtProcess::from_ptr(request.addr_space as _);
-
-    match RawMemoryDescriptor::map(&cr, pa.into_pfn(), va) {
+    match rmd.map(process.clone(), request.map_addr) {
         Ok(_) => EmptyResponse::with_service(ServiceFunction::MapVaToPa),
-        Err(_) => HypervisorResponse::not_found()
+        Err(_) => HypervisorResponse::not_found(),
     }
 }
 
 pub fn allocate_memory(request: AllocateMemoryRequest) -> HypervisorResponse {
-    // we need to be in 4096 byte bound. or we die
-
-    let size = ((request.size + 4095) / 4096) * 4096;
-
-    let ptr = match request.memory_type {
-        MemoryType::NonPagedPool => unsafe {
-            ExAllocatePool2(POOL_FLAG_NON_PAGED, size as _, 0x2009)
-        }
-        MemoryType::ContiguousPhysical => unsafe{
-            MmAllocateContiguousMemory(size as _, PHYSICAL_ADDRESS {QuadPart: u64::MAX as _})
-        }
-    };
+    let rmd = RawMemoryDescriptor::new_alloc(request.size, request.memory_type);
+    let ptr = rmd.system_va.get_addr();
+    NtProcess::current()
+        .get_object_tracker_unchecked()
+        .add_rmd(rmd);
 
     AllocateMemoryResponse {
-        system_pa: virt_to_phys(ptr as _)
-    }.into_raw()
+        system_pa: virt_to_phys(ptr as _),
+    }
+    .into_raw()
 }
 
 pub fn free_memory(request: FreeMemoryRequest) -> HypervisorResponse {
-    match request.memory_type {
-        MemoryType::NonPagedPool => unsafe{ ExFreePool(request.system_va as _)},
-        MemoryType::ContiguousPhysical => unsafe{MmFreeContiguousMemory(request.system_va as _)},
+    let process = NtProcess::current();
+    let tracker = process.get_object_tracker_unchecked();
+    match tracker.pop_rmd(request.obj) {
+        None => HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+        Some(x) => match x.free() {
+            Ok(_) => EmptyResponse::with_service(ServiceFunction::FreeMemory),
+            Err(_) => {
+                // add it back
+                tracker.add_rmd(x);
+                HypervisorResponse::not_allowed(NotAllowedReason::MappingsExist)
+            }
+        },
     }
-
-    EmptyResponse::with_service(ServiceFunction::FreeMemory)
 }

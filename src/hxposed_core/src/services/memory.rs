@@ -2,46 +2,45 @@
 
 use crate::error::HypervisorError;
 use crate::hxposed::call::ServiceParameter;
-use crate::hxposed::ProcessObject;
 use crate::hxposed::requests::memory::*;
 use crate::hxposed::requests::Vmcall;
-use crate::hxposed::responses::empty::EmptyResponse;
-use crate::hxposed::responses::HypervisorResponse;
 use crate::hxposed::responses::memory::PageAttributeResponse;
+use crate::hxposed::responses::HypervisorResponse;
+use crate::hxposed::ProcessObject;
 use crate::services::memory_map::HxMemoryDescriptor;
-use crate::services::process::HxProcess;
 
 #[derive(Debug)]
-pub struct HxMemory<> {
-    pub process: ProcessObject
+pub struct HxMemory {
+    pub process: ProcessObject,
 }
 
 impl HxMemory {
-
-    pub fn get_attributes(&self, page_type: PagingType, attribute: PageAttributes) -> Result<PageAttributeResponse, HypervisorError> {
+    pub fn get_attributes(
+        &self,
+        page_type: PagingType,
+        attribute: PageAttributes,
+    ) -> Result<PageAttributeResponse, HypervisorError> {
         PageAttributeRequest {
             addr_space: self.process,
             operation: PageAttributeOperation::Get,
             paging_type: page_type,
-            attributes: attribute
-        }.send()
+            attributes: attribute,
+        }
+        .send()
     }
 
-    pub fn set_attributes(&self, page_type: PagingType, attribute: PageAttributes) -> Result<PageAttributeResponse, HypervisorError> {
+    pub fn set_attributes(
+        &self,
+        page_type: PagingType,
+        attribute: PageAttributes,
+    ) -> Result<PageAttributeResponse, HypervisorError> {
         PageAttributeRequest {
             addr_space: self.process,
             operation: PageAttributeOperation::Set,
             paging_type: page_type,
-            attributes: attribute
-        }.send()
-    }
-
-    pub fn map(&self, va: u64, pa: u64) -> Result<EmptyResponse, HypervisorError> {
-        MapVaToPaRequest {
-            addr_space: self.process,
-            virt: va,
-            phys: pa,
-        }.send()
+            attributes: attribute,
+        }
+        .send()
     }
 
     ///
@@ -86,9 +85,9 @@ impl HxMemory {
         let result = Self::alloc_raw(size_of::<T>() as _, memory_type)?;
 
         Ok(HxMemoryDescriptor::<T>::new(
-           memory_type,
-           result,
-           size_of::<T>() as _
+            memory_type,
+            result,
+            size_of::<T>() as _,
         ))
     }
 

@@ -7,6 +7,7 @@ use wdk_sys::_EVENT_TYPE::SynchronizationEvent;
 use wdk_sys::{HANDLE, KEVENT, LARGE_INTEGER, PKEVENT, STATUS_ALERTED, STATUS_SUCCESS, STATUS_TIMEOUT, STATUS_USER_APC, _KEVENT};
 use wdk_sys::_KWAIT_REASON::Executive;
 use wdk_sys::_MODE::KernelMode;
+use crate::utils::timing;
 
 pub struct NtEvent {
     pub nt_event: PKEVENT,
@@ -36,6 +37,7 @@ pub enum WaitStatus {
 
 impl NtEvent {
     pub fn wait(&self, alertable: bool, timeout: i64) -> WaitStatus {
+        let timeout = timing::relative(timing::milliseconds(timeout));
         let alertable = match alertable {
             true => 1,
             false => 0,
@@ -44,8 +46,7 @@ impl NtEvent {
             KeWaitForSingleObject(self.nt_event as _, Executive as _, KernelMode as _, alertable, &timeout as *const i64 as *const LARGE_INTEGER as _)
         } {
             STATUS_SUCCESS => WaitStatus::Signaled,
-            STATUS_ALERTED => WaitStatus::Alerted,
-            STATUS_USER_APC => WaitStatus::Alerted,
+            STATUS_ALERTED | STATUS_USER_APC => WaitStatus::Alerted,
             STATUS_TIMEOUT => WaitStatus::TimedOut,
             _ => unreachable!()
         }

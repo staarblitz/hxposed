@@ -1,3 +1,5 @@
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use bit_field::BitField;
 use wdk_sys::{HANDLE};
 
@@ -5,6 +7,7 @@ use crate::{
     win::{_EXHANDLE, ExpLookupHandleTableEntry, PHANDLE_TABLE},
 };
 use crate::nt::{get_object_body, get_object_header};
+use crate::utils::intrin::{interlocked_decrement, interlocked_increment};
 use crate::win::ExCreateHandle;
 
 /// This is not a trait, nor an abstraction layer. This is for general object functions.
@@ -33,26 +36,24 @@ impl<T> NtObject<T> {
         }
     }
 
-    // maybe we should make this atomic?
-    // meh, we are in a VMEXIT anyway
     pub unsafe fn increment_ref_count(object: *mut u64) {
-        let header = unsafe{object.offset(-0x30)};
-        unsafe{header.write(*header +1)};
+        let header = unsafe{object.byte_offset(-0x30)};
+        interlocked_increment(header);
     }
 
     pub unsafe fn decrement_ref_count(object: *mut u64) {
-        let header = unsafe{object.offset(-0x30)};
-        unsafe{header.write(*header -1)};
+        let header = unsafe{object.byte_offset(-0x30)};
+        interlocked_decrement(header);
     }
 
     pub unsafe fn increment_handle_count(object: *mut u64) {
-        let header = unsafe{object.offset(-0x28)};
-        unsafe{header.write(*header +1)};
+        let header = unsafe{object.byte_offset(-0x28)};
+        interlocked_increment(header);
     }
 
     pub unsafe fn decrement_handle_count(object: *mut u64) {
-        let header = unsafe{object.offset(-0x28)};
-        unsafe{header.write(*header -1)};
+        let header = unsafe{object.byte_offset(-0x28)};
+        interlocked_decrement(header);
     }
 
     pub fn from_handle(handle: HANDLE, table: PHANDLE_TABLE) -> Result<NtObject<T>, ()> {

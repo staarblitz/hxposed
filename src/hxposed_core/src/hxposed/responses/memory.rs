@@ -10,6 +10,7 @@ pub struct PageAttributeResponse {
 
 #[derive(Clone)]
 pub struct AllocateMemoryResponse {
+    /// Also the RmdObject
     pub system_pa: u64
 }
 

@@ -14,6 +14,7 @@ use crate::services::types::process_fields::*;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::arch::asm;
+use crate::hxposed::responses::read_response_as_string;
 
 #[derive(Debug)]
 pub struct HxProcess {
@@ -399,13 +400,7 @@ impl HxProcess {
         .send()?.field
         {
             ProcessField::NtPath(offset) => unsafe {
-                //TODO: Move this into a helper function
-                let length = *((0x20090000 + offset) as *const u32);
-                Ok(String::from_utf16(core::slice::from_raw_parts(
-                    (0x20090000usize + (offset as usize) + size_of::<u32>()) as *const u16,
-                    length as _,
-                ))
-                .unwrap())
+                Ok(read_response_as_string(offset))
             },
             _ => unreachable!(),
         }

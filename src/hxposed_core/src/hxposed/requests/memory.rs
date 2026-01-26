@@ -1,4 +1,4 @@
-use crate::hxposed::ProcessObject;
+use crate::hxposed::{ProcessObject, RmdObject};
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
@@ -14,8 +14,7 @@ pub struct AllocateMemoryRequest {
 
 #[derive(Debug)]
 pub struct FreeMemoryRequest {
-    pub system_va: u64,
-    pub memory_type: MemoryType,
+    pub obj: RmdObject
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -46,8 +45,8 @@ impl From<u64> for MemoryType {
 #[derive(Debug)]
 pub struct MapVaToPaRequest {
     pub addr_space: ProcessObject,
-    pub phys: u64,
-    pub virt: u64,
+    pub object: RmdObject,
+    pub map_addr: u64,
 }
 
 #[derive(Debug)]
@@ -210,16 +209,14 @@ impl VmcallRequest for FreeMemoryRequest {
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
             call: HypervisorCall::free_mem(),
-            arg1: self.system_va,
-            arg2: self.memory_type.into(),
+            arg1: self.obj,
             ..Default::default()
         }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            system_va: request.arg1,
-            memory_type: MemoryType::from(request.arg2),
+            obj: request.arg1
         }
     }
 }
@@ -250,18 +247,18 @@ impl VmcallRequest for MapVaToPaRequest {
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
             call: HypervisorCall::mem_map(),
-            arg1: self.phys,
-            arg2: self.virt,
-            arg3: self.addr_space,
+            arg1: self.object,
+            arg2: self.addr_space,
+            arg3: self.map_addr,
             ..Default::default()
         }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            addr_space: request.arg3,
-            phys: request.arg1,
-            virt: request.arg2,
+            object: request.arg1,
+            addr_space: request.arg2,
+            map_addr: request.arg3
         }
     }
 }

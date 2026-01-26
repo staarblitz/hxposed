@@ -56,8 +56,7 @@ pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HypervisorR
         TokenField::AccountName(_) => {
             let field = token.get_account_name();
             let raw_string = field.get_raw_bytes();
-            let offset = state.write_result(&raw_string.len(), 1);
-            state.write_result(raw_string.as_ptr(), raw_string.len());
+            let offset =state.write_result(raw_string.as_ptr(), raw_string.len());
             GetTokenFieldResponse::AccountName(offset)
         }
         TokenField::Type(_) => GetTokenFieldResponse::Type(token.get_type()),

@@ -3,6 +3,7 @@ use wdk_sys::ntddk::{
     ExReleasePushLockSharedEx,
 };
 
+#[derive(Debug)]
 pub struct PushLock {
     lock: *mut u64,
 }

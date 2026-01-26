@@ -1,16 +1,19 @@
+use core::ptr::null_mut;
 use crate::error::HypervisorError;
 use crate::hxposed::call::ServiceParameter;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::notify::*;
-use crate::hxposed::responses::HypervisorResponse;
-use crate::hxposed::responses::notify::AwaitNotificationResponse;
+use crate::hxposed::responses::{read_response_type, HypervisorResponse};
+use crate::hxposed::responses::notify::*;
 use crate::hxposed::{CallbackObject, ObjectType};
 use core::sync::atomic::{AtomicBool, Ordering};
+use crate::intern::win::{CloseHandle, CreateEventA, SetEvent, WaitForSingleObject};
 
 pub struct HxCallback {
     callback: CallbackObject,
     pub active: AtomicBool,
     pub target: ObjectType,
+    pub event_handle: u64,
 }
 
 unsafe impl Sync for HxCallback {}
@@ -18,6 +21,9 @@ unsafe impl Send for HxCallback {}
 
 impl Drop for HxCallback {
     fn drop(&mut self) {
+        unsafe {
+            CloseHandle(self.event_handle);
+        }
         self.active.store(false, Ordering::SeqCst);
         UnregisterNotifyHandlerRequest {
             callback: self.callback,
@@ -61,8 +67,13 @@ impl HxCallback {
             }
         }
 
+        let event_handle = unsafe {
+            CreateEventA(null_mut(), 1, 0, null_mut())
+        };
+
         let response = RegisterNotifyHandlerRequest {
             target_object: target,
+            event_handle,
         }
         .send()?;
 
@@ -70,18 +81,24 @@ impl HxCallback {
             callback: response.callback,
             active: AtomicBool::new(true),
             target,
+            event_handle
         })
     }
 
-    ///
-    /// # Event Loop
-    ///
-    /// Main logic of the callback. Must be started on a separate task.
-    pub async fn event_loop<F>(&self, func: F)
-    where
-        F: Fn(Result<AwaitNotificationResponse, HypervisorError>),
+    pub fn wait_for_callback(&self) -> Result<CallbackInformation, HypervisorError>
     {
+        let response = match unsafe {
+            WaitForSingleObject(self.event_handle, 2000)
+        } {
+            0 => Ok(unsafe {
+                read_response_type::<CallbackInformation>(CALLBACK_RESPONSE_RESERVED_OFFSET)
+            }),
+            _ => Err(HypervisorError::async_time_out())
+        };
 
-        loop {}
+        // signal, tell the hypervisor that we are done with it.
+        unsafe {SetEvent(self.event_handle) };
+
+        response
     }
 }

@@ -112,8 +112,6 @@ extern "C" fn driver_entry(
 
     log::info!("Initializing HxPosed");
 
-    AsyncState::init_global();
-
     // SAFETY: this is the only mutable access in entire lifecycle.
     unsafe {
         HX_GUARD.init();

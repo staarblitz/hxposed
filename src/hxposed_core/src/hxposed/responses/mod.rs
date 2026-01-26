@@ -1,5 +1,7 @@
 use crate::hxposed::call::{HypervisorResult, ServiceParameter};
 use crate::hxposed::error::{ErrorSource, InternalErrorCode, NotAllowedReason, NotFoundReason};
+use alloc::string::String;
+use alloc::vec::Vec;
 
 pub mod empty;
 pub mod memory;
@@ -68,4 +70,57 @@ impl HypervisorResponse {
 pub trait VmcallResponse: Sized + Send + Sync + Unpin {
     fn from_raw(raw: HypervisorResponse) -> Self;
     fn into_raw(self) -> HypervisorResponse;
+}
+
+// messy. ideas?
+
+pub const RESPONSE_BASE: u64 = 0x20090000;
+pub const CALLBACK_BASE: u64 = 0x40180000;
+
+pub unsafe fn read_response_length(offset: u64) -> u32 {
+    unsafe { *((RESPONSE_BASE + offset) as *const u32) }
+}
+
+pub unsafe fn read_response_data<T>(offset: u64) -> Vec<T>
+where
+    T: Clone,
+{
+    unsafe {
+        let count = read_response_length(offset);
+        // from_raw_parts does not copy. so if we make enough calls our string will be corrupted.
+        // so we copy!
+        core::slice::from_raw_parts((RESPONSE_BASE + (offset) + 4) as *const T, count as _)
+            .iter()
+            .cloned()
+            .collect::<Vec<T>>()
+    }
+}
+
+/// Only use if you know what you are doing
+pub unsafe fn read_response_data_no_copy<T>(offset: u64) -> &'static [T]
+where
+    T: Clone,
+{
+    unsafe {
+        let count = read_response_length(offset);
+        // from_raw_parts does not copy. so if we make enough calls our string will be corrupted.
+        // so we copy!
+        core::slice::from_raw_parts((RESPONSE_BASE + (offset) + 4) as *const T, count as _)
+    }
+}
+
+pub unsafe fn read_response_type<T>(offset: u64) -> T
+where
+    T: Clone,
+{
+    unsafe {
+        let type_offset = read_response_length(offset);
+        (*((RESPONSE_BASE + (type_offset as u64)) as *const T)).clone()
+    }
+}
+
+pub fn read_response_as_string(offset: u64) -> String {
+    let data = unsafe { read_response_data_no_copy::<u16>(offset) };
+    // from_utf16 internally makes a copy. so its "safe"
+    String::from_utf16(data).unwrap()
 }

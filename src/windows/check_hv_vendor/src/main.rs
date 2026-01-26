@@ -1,10 +1,8 @@
 use egui::{Color32, ViewportBuilder};
-use hxposed_core::error::HypervisorError;
-use hxposed_core::hxposed::ObjectType;
-use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::hxposed::requests::memory::MemoryType;
 use hxposed_core::hxposed::requests::status::StatusRequest;
-use hxposed_core::hxposed::responses::notify::AwaitNotificationResponse;
+use hxposed_core::hxposed::requests::Vmcall;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::services::callbacks::HxCallback;
 use hxposed_core::services::memory::HxMemory;
 use hxposed_core::services::memory_map::{HxMemoryDescriptor, HxMemoryGuard};
@@ -12,6 +10,7 @@ use hxposed_core::services::process::HxProcess;
 use hxposed_core::services::types::process_fields::{
     ProcessProtection, ProtectionSigner, ProtectionType,
 };
+use std::arch::asm;
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -126,7 +125,39 @@ impl eframe::App for HxTestApp {
             ui.vertical(|ui| {
                 ui.separator();
                 match &mut self.state {
-                    AppState::Callbacks(state) => {}
+                    AppState::Callbacks(state) => {
+                        ui.horizontal(|ui| {
+                            if ui.button("Register").clicked() {
+                                match HxCallback::new(ObjectType::Process(0)) {
+                                    Ok(x) => {
+                                        ok_update =
+                                            Some(format!("Successfully registered callbacks"));
+                                        state.cback1 = Some(x);
+                                    }
+                                    Err(err) => {
+                                        error_update =
+                                            Some(format!("Error allocating memory: {:?}", err));
+                                    }
+                                }
+
+                                std::thread::spawn(|| {
+                                    let callback =
+                                        unsafe { CALLBACKS_STATE.cback1.as_ref().unwrap() };
+
+                                    loop {
+                                        match callback.wait_for_callback() {
+                                            Ok(x) => {
+                                                println!("Callback information: {:?}", x)
+                                            }
+                                            Err(err) => {
+                                                println!("Error receiving callback: {:?}", err)
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    }
                     AppState::Memory(state) => {
                         ui.horizontal(|ui| {
                             if ui.button("Allocate").clicked() {
@@ -157,6 +188,7 @@ impl eframe::App for HxTestApp {
                         ui.horizontal(|ui| {
                             if ui.button("Map").clicked() {
                                 let result = unsafe {
+                                    asm!("int 0x3");
                                     let desc = state.descriptor.as_mut().unwrap();
                                     desc.map(
                                         PROCESS_STATE.current_process.as_ref().unwrap(),
@@ -193,12 +225,31 @@ impl eframe::App for HxTestApp {
                         ui.text_edit_singleline(&mut state.current_value);
                         ui.horizontal(|ui| {
                             if ui.button("Read").clicked() {
-                                state.current_value =
-                                    state.guard.as_mut().unwrap().clone().to_string();
+                                let guard = match state.guard.as_mut()  {
+                                    None => {
+                                        error_update =
+                                            Some(format!("No memory was allocated."));
+                                        return;
+                                    }
+                                    Some(x) => x,
+                                };
+
+                                let value = guard.deref_mut();
+                                let value = *value;
+                                state.current_value = value.to_string();
                             }
                             if ui.button("Write").clicked() {
-                                *state.guard.as_mut().unwrap().deref_mut() =
-                                    u64::from_str(state.current_value.as_str()).unwrap();
+                                let guard = match state.guard.as_mut()  {
+                                    None => {
+                                        error_update =
+                                            Some(format!("No memory was allocated."));
+                                        return;
+                                    }
+                                    Some(x) => x,
+                                };
+
+                                let ptr =guard.deref_mut();
+                                *ptr =u64::from_str(state.current_value.as_str()).unwrap()
                             }
                         });
                     }

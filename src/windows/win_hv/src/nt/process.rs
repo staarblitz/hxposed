@@ -1,33 +1,32 @@
 use crate::nt::context::ApcProcessContext;
 use crate::nt::lock::pushlock::PushLock;
 use crate::nt::object::NtObject;
-use crate::nt::{get_eprocess_field, get_ethread_field, EProcessField, EThreadField};
-use crate::objects::async_obj::AsyncState;
+use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
 use crate::objects::ObjectTracker;
+use crate::objects::async_obj::AsyncState;
 use crate::utils::danger::DangerPtr;
 use crate::utils::handlebox::HandleBox;
 use crate::win::unicode_string::UnicodeString;
-use crate::win::{PsTerminateProcess, PHANDLE_TABLE};
+use crate::win::{PHANDLE_TABLE, PsTerminateProcess};
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
-use hxposed_core::hxposed::requests::memory::{Pa, Pfn};
+use hxposed_core::hxposed::requests::memory::Pa;
 use hxposed_core::services::types::process_fields::{
     MitigationOptions, ProcessProtection, ProcessSignatureLevels,
 };
 use wdk_sys::ntddk::{
-    ExFreePool, IoGetCurrentProcess, ObfDereferenceObject,
-    ObfReferenceObject, PsGetProcessId, PsGetThreadId, PsLookupProcessByProcessId,
+    IoGetCurrentProcess, ObfDereferenceObject, ObfReferenceObject, PsGetProcessId, PsGetThreadId,
+    PsLookupProcessByProcessId,
 };
-use wdk_sys::{
-    LIST_ENTRY, NTSTATUS, PACCESS_TOKEN, PEPROCESS, PETHREAD, PLIST_ENTRY, STATUS_SUCCESS
-    , UNICODE_STRING, _KTHREAD,
-};
+use wdk_sys::{_KTHREAD, LIST_ENTRY, NTSTATUS, PACCESS_TOKEN, PEPROCESS, PETHREAD, PLIST_ENTRY, STATUS_SUCCESS, UNICODE_STRING, STATUS_ALREADY_INITIALIZED};
 
 ///
 /// # Kernel Process
 ///
 /// Abstraction over [`PEPROCESS`] to make the life easier.
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct NtProcess {
     pub nt_process: PEPROCESS,
     pub lock: PushLock,
@@ -41,12 +40,30 @@ impl Hash for NtProcess {
     }
 }
 
+impl PartialEq<Self> for NtProcess {
+    fn eq(&self, other: &Self) -> bool {
+        self.nt_process == other.nt_process
+    }
+}
+
+impl Eq for NtProcess {
+
+}
+
+impl Clone for NtProcess {
+    fn clone(&self) -> Self {
+        Self::from_ptr_owning(self.nt_process)
+    }
+}
+
 unsafe impl Send for NtProcess {}
 unsafe impl Sync for NtProcess {}
 
 impl Drop for NtProcess {
     fn drop(&mut self) {
         if self.owns {
+            // this works.
+            // somehow
             unsafe {
                 ObfDereferenceObject(self.nt_process as _);
             }
@@ -74,6 +91,12 @@ impl NtProcess {
         Self::open_process(process, false)
     }
 
+    pub fn from_ptr_owning(process: PEPROCESS) -> Self {
+        let me = Self::open_process(process, true);
+        unsafe { NtObject::<()>::increment_ref_count(me.nt_process as _) };
+        me
+    }
+
     fn open_process(ptr: PEPROCESS, owns: bool) -> Self {
         Self {
             nt_process: ptr,
@@ -93,52 +116,73 @@ impl NtProcess {
             unsafe { *get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
 
         if !state_ptr.is_null() {
+            let state = unsafe { Box::from_raw(state_ptr) };
+            drop(state);
+
             unsafe {
-                ExFreePool(state_ptr as _);
                 (state_ptr as *mut u64).write(0);
             }
         }
 
         let tracker_ptr = unsafe {
-            *get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process).byte_offset(8)
+            *get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process)
+                .byte_offset(8)
         };
 
         if !tracker_ptr.is_null() {
+            let tracker = unsafe { Box::from_raw(tracker_ptr) };
+            drop(tracker);
+
             unsafe {
-                ExFreePool(tracker_ptr as _);
                 (tracker_ptr as *mut u64).write(0);
             }
         }
     }
 
     pub fn is_hx_info_present(&self) -> bool {
-        unsafe { *get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) }.is_null() == false
+        unsafe { *get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) }
+            .is_null()
+            == false
     }
 
-    pub fn setup_hx_info(&self) -> Result<(), ()> {
+    pub fn setup_hx_info(&self) -> Result<(), NTSTATUS> {
         if self.is_hx_info_present() {
-            return Err(());
+            return Err(STATUS_ALREADY_INITIALIZED);
         }
 
-        let state_ptr = unsafe {
-            get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process)
-        };
+        let state_ptr =
+            unsafe { get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
 
         let tracker_ptr = unsafe {
-            get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process).byte_offset(8)
+            get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process)
+                .byte_offset(8)
         };
 
-        unsafe {
-            (state_ptr as *mut u64)
-                .write(AsyncState::alloc_new(NtProcess::from_ptr(self.nt_process)).unwrap() as _)
+        let state = match AsyncState::alloc_new(NtProcess::from_ptr_owning(self.nt_process)) {
+            Ok(x) => x,
+            Err(err) => {
+                log::error!("Failed to allocate state for process.");
+                return Err(err);
+            }
         };
+
+        let state = Box::into_raw(state);
+
+        unsafe { (state_ptr as *mut u64).write(state.addr() as _) };
 
         unsafe { (tracker_ptr as *mut u64).write(ObjectTracker::alloc_new() as _) };
 
         Ok(())
     }
 
-    pub fn get_dtb(&self) -> Pa {
+    pub fn get_directory_table_base(&self) -> Pa {
+        let dtb = unsafe {
+            *get_eprocess_field::<u64>(EProcessField::DirectoryTableBase, self.nt_process)
+        };
+        Pa::from(dtb)
+    }
+
+    pub fn get_user_directory_table_base(&self) -> Pa {
         let dtb = unsafe {
             *get_eprocess_field::<u64>(EProcessField::DirectoryTableBase, self.nt_process)
         };
@@ -150,9 +194,8 @@ impl NtProcess {
             return None;
         }
 
-        let state_ptr = unsafe {
-            get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process)
-        };
+        let state_ptr =
+            unsafe { get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
 
         Some(unsafe { &mut **state_ptr })
     }
@@ -171,7 +214,8 @@ impl NtProcess {
         }
 
         let tracker_ptr = unsafe {
-            get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process).byte_offset(8)
+            get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process)
+                .byte_offset(8)
         };
 
         Some(unsafe { &mut **tracker_ptr })
@@ -188,7 +232,8 @@ impl NtProcess {
         UnicodeString::from_unicode_string(nt_path)
     }
 
-    // not ImagePathHash
+    // not ImagePathHash.
+    // TODO: Cache this
     pub fn get_path_hash(&self) -> u64 {
         let path = self.get_nt_path();
         wyhash::wyhash(

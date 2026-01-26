@@ -57,7 +57,7 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         false => {
             log::warn!("Caller does not have HxInfo on its EPROCESS structure.");
             guest.write_response(HypervisorResponse::not_found_what(NotFoundReason::HxInfo as _));
-            return true;
+            return false;
         }
     }
 

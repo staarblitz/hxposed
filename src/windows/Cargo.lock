@@ -939,17 +939,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
-name = "com_logger"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f713ce10b416e9eeb3ac64b155a2e98d98aa04c873bc60671ff7011803c1b18"
-dependencies = [
- "log",
- "spin 0.9.8",
- "uart_16550",
-]
-
-[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1823,7 +1812,7 @@ dependencies = [
  "log",
  "num-derive",
  "num-traits",
- "spin 0.10.0",
+ "spin",
  "thiserror 2.0.17",
  "x86",
 ]
@@ -3281,15 +3270,6 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.9.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
-dependencies = [
- "lock_api",
-]
-
-[[package]]
-name = "spin"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
@@ -3544,9 +3524,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.34"
+version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
+checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
  "valuable",
@@ -3594,17 +3574,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb30dbbd9036155e74adad6812e9898d03ec374946234fbcebd5dfc7b9187b90"
 dependencies = [
  "rustc-hash 2.1.1",
-]
-
-[[package]]
-name = "uart_16550"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e492212ac378a5e00da953718dafb1340d9fbaf4f27d6f3c5cab03d931d1c049"
-dependencies = [
- "bitflags 2.10.0",
- "rustversion",
- "x86",
 ]
 
 [[package]]
@@ -4192,13 +4161,12 @@ version = "0.1.0"
 dependencies = [
  "bit_field",
  "bitfield-struct",
- "com_logger",
  "hashbrown 0.16.1",
  "hv",
  "hxposed_core",
  "log",
  "microseh",
- "spin 0.10.0",
+ "spin",
  "wdk",
  "wdk-alloc",
  "wdk-build",
