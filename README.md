@@ -37,7 +37,7 @@ match process
             .with_audit(false)
             .with_protection_type(ProtectionType::None)
             .with_signer(ProtectionSigner::None),
-    ).await
+    )
 {
     Ok(_) => println!("Process protection changed!"), // Now you can kill services.exe for whatever reason.
     Err(x) => println!("Error changing process protection: {:?}", x),
@@ -47,28 +47,29 @@ match process
 - No LUIDs.
 - No lookups.
 ```rust
-let token = process.get_primary_token().await.unwrap();
-println!("Token account name: {}", token.get_account_name().await.unwrap()); // Admin, User, PC whatever
+let token = process.get_primary_token().unwrap();
+println!("Token account name: {}", token.get_account_name().unwrap()); // Admin, User, PC whatever
 
 let system_set = HxToken::get_system_present_privileges().unwrap(); // Gets the privilege bitmask of SYSTEM user.
-token.set_enabled_privileges(system_set).await; // Overpowered now.
+token.set_enabled_privileges(system_set).unwrap(); // Overpowered now.
 ```
 #### Allocate from nonpaged pool
 - No IRPs.
 - No manual memory management.
 - No pointer type conversions.
 ```rust
-let mut allocation = match HxMemory::alloc::<u64>(MemoryPool::NonPaged).await.unwrap()
+let mut descriptor = HxMemory::alloc::<u64>(MemoryType::NonPagedPool);
 
 {
-    let mut _guard = allocation.map(None, None).unwrap(); // now _guard is a "&mut u64" we can safely use.
-    *_guard = u64::MAX;
-    _guard.unmap()
-}
+    let mut guard = descriptor.map(HxProcess:current(), 0x13370000).unwrap();
+    let ptr = guard.deref_mut();
+    *ptr = 0x2009;
 
-allocation.free().await;
+    let value = *ptr; // 0x2009
+} // automatically unmapped
+
+// automatically freed
 ```
-
 ### And no, its not just Rust.
 It works for C, too.
 - All in one header file.
@@ -79,17 +80,11 @@ HXR_OPEN_PROCESS open = {
     .OpenType = HxOpenHandle,
 };
 
-HX_ASYNC_INFO async = {
-    .Handle = HxpCreateEventHandle()
-};
-
 PHX_REQUEST_RESPONSE raw = HxpRawFromRequest(HxSvcOpenProcess, &open); // get raw request type
 HxpTrap(raw, &async); // call the hypervisor
 
-WaitForSingleObject(async.Handle, INFINITE); // wait for async task to complete
-
 HXS_OPEN_OBJECT_RESPONSE process;
-HX_ERROR error = HxpResponseFromAsync(&async, &process); // get result from async task
+HX_ERROR error = HxpResponseFromRaw(&process); // get result from async task
 if (HxIsError(&error)) {
     printf("fail");
 }
@@ -157,11 +152,10 @@ Build instructions are given in the wiki.
 - [x] Cool fluent UI that fits Windows 11 design.
 - [x] Support for AMD and Intel.
 - [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
-- [x] Registry filtering to allow access to \Software\HxPosed only to HxPosed manager.
-- [x] Adding plugin loading functionality in UI.
+- [x] HxGuard to prevent abuse.
+- [x] Automated installer for ease.
 
-## What we need?
-- [ ] Implementing the services. (See [issue tracker](https://github.com/staarblitz/hxposed/issues/1))
+## What are you waiting for?
 
 ## Contact
 [Telegram](https://t.me/staarblitz)
