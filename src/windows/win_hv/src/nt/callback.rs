@@ -100,26 +100,38 @@ impl NtCallback {
             let async_state = nt.get_hx_async_state_unchecked();
 
             for (_, callback) in &mut object_tracker.callbacks {
+                log::info!("Firing callback for: {}", callback.callback);
+
                 let obj = ObjectType::Process(id as _).into_raw();
                 let callback_info = CallbackInformation {
                     object_type: obj.0,
                     object_value: obj.1,
-                    object_state: ObjectState::Created,
+                    object_state: match info.is_null() {
+                        true => ObjectState::Deleted,
+                        false => ObjectState::Created
+                    },
                 };
+
+                log::info!("Callback information: {:?}", callback_info);
 
                 let offset = async_state.write_type(callback_info);
                 async_state.write_type_no_ring(0, offset as u32);
 
                 // FIXME: this may be an unnecessary practice
                 // if returns true, that means the event was already signaled and we need to wait for user-mode app to finish.
-                if callback.event.signal() {
+
+                log::info!("Signaling event...");
+                if !callback.event.signal() {
+                    log::info!("Receiver was busy! Waiting 200 ms.");
                     match callback.event.wait(false, 200) {
                         WaitStatus::TimedOut => log::warn!("Timeout for waiting callback handle to get signaled. Continuing anyway..."),
                         WaitStatus::Alerted => unreachable!(),
                         WaitStatus::Signaled => {}
                     }
+                    log::info!("Re-signaling event...");
                     callback.event.signal();
                 }
+                log::info!("Callback fired");
             }
         })
     }

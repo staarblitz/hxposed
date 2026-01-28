@@ -56,7 +56,8 @@ pub enum NotFoundReason {
     ServiceFunction = 5,
     Token = 6,
     Callback = 7,
-    HxInfo = 8
+    HxInfo = 8,
+    Event = 9,
 }
 
 impl NotFoundReason {
@@ -74,6 +75,7 @@ impl NotFoundReason {
             6 => Self::Token,
             7 => Self::Callback,
             8 => Self::HxInfo,
+            9 => Self::Event,
             _ => Self::Unknown,
         }
     }

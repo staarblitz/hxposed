@@ -1,15 +1,26 @@
 use crate::nt::arch::phys_to_virt;
 use bitfield_struct::bitfield;
 use hxposed_core::hxposed::requests::memory::{Pa, Pfn};
+use wdk_sys::ntddk::MmIsAddressValid;
 
 pub trait PagingEntry {
     type DownType;
     /// Caller must check that PFN is valid and present bit is set. Otherwise, a #GP or #PG whatever might occur.
     /// We should return a DangerPtr, actually.
-    fn walk_down(&self, index: u16) -> &'static mut Self::DownType {
+    fn walk_down(&self, index: u16) -> Result<&'static mut Self::DownType, ()> {
         let addr: u64 = self.pfn().into_phys().into();
 
-        unsafe { &mut *(phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType) }
+        unsafe {
+            let ptr = phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType;
+            match MmIsAddressValid(ptr as _) {
+                0 => {
+                    log::warn!("MmGetVirtualForPhysical failed!");
+                    Err(())
+                },
+                1 => Ok(ptr.as_mut().unwrap()),
+                _ => unreachable!(),
+            }
+        }
     }
 
     fn pfn(&self) -> Pfn;
@@ -55,12 +66,19 @@ impl PagingEntry for PageMapLevel5 {
 }
 
 impl PageMapLevel5 {
-    pub fn from_phys(addr: Pa, index: u16) -> &'static mut Self {
+    pub fn from_phys(addr: Pa, index: u16) -> Result<&'static mut Self, ()> {
         let addr: u64 = addr.into();
         let addr = addr as *mut Self;
         unsafe {
             let ptr = phys_to_virt(addr.add(index as _).addr() as _) as *mut Self;
-            ptr.as_mut().unwrap()
+            match MmIsAddressValid(ptr as _) {
+                0 => {
+                    log::warn!("MmGetVirtualForPhysical failed!");
+                    Err(())
+                },
+                1 => Ok(ptr.as_mut().unwrap()),
+                _ => unreachable!(),
+            }
         }
     }
 }
@@ -86,12 +104,19 @@ pub struct PageMapLevel4 {
 }
 
 impl PageMapLevel4 {
-    pub fn from_phys(addr: Pa, index: u16) -> &'static mut Self {
+    pub fn from_phys(addr: Pa, index: u16) -> Result<&'static mut Self, ()> {
         let addr: u64 = addr.into();
         let addr = addr as *mut Self;
         unsafe {
             let ptr = phys_to_virt(addr.add(index as _).addr() as _) as *mut Self;
-            ptr.as_mut().unwrap()
+            match MmIsAddressValid(ptr as _) {
+                0 => {
+                    log::warn!("MmGetVirtualForPhysical failed!");
+                    Err(())
+                },
+                1 => Ok(ptr.as_mut().unwrap()),
+                _ => unreachable!(),
+            }
         }
     }
 }

@@ -1,10 +1,12 @@
 use crate::error::HypervisorError;
+use crate::hxposed::RmdObject;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::memory::*;
+use crate::hxposed::responses::memory::PageAttributeResponse;
 use crate::services::process::HxProcess;
+use core::arch::asm;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
-use crate::hxposed::RmdObject;
 
 #[derive(Debug)]
 ///
@@ -39,6 +41,7 @@ unsafe impl<T> Send for HxMemoryDescriptor<T> {}
 pub struct HxMemoryGuard<'process, T> {
     pub virtual_addr: *mut T,
     pub kernel_mem: &'process HxMemoryDescriptor<T>,
+    pub va: Va,
     pub process: &'process HxProcess,
 }
 
@@ -58,19 +61,30 @@ impl<'a, T> DerefMut for HxMemoryGuard<'a, T> {
 
 impl<'a, T> Drop for HxMemoryGuard<'a, T> {
     fn drop(&mut self) {
-        let _ = self.process.memory.set_attributes(
-            PagingType::from_va(Va::from(self.virtual_addr as u64)),
-            PageAttributes::Present(false),
-        );
+        unsafe {
+            asm!("int 0x3");
+        };
+
+        self.unmap();
+    }
+}
+
+impl<'a, T> HxMemoryGuard<'a, T> {
+    fn unmap(&mut self) {
+        MapVaToPaRequest {
+            object: self.kernel_mem.rmd,
+            addr_space: self.process.addr,
+            map_addr: self.va.into(),
+            operation: MapOperation::Unmap,
+        }
+        .send()
+        .unwrap();
     }
 }
 
 impl<T> Drop for HxMemoryDescriptor<T> {
     fn drop(&mut self) {
-        let _ = FreeMemoryRequest {
-            obj: self.rmd,
-        }
-        .send();
+        let _ = FreeMemoryRequest { obj: self.rmd }.send();
     }
 }
 
@@ -83,13 +97,15 @@ impl<T> HxMemoryDescriptor<T> {
         MapVaToPaRequest {
             addr_space: process.addr,
             object: self.rmd,
-            map_addr: address
+            map_addr: address,
+            operation: MapOperation::Map,
         }
         .send()?;
 
         Ok(HxMemoryGuard::<T> {
             virtual_addr: address as _,
             kernel_mem: self,
+            va: Va::from(address),
             process,
         })
     }

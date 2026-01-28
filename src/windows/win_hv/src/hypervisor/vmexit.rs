@@ -1,3 +1,4 @@
+use crate::nt::event::NtEvent;
 use crate::nt::guard::hxguard::HxGuard;
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
@@ -11,9 +12,8 @@ use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
-use wdk_sys::KEVENT;
 use wdk_sys::ntddk::IoGetCurrentProcess;
-use crate::nt::event::NtEvent;
+use wdk_sys::KEVENT;
 
 ///
 /// # Called when a CPUID with RCX = 2009 is executed.
@@ -52,11 +52,13 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         }
     }
 
-    match process.is_hx_info_present(){
-        true => {},
+    match process.is_hx_info_present() {
+        true => {}
         false => {
             log::warn!("Caller does not have HxInfo on its EPROCESS structure.");
-            guest.write_response(HypervisorResponse::not_found_what(NotFoundReason::HxInfo as _));
+            guest.write_response(HypervisorResponse::not_found_what(
+                NotFoundReason::HxInfo as _,
+            ));
             return false;
         }
     }
@@ -82,15 +84,13 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
             state: HypervisorStatus::SystemVirtualized,
             version: 1,
         }
-            .into_raw(),
+        .into_raw(),
         ServiceFunction::OpenProcess
         | ServiceFunction::CloseProcess
         | ServiceFunction::KillProcess
         | ServiceFunction::GetProcessField
         | ServiceFunction::SetProcessField
-        | ServiceFunction::GetProcessThreads => {
-            services::handle_process_services(&request)
-        }
+        | ServiceFunction::GetProcessThreads => services::handle_process_services(&request),
         ServiceFunction::OpenThread
         | ServiceFunction::CloseThread
         | ServiceFunction::SuspendResumeThread
@@ -101,12 +101,13 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         | ServiceFunction::AllocateMemory
         | ServiceFunction::FreeMemory
         | ServiceFunction::MapVaToPa => services::handle_memory_services(&request),
+        ServiceFunction::RegisterNotifyEvent | ServiceFunction::UnregisterNotifyEvent => {
+            services::handle_callback_services(&request)
+        }
         ServiceFunction::OpenToken
         | ServiceFunction::CloseToken
         | ServiceFunction::GetTokenField
-        | ServiceFunction::SetTokenField => {
-            services::handle_security_services(&request)
-        }
+        | ServiceFunction::SetTokenField => services::handle_security_services(&request),
         _ => {
             log::warn!("Unsupported vmcall: {:?}", info.func());
             HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction)

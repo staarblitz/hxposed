@@ -47,158 +47,91 @@ pub struct MapVaToPaRequest {
     pub addr_space: ProcessObject,
     pub object: RmdObject,
     pub map_addr: u64,
+    pub operation: MapOperation
 }
 
 #[derive(Debug)]
 pub struct PageAttributeRequest {
     pub addr_space: ProcessObject,
     pub paging_type: PagingType,
-    pub attributes: PageAttributes,
+    pub type_bits: u64,
     pub operation: PageAttributeOperation,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum PageAttributes {
-    Present(bool),
-    Writable(bool),
-    UserAccessible(bool),
-    WriteThrough(bool),
-    NoCache(bool),
-    Accessed(bool),
-    Dirty(bool),
-    Large(bool),
-    CopyOnWrite(bool),
-    SoftwareWrite(bool),
-    Global(bool),
-    Pfn(u64),
-    ExecuteDisable(bool),
+pub enum MapOperation {
+    Map,
+    Unmap
 }
 
-impl From<u64> for PageAttributeOperation {
-    fn from(attr: u64) -> Self {
-        match attr {
-            0 => Self::Get,
-            1 => Self::Set,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl PageAttributes {
-    pub fn into_raw_enum(self) -> (u64, u64) {
+impl MapOperation {
+    pub const fn into_bits(self) -> u64 {
         match self {
-            PageAttributes::Present(x) => (1, x as _),
-            PageAttributes::Writable(x) => (2, x as _),
-            PageAttributes::UserAccessible(x) => (3, x as _),
-            PageAttributes::WriteThrough(x) => (4, x as _),
-            PageAttributes::NoCache(x) => (5, x as _),
-            PageAttributes::Accessed(x) => (6, x as _),
-            PageAttributes::Large(x) => (7, x as _),
-            PageAttributes::Global(x) => (8, x as _),
-            PageAttributes::Pfn(x) => (9, x as _),
-            PageAttributes::ExecuteDisable(x) => (10, x as _),
-            PageAttributes::Dirty(x) => (11, x as _),
-            PageAttributes::CopyOnWrite(x) => (12, x as _),
-            PageAttributes::SoftwareWrite(x) => (13, x as _),
+            MapOperation::Map => 0,
+            MapOperation::Unmap => 1
         }
     }
 
-    pub fn from_raw_enum(object: u64, value: u64) -> Self {
-        match object {
-            1 => PageAttributes::Present(value == 1),
-            2 => PageAttributes::Writable(value == 1),
-            3 => PageAttributes::UserAccessible(value == 1),
-            4 => PageAttributes::WriteThrough(value == 1),
-            5 => PageAttributes::NoCache(value == 1),
-            6 => PageAttributes::Accessed(value == 1),
-            7 => PageAttributes::Large(value == 1),
-            8 => PageAttributes::Global(value == 1),
-            9 => PageAttributes::Pfn(value),
-            10 => PageAttributes::ExecuteDisable(value == 1),
-            11 => PageAttributes::Dirty(value == 1),
-            12 => PageAttributes::CopyOnWrite(value == 1),
-            13 => PageAttributes::SoftwareWrite(value == 1),
-            _ => unreachable!(),
+    pub const fn from_bits(value: u64) -> Self {
+        match value {
+            0 => MapOperation::Map,
+            1 => MapOperation::Unmap,
+            _ => unreachable!()
         }
     }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u64)]
 pub enum PageAttributeOperation {
     Set,
     Get,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum PagingType {
-    Pml5(u16),
-    Pml4(u16, u16),
-    Pdp(u16, u16, u16),
-    Pd(u16, u16, u16, u16),
-    Pt(u16, u16, u16, u16, u16),
-}
-
-impl PagingType {
-    pub fn from_va(va: Va) -> Self {
-        Self::Pt(
-            va.get_pml5_index(),
-            va.get_pml4_index(),
-            va.get_pdp_index(),
-            va.get_pd_index(),
-            va.get_pt_index(),
-        )
-    }
-
-    pub fn into_raw_enum(self) -> (u64, u128) {
+impl PageAttributeOperation {
+    pub const fn into_bits(self) -> u64 {
         match self {
-            PagingType::Pml5(index) => (1, index as _),
-            PagingType::Pml4(index, index2) => (2, index as u128 | (index2 as u128) << 15),
-            PagingType::Pdp(index, index2, index3) => (
-                3,
-                index as u128 | (index2 as u128) << 15 | (index3 as u128) << 31,
-            ),
-            PagingType::Pd(index, index2, index3, index4) => (
-                4,
-                index as u128
-                    | (index2 as u128) << 15
-                    | (index3 as u128) << 31
-                    | (index4 as u128) << 47,
-            ),
-            PagingType::Pt(index, index2, index3, index4, index5) => (
-                5,
-                index as u128
-                    | (index2 as u128) << 15
-                    | (index3 as u128) << 31
-                    | (index4 as u128) << 47
-                    | (index5 as u128) << 63,
-            ),
+            PageAttributeOperation::Set => 0,
+            PageAttributeOperation::Get => 1
         }
     }
 
-    pub fn from_raw_enum(object: u64, value: u128) -> Self {
-        match object {
-            1 => PagingType::Pml5(value as _),
-            2 => PagingType::Pml4(value.bitand(0xFFFF) as _, (value >> 15).bitand(0xFFFF) as _),
-            3 => PagingType::Pdp(
-                value.bitand(0xFFFF) as _,
-                (value >> 15).bitand(0xFFFF) as _,
-                (value >> 31).bitand(0xFFFF) as _,
-            ),
-            4 => PagingType::Pd(
-                value.bitand(0xFFFF) as _,
-                (value >> 15).bitand(0xFFFF) as _,
-                (value >> 31).bitand(0xFFFF) as _,
-                (value >> 47).bitand(0xFFFF) as _,
-            ),
-            5 => PagingType::Pt(
-                value.bitand(0xFFFF) as _,
-                (value >> 15).bitand(0xFFFF) as _,
-                (value >> 31).bitand(0xFFFF) as _,
-                (value >> 47).bitand(0xFFFF) as _,
-                (value >> 63).bitand(0xFFFF) as _,
-            ),
+    pub const fn from_bits(bits: u64) -> Self {
+        match bits {
+            0 => PageAttributeOperation::Set,
+            1 => PageAttributeOperation::Get,
             _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum PagingType {
+    Pml5(Va),
+    Pml4(Va),
+    Pdp(Va),
+    Pd(Va),
+    Pt(Va),
+}
+
+impl PagingType {
+    pub fn from_raw_enum(object: u64, value: u64) -> Self {
+        match object {
+            0 => Self::Pml5(Va::from(value)),
+            1 => Self::Pml4(Va::from(value)),
+            2 => Self::Pdp(Va::from(value)),
+            3 => Self::Pd(Va::from(value)),
+            4 => Self::Pt(Va::from(value)),
+            _ => unreachable!()
+        }
+    }
+
+    pub fn into_raw_enum(self) -> (u64, u64) {
+        match self {
+            PagingType::Pml5(x) => (0, x.into()),
+            PagingType::Pml4(x) => (1, x.into()),
+            PagingType::Pdp(x) => (2, x.into()),
+            PagingType::Pd(x) => (3, x.into()),
+            PagingType::Pt(x) => (4, x.into())
         }
     }
 }
@@ -250,6 +183,7 @@ impl VmcallRequest for MapVaToPaRequest {
             arg1: self.object,
             arg2: self.addr_space,
             arg3: self.map_addr,
+            extended_arg1: self.operation.clone().into_bits() as _,
             ..Default::default()
         }
     }
@@ -258,7 +192,8 @@ impl VmcallRequest for MapVaToPaRequest {
         Self {
             object: request.arg1,
             addr_space: request.arg2,
-            map_addr: request.arg3
+            map_addr: request.arg3,
+            operation: MapOperation::from_bits(request.extended_arg1 as _),
         }
     }
 }
@@ -267,33 +202,26 @@ impl VmcallRequest for PageAttributeRequest {
     type Response = PageAttributeResponse;
 
     fn into_raw(self) -> HypervisorRequest {
-        let args = self.paging_type.into_raw_enum();
-        let args2 = self.attributes.into_raw_enum();
+        let args = self.paging_type.clone().into_raw_enum();
         HypervisorRequest {
             call: HypervisorCall::set_page_attr(),
             arg1: self.addr_space,
-            arg2: self.operation as _,
+            arg2: self.operation.into_bits(),
+            arg3: self.type_bits,
+            // now you know why I don't like to use Into and From traits
             extended_arg1: args.0 as _,
             extended_arg2: args.1 as _,
-            extended_arg3: args2.0 as _,
-            extended_arg4: args2.1 as _,
 
             ..Default::default()
         }
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
-        let paging_type =
-            PagingType::from_raw_enum(request.extended_arg1 as _, request.extended_arg2 as _);
-
-        let attributes =
-            PageAttributes::from_raw_enum(request.extended_arg3 as _, request.extended_arg4 as _);
-
         Self {
             addr_space: request.arg1,
-            operation: PageAttributeOperation::from(request.arg2),
-            paging_type,
-            attributes,
+            operation: PageAttributeOperation::from_bits(request.arg2),
+            type_bits: request.arg3,
+            paging_type: PagingType::from_raw_enum(request.extended_arg1 as _, request.extended_arg2 as _),
         }
     }
 }
@@ -346,7 +274,7 @@ impl Pa {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Va(u64);
 
 impl Va {

@@ -1,11 +1,10 @@
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
-use crate::hxposed::requests::memory::PageAttributes;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
 #[derive(Clone)]
 pub struct PageAttributeResponse {
-    pub result: PageAttributes
+    pub type_bits: u64,
 }
 
 #[derive(Clone)]
@@ -33,16 +32,15 @@ impl VmcallResponse for AllocateMemoryResponse {
 impl VmcallResponse for PageAttributeResponse {
     fn from_raw(raw: HypervisorResponse) -> Self {
         Self {
-            result: PageAttributes::from_raw_enum(raw.arg1, raw.arg2)
+            type_bits: raw.arg1
         }
     }
 
     fn into_raw(self) -> HypervisorResponse {
-        let args = self.result.into_raw_enum();
         HypervisorResponse {
             result: HypervisorResult::ok(ServiceFunction::GetSetPageAttribute),
-            arg1: args.0,
-            arg2: args.1,
+            arg1: self.type_bits,
+            arg2: 0,
             arg3: 0
         }
     }

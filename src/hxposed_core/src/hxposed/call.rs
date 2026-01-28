@@ -111,7 +111,7 @@ impl HypervisorCall {
     }
 
     pub(crate) fn mem_map() -> Self {
-        Self::new().with_func(ServiceFunction::MapVaToPa)
+        Self::new().with_func(ServiceFunction::MapVaToPa).with_extended_args_present(true)
     }
 
     pub(crate) fn free_mem() -> Self {

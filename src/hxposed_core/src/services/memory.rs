@@ -15,30 +15,29 @@ pub struct HxMemory {
 }
 
 impl HxMemory {
-    pub fn get_attributes(
+    pub fn get_paging_type(
         &self,
         page_type: PagingType,
-        attribute: PageAttributes,
     ) -> Result<PageAttributeResponse, HypervisorError> {
         PageAttributeRequest {
             addr_space: self.process,
             operation: PageAttributeOperation::Get,
             paging_type: page_type,
-            attributes: attribute,
+            type_bits: 0
         }
         .send()
     }
 
-    pub fn set_attributes(
+    pub fn set_paging_type(
         &self,
         page_type: PagingType,
-        attribute: PageAttributes,
+        type_bits: u64,
     ) -> Result<PageAttributeResponse, HypervisorError> {
         PageAttributeRequest {
             addr_space: self.process,
             operation: PageAttributeOperation::Set,
             paging_type: page_type,
-            attributes: attribute,
+            type_bits,
         }
         .send()
     }

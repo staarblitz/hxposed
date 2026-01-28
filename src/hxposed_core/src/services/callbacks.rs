@@ -7,7 +7,7 @@ use crate::hxposed::responses::{read_response_type, HypervisorResponse};
 use crate::hxposed::responses::notify::*;
 use crate::hxposed::{CallbackObject, ObjectType};
 use core::sync::atomic::{AtomicBool, Ordering};
-use crate::intern::win::{CloseHandle, CreateEventA, SetEvent, WaitForSingleObject};
+use crate::intern::win::{CloseHandle, CreateEventA, ResetEvent, SetEvent, WaitForSingleObject};
 
 pub struct HxCallback {
     callback: CallbackObject,
@@ -85,6 +85,27 @@ impl HxCallback {
         })
     }
 
+    ///
+    /// # Wait For Callback
+    ///
+    /// Waits for hypervisor to signal the event.
+    ///
+    /// ## Return
+    /// * [`CallbackInformation`] - Information about the callback.
+    /// * [`HypervisorError`] - Timed out.
+    ///
+    /// ## Example
+    /// ```rust
+    /// let callback = HxCallback::new(ObjectType::Process(0)).unwrap();
+    /// loop {
+    ///     match callback.wait_for_callback() {
+    ///         Ok(info) => {
+    ///             // do something
+    ///         }
+    ///         Err(_) => /* ignore */
+    ///     }
+    /// }
+    /// ```
     pub fn wait_for_callback(&self) -> Result<CallbackInformation, HypervisorError>
     {
         let response = match unsafe {
@@ -96,8 +117,8 @@ impl HxCallback {
             _ => Err(HypervisorError::async_time_out())
         };
 
-        // signal, tell the hypervisor that we are done with it.
-        unsafe {SetEvent(self.event_handle) };
+        // reset, tell the hypervisor that we are done with it.
+        unsafe {ResetEvent(self.event_handle) };
 
         response
     }

@@ -8,7 +8,9 @@ use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::requests::memory::*;
+use hxposed_core::hxposed::requests::notify::{RegisterNotifyHandlerRequest, UnregisterNotifyHandlerRequest};
 use hxposed_core::hxposed::responses::HypervisorResponse;
+use crate::services::callback_services::{register_callback_receiver, unregister_callback_receiver};
 
 mod callback_services;
 pub mod memory_services;
@@ -24,6 +26,14 @@ pub mod thread_services;
 
     EmptyResponse::with_service(ServiceFunction::CancelAsyncCall)
 }*/
+
+pub fn handle_callback_services(request: &HypervisorRequest) -> HypervisorResponse {
+    match request.call.func() {
+        ServiceFunction::UnregisterNotifyEvent => unregister_callback_receiver(UnregisterNotifyHandlerRequest::from_raw(request)),
+        ServiceFunction::RegisterNotifyEvent => register_callback_receiver(RegisterNotifyHandlerRequest::from_raw(request)),
+        _ => unreachable!()
+    }
+}
 
 pub fn handle_thread_services(request: &HypervisorRequest) -> HypervisorResponse {
     match request.call.func() {

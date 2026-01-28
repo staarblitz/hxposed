@@ -136,7 +136,7 @@ impl eframe::App for HxTestApp {
                                     }
                                     Err(err) => {
                                         error_update =
-                                            Some(format!("Error allocating memory: {:?}", err));
+                                            Some(format!("Error registering: {:?}", err));
                                     }
                                 }
 
@@ -186,9 +186,14 @@ impl eframe::App for HxTestApp {
 
                         ui.separator();
                         ui.horizontal(|ui| {
+                            unsafe {
+                                if PROCESS_STATE.current_process.is_none() {
+                                    PROCESS_STATE.current_process = Some(HxProcess::current().unwrap());
+                                }
+                            }
+
                             if ui.button("Map").clicked() {
                                 let result = unsafe {
-                                    asm!("int 0x3");
                                     let desc = state.descriptor.as_mut().unwrap();
                                     desc.map(
                                         PROCESS_STATE.current_process.as_ref().unwrap(),

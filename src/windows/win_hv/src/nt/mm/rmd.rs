@@ -1,14 +1,14 @@
-use alloc::vec::Vec;
 use crate::nt::arch::cr3::Cr3Context;
 use crate::nt::arch::pt::{PageMapLevel4, PagingEntry};
 use crate::nt::arch::virt_to_phys;
 use crate::nt::process::NtProcess;
 use crate::utils::transaction::Transaction;
+use alloc::vec::Vec;
 use core::arch::asm;
 use core::hash::Hash;
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use spin::mutex::SpinMutex;
 use hxposed_core::hxposed::requests::memory::{MemoryType, Pa, Va};
+use spin::mutex::SpinMutex;
 use wdk_sys::ntddk::{
     ExAllocatePool2, ExFreePool, MmAllocateContiguousMemory, MmFreeContiguousMemory,
 };
@@ -20,13 +20,13 @@ pub struct RawMemoryDescriptor {
     pub system_va: Va,
     pub size: u32,
     pub memory_type: MemoryType,
-    pub mapped_addrs: SpinMutex<Vec<MapDetails>>
+    pub mapped_addrs: SpinMutex<Vec<MapDetails>>,
 }
 
 #[derive(Debug)]
-struct MapDetails {
+pub struct MapDetails {
     pub mapped_addr: u64,
-    pub mapped_process: NtProcess
+    pub mapped_process: NtProcess,
 }
 
 impl Hash for RawMemoryDescriptor {
@@ -65,7 +65,9 @@ impl RawMemoryDescriptor {
     }
 
     fn new_for_paging() -> Self {
-        Self::new_alloc(4096, MemoryType::NonPagedPool)
+        // ExAllocatePool method SOMETIMES makes MmGetPhysicalForVirtual go crazy.
+        // so we use this
+        Self::new_alloc(4096, MemoryType::ContiguousPhysical)
     }
 
     fn from_raw(ptr: u64, size: u32, memory_type: MemoryType) -> Self {
@@ -80,17 +82,26 @@ impl RawMemoryDescriptor {
 
     pub fn teardown(&self) {
         let lock = self.mapped_addrs.lock();
-        lock.iter().for_each(|details| {
-            match self.unmap(&details.mapped_process, details.mapped_addr) {
-                Ok(_) => {}
-                Err(_) => {
-                    log::error!("Failed to unmap {:?} during teardown. System unstable!", details);
-                }
-            }
-        });
+        for mapping in lock.iter() {
+            self.unmap(&mapping).unwrap();
+        }
+
+        drop(lock);
 
         // this should not fail since we already freed all mappings
         self.free().unwrap();
+    }
+
+    pub fn find_map(&self, process: &NtProcess, map_addr: u64) -> Option<MapDetails> {
+        let mut lock = self.mapped_addrs.lock();
+        if let Some(index) = lock.iter().position(|details| {
+            details.mapped_addr == map_addr
+                && details.mapped_process.nt_process == process.nt_process
+        }) {
+            Some(lock.remove(index))
+        } else {
+            None
+        }
     }
 
     pub fn free(&self) -> Result<(), ()> {
@@ -98,14 +109,20 @@ impl RawMemoryDescriptor {
             return Err(());
         }
 
+        unsafe {
+            self.free_unchecked()
+        }
+
+        Ok(())
+    }
+
+    pub unsafe fn free_unchecked(&self) {
         match self.memory_type {
             MemoryType::NonPagedPool => unsafe { ExFreePool(self.system_va.get_addr() as _) },
             MemoryType::ContiguousPhysical => unsafe {
                 MmFreeContiguousMemory(self.system_va.get_addr() as _)
             },
         }
-
-        Ok(())
     }
 
     pub fn map(&self, process: NtProcess, map_addr: u64) -> Result<(), ()> {
@@ -125,7 +142,9 @@ impl RawMemoryDescriptor {
             pml5.set_pfn(addr)
         }*/
 
-        let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index());
+        // we have to ALWAYS check the address using MmIsAddressValid. Somehow, MmGetVirtualForPhysical returns garbage.
+
+        let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index())?;
         pml4.make_user_accessible();
         if !pml4.present() {
             let addr = Self::new_for_paging();
@@ -133,7 +152,7 @@ impl RawMemoryDescriptor {
             tx.enlist(move || addr.free().unwrap());
         }
 
-        let pdp = pml4.walk_down(virt.get_pdp_index());
+        let pdp = pml4.walk_down(virt.get_pdp_index())?;
         pdp.make_user_accessible();
         if !pdp.present() {
             let addr = Self::new_for_paging();
@@ -141,7 +160,7 @@ impl RawMemoryDescriptor {
             tx.enlist(move || addr.free().unwrap());
         }
 
-        let pd = pdp.walk_down(virt.get_pd_index());
+        let pd = pdp.walk_down(virt.get_pd_index())?;
         pd.make_user_accessible();
         if !pd.present() {
             let addr = Self::new_for_paging();
@@ -149,7 +168,7 @@ impl RawMemoryDescriptor {
             tx.enlist(move || addr.free().unwrap());
         }
 
-        let pt = pd.walk_down(virt.get_pt_index());
+        let pt = pd.walk_down(virt.get_pt_index())?;
         pt.make_user_accessible();
         if !pt.present() {
             pt.set_pfn(self.pa.into_pfn())
@@ -179,19 +198,14 @@ impl RawMemoryDescriptor {
         Ok(())
     }
 
-    pub fn unmap(&self, process: &NtProcess, mapped_addr: u64) -> Result<(), ()> {
-        let mut lock = self.mapped_addrs.lock();
-
-        // this is not failsafe. hmmm
-        let map_details = match lock.iter().position(|details| {
-            details.mapped_addr == mapped_addr && details.mapped_process.nt_process == process.nt_process
-        }) {
-            None => return Err(()),
-            Some(x) => lock.remove(x),
-        };
-
+    pub fn unmap(&self, map_details: &MapDetails) -> Result<(), ()> {
         let virt = Va::from(map_details.mapped_addr);
-        let _ctx = Cr3Context::begin(map_details.mapped_process.get_user_directory_table_base().into());
+        let _ctx = Cr3Context::begin(
+            map_details
+                .mapped_process
+                .get_user_directory_table_base()
+                .into(),
+        );
 
         let base = Pa::from(virt_to_phys(virt.get_page_addr()));
 
@@ -200,22 +214,22 @@ impl RawMemoryDescriptor {
             return Err(());
         }*/
 
-        let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index());
+        let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index())?;
         if !pml4.present() {
             return Err(());
         }
 
-        let pdp = pml4.walk_down(virt.get_pdp_index());
+        let pdp = pml4.walk_down(virt.get_pdp_index())?;
         if !pdp.present() {
             return Err(());
         }
 
-        let pd = pdp.walk_down(virt.get_pdp_index());
+        let pd = pdp.walk_down(virt.get_pd_index())?;
         if !pd.present() {
             return Err(());
         }
 
-        let pt = pd.walk_down(virt.get_pt_index());
+        let pt = pd.walk_down(virt.get_pt_index())?;
         if pt.present() {
             pt.set_present(false);
             Ok(())
