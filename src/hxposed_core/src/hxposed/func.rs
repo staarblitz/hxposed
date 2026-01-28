@@ -31,7 +31,8 @@ pub enum ServiceFunction {
     AwaitNotifyEvent = 27,
     CancelAsyncCall = 28,
     GetSetPageAttribute = 29,
-    MapVaToPa= 30
+    MapVaToPa= 30,
+    MsrIo = 31
 }
 
 impl ServiceFunction {
@@ -72,6 +73,7 @@ impl ServiceFunction {
             28 => ServiceFunction::CancelAsyncCall,
             29 => ServiceFunction::GetSetPageAttribute,
             30 => ServiceFunction::MapVaToPa,
+            31 => ServiceFunction::MsrIo,
             _ => ServiceFunction::Unknown,
         }
     }

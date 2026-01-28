@@ -14,6 +14,7 @@ pub mod process;
 pub mod security;
 pub mod status;
 pub mod thread;
+pub mod io;
 
 #[derive(Clone, Default, Debug)]
 pub struct HypervisorRequest {

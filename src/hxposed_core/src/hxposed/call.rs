@@ -20,6 +20,10 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::GetState)
     }
 
+    pub(crate) fn msr_io() -> Self {
+        Self::new().with_func(ServiceFunction::MsrIo)
+    }
+
     pub(crate) fn cancel_async_call() -> Self {
         Self::new().with_func(ServiceFunction::CancelAsyncCall)
     }

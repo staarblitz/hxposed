@@ -103,12 +103,21 @@ struct HostExceptionStack {
 #[unsafe(no_mangle)]
 extern "C" fn handle_host_exception(stack: *mut HostExceptionStack) {
     assert!(!stack.is_null());
-    let stack = unsafe { &*stack };
-    panic!(
-        "Exception {} occurred in host: {stack:#x?}, cr2: {:#x?}",
-        stack.exception_number,
-        cr2(),
-    );
+    let stack = unsafe { &mut *stack };
+
+    // this means this exception was expected (get it? lol)
+    if stack.r15 == 0x2009 {
+        stack.r15 = 0;
+        stack.rdx = 0;
+        stack.rax = 0;
+    } else {
+        // this exception was not expected (get it?). panic
+        panic!(
+            "Exception {} occurred in host: {stack:#x?}, cr2: {:#x?}",
+            stack.exception_number,
+            cr2(),
+        );
+    }
 }
 
 global_asm!(include_str!("interrupt_handlers.S"));

@@ -11,3 +11,5 @@ pub mod thread;
 #[cfg(feature = "usermode")]
 pub mod callbacks;
 pub mod types;
+#[cfg(feature = "usermode")]
+pub mod cpu;

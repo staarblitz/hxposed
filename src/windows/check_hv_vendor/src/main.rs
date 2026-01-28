@@ -14,6 +14,7 @@ use std::arch::asm;
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
+use hxposed_core::services::cpu::HxCpu;
 
 fn main() {
     let options = eframe::NativeOptions {
@@ -66,6 +67,11 @@ static mut PROCESS_STATE: ProcessState = ProcessState {
     protection_signer: ProtectionSigner::None,
 };
 
+static mut IO_STATE: IoState = IoState {
+    current_value: String::new(),
+    current_msr: String::new(),
+};
+
 #[derive(Default)]
 enum AppState {
     #[default]
@@ -73,6 +79,12 @@ enum AppState {
     Process(&'static mut ProcessState),
     Memory(&'static mut MemoryState),
     Callbacks(&'static mut CallbacksState),
+    Io(&'static mut IoState)
+}
+
+struct IoState {
+    current_value: String,
+    current_msr: String,
 }
 
 struct CallbacksState {
@@ -121,10 +133,45 @@ impl eframe::App for HxTestApp {
                 if ui.button("Callbacks").clicked() {
                     self.state = AppState::Callbacks(&mut CALLBACKS_STATE);
                 }
+                if ui.button("Cpu").clicked() {
+                    self.state = AppState::Io(&mut IO_STATE);
+                }
             });
             ui.vertical(|ui| {
                 ui.separator();
                 match &mut self.state {
+                    AppState::Io(state) => {
+                        ui.label("MSR:");
+                        ui.text_edit_singleline(&mut state.current_msr);
+                        ui.separator();
+                        ui.label("Value:");
+                        ui.text_edit_singleline(&mut state.current_value);
+                        ui.separator();
+                        if ui.button("Read").clicked(){
+                            match HxCpu::read_msr(u32::from_str_radix(&state.current_msr, 16).unwrap()) {
+                                Ok(x) => {
+                                    ok_update =
+                                        Some(format!("Msr Read! 0x{:x}", x));
+                                }
+                                Err(err) => {
+                                    error_update =
+                                        Some(format!("Error reading msr: {:?}", err));
+                                }
+                            }
+                        }
+                        if ui.button("Write").clicked(){
+                            match HxCpu::write_msr(u32::from_str_radix(&state.current_msr, 16).unwrap(), u64::from_str_radix(&state.current_value, 16).unwrap()) {
+                                Ok(x) => {
+                                    ok_update =
+                                        Some(format!("Msr written!"));
+                                }
+                                Err(err) => {
+                                    error_update =
+                                        Some(format!("Error writing msr: {:?}", err));
+                                }
+                            }
+                        }
+                    }
                     AppState::Callbacks(state) => {
                         ui.horizontal(|ui| {
                             if ui.button("Register").clicked() {

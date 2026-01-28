@@ -41,7 +41,8 @@ pub enum NotAllowedReason {
     MissingPermissions = 1,
     LockHeld = 2,
     PageNotPresent = 3,
-    MappingsExist = 4
+    MappingsExist = 4,
+    MsrDoesntExist = 5,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]

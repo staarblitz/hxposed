@@ -108,6 +108,7 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         | ServiceFunction::CloseToken
         | ServiceFunction::GetTokenField
         | ServiceFunction::SetTokenField => services::handle_security_services(&request),
+        ServiceFunction::MsrIo => services::handle_cpu_io_services(&request),
         _ => {
             log::warn!("Unsupported vmcall: {:?}", info.func());
             HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction)
