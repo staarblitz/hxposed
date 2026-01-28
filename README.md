@@ -82,7 +82,7 @@ HXR_OPEN_PROCESS open = {
 
 PHX_REQUEST_RESPONSE raw = HxpRawFromRequest(HxSvcOpenProcess, &open);
 
-if (HxpTrap(raw) == 0) {
+if (HxpTrap(raw) == -1) {
     printf("hv not loaded");
     return 1;
 }
