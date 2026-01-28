@@ -80,16 +80,20 @@ HXR_OPEN_PROCESS open = {
     .OpenType = HxOpenHandle,
 };
 
-PHX_REQUEST_RESPONSE raw = HxpRawFromRequest(HxSvcOpenProcess, &open); // get raw request type
-HxpTrap(raw, &async); // call the hypervisor
+PHX_REQUEST_RESPONSE raw = HxpRawFromRequest(HxSvcOpenProcess, &open);
+
+if (HxpTrap(raw) == 0) {
+    printf("hv not loaded");
+    return 1;
+}
 
 HXS_OPEN_OBJECT_RESPONSE process;
-HX_ERROR error = HxpResponseFromRaw(&process); // get result from async task
+HX_ERROR error = HxpResponseFromRaw(raw, &process);
 if (HxIsError(&error)) {
     printf("fail");
 }
 
-TerminateProcess(process.Address, 0); // now Address is handle with full op access rights
+TerminateProcess(process.Address, 0); // op access rights
 ```
 
 Hope you got our point. We are trying to make things easier, not harder.
