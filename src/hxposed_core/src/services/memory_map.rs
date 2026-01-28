@@ -61,10 +61,6 @@ impl<'a, T> DerefMut for HxMemoryGuard<'a, T> {
 
 impl<'a, T> Drop for HxMemoryGuard<'a, T> {
     fn drop(&mut self) {
-        unsafe {
-            asm!("int 0x3");
-        };
-
         self.unmap();
     }
 }

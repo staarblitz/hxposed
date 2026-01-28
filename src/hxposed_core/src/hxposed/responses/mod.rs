@@ -75,7 +75,6 @@ pub trait VmcallResponse: Sized + Send + Sync + Unpin {
 // messy. ideas?
 
 pub const RESPONSE_BASE: u64 = 0x20090000;
-pub const CALLBACK_BASE: u64 = 0x40180000;
 
 pub unsafe fn read_response_length(offset: u64) -> u32 {
     unsafe { *((RESPONSE_BASE + offset) as *const u32) }

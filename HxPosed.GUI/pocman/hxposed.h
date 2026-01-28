@@ -1,10 +1,37 @@
 #pragma once
 #include <Windows.h>
 
-typedef struct _UINT128 {
-    UINT64 Low;
-    UINT64 High;
-} UINT128, * PUINT128;
+//  HXR Stands for HxRequest.
+//  HXS Stands for HxResponse.
+
+#define HX_ASYNC_BASE 0x20090000
+#define HX_CALLBACK_RESERVED_OFFSET 0
+
+typedef PVOID HX_THREAD;
+typedef PVOID HX_PROCESS;
+typedef PVOID HX_TOKEN;
+typedef PVOID HX_RMD;
+typedef PVOID HX_CALLBACK;
+
+typedef enum _HX_OBJECT_TYPES {
+    HxObHandle = 0,
+    HxObProcess = 1,
+    HxObThread = 2,
+    HxObToken = 3,
+    HxObRmd = 4,
+    HxObRegKey = 5
+} HX_OBJECT_TYPES;
+
+typedef enum _HX_OBJECT_STATE {
+    HxObCreated = 0,
+    HxObModified = 1,
+    HxObDeleted = 2
+} HX_OBJECT_STATE;
+
+typedef struct _HX_OBJECT_TYPE {
+    HX_OBJECT_TYPES Type;
+    PVOID Object;
+} HX_OBJECT_TYPE;
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN SECURITY
 
@@ -64,6 +91,89 @@ typedef enum _HX_TOKEN_TYPE {
 ///////////////////////////////////////////////////////////////////////////////////////// END SECURITY
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
+
+typedef enum _HX_THREAD_FIELD {
+    HxThreadFieldUnknown = 0,
+    HxThreadFieldActiveImpersonationInfo = 1,
+    HxThreadFieldAdjustedClientToken = 2,
+} HX_THREAD_FIELD;
+
+typedef enum _HX_TOKEN_FIELD {
+    HxTokenFieldUnknown = 0,
+    HxTokenFieldSourceName = 1,
+    HxTokenFieldAccountName = 2,
+    HxTokenFieldType = 3,
+    HxTokenFieldIntegrityLevelIndex = 4,
+    HxTokenFieldMandatoryPolicy = 5,
+    HxTokenFieldImpersonationLevel = 6,
+    HxTokenFieldPresentPrivileges = 7,
+    HxTokenFieldEnabledPrivileges = 8,
+    HxTokenFieldEnabledByDefaultPrivileges = 9,
+} HX_TOKEN_FIELD;
+
+typedef enum _HX_PROCESS_FIELD {
+    HxProcFieldUnknown = 0,
+    HxProcFieldNtPath = 1,
+    HxProcFieldProtection = 2,
+    HxProcFieldSigners = 3,
+    HxProcFieldMitigationFlags = 4,
+    HxProcFieldToken = 5,
+} HX_PROCESS_FIELD;
+
+typedef enum _HX_OPEN_TYPE {
+    HxOpenHandle = 0,
+    HxOpenHypervisor = 1
+} HX_OPEN_TYPE;
+
+typedef enum _HX_MAP_OPERATION {
+    HxMemMap = 0,
+    HxMemUnMap = 1
+} HX_MAP_OPERATION, * PHX_MAP_OPERATION;
+
+typedef enum _HX_MEMORY_POOL {
+    HxPoolNonPaged = 0,
+    HxContiguousPhysical = 1
+} HX_MEMORY_POOL;
+
+typedef enum _HX_VM_OPERATION {
+    HxVmRead = 0,
+    HxVmWrite = 1
+} HX_VM_OPERATION;
+
+typedef enum _HX_PAGING_OBJECT {
+    HxPml5 = 0,
+    HxPml4 = 1,
+    HxPdp = 2,
+    HxPd = 3,
+    HxPt = 4
+} HX_PAGING_OBJECT;
+
+typedef struct _HX_VIRTUAL_ADDRESS_FLAGS {
+    UINT64 PhysicalOffset : 12;
+    UINT64 PtIndex : 9;
+    UINT64 PdIndex : 9;
+    UINT64 PdpIndex : 9;
+    UINT64 Pml4Index : 9;
+    UINT64 Pml5Index : 9;
+    UINT64 Sign : 7;
+} HX_VIRTUAL_ADDRESS_FLAGS;
+
+typedef union _HX_VIRTUAL_ADDRESS {
+    PVOID Address;
+    HX_VIRTUAL_ADDRESS_FLAGS Indices;
+} HX_VIRTUAL_ADDRESS;
+
+#pragma pack(push,1)
+typedef struct _HX_PAGING_TYPE {
+    HX_PAGING_OBJECT ObjectType;
+    HX_VIRTUAL_ADDRESS Object;
+} HX_PAGING_TYPE;
+#pragma pack(pop)
+
+typedef enum _HX_PAGING_OPERATION {
+    HxPageOperationSet = 0,
+    HxPageOperationGet = 1
+} HX_PAGING_OPERATION;
 
 typedef struct _HX_PROCESS_PROTECTION {
     union
@@ -224,84 +334,46 @@ typedef struct _HXS_STATUS {
 
 
 ///////////////////////////////////////////////////////////////////////////////////////// END STATUS
-///////////////////////////////////////////////////////////////////////////////////////// BEGIN AUTH
-
-typedef struct _HXS_AUTH {
-    UINT64 Permissions;
-} HXS_AUTH, * PHXS_AUTH;
-
-///////////////////////////////////////////////////////////////////////////////////////// END AUTH
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN MEMORY
 
-typedef struct _HXS_RW_VM {
-    SIZE_T BytesProcesseed;
-} HXS_RW_VM, * PHXS_RW_VM;
+typedef struct _HXS_GET_SET_PAGE_ATTRIBUTE {
+    UINT64 TypeBits;
+} HXS_GET_SET_PAGE_ATTRIBUTE, * PHXS_GET_SET_PAGE_ATTRIBUTE;
 
 typedef struct _HXS_ALLOCATE_MEMORY {
-    PVOID Address;
-    UINT32 BytesAllocated;
+    PVOID SystemVA;
 } HXS_ALLOCATE_MEMORY, * PHXS_ALLOCATE_MEMORY;
 
-typedef struct _HXS_MAP_MEMORY {
-    PVOID MappedAddress;
-} HXS_MAP_MEMORY, * PHXS_MAP_MEMORY;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
 
 typedef struct _HXS_GET_PROCESS_FIELD {
-    enum _HX_PROCESS_FIELD Field;
-    union _ProcessValues {
-        struct _NtPath {
-            UINT16 ByteLength;
-        } NtPath;
-        struct _Protection {
-            struct _HX_PROCESS_PROTECTION Protection;
-        } Protection;
-        struct _Signers {
-            struct _HX_PROCESS_SIGNERS Signers;
-        } Signers;
-        struct _Mitigation {
-            struct _HX_PROCESS_MITIGATION_FLAGS MitigationFlags;
-        } Mitigation;
-        struct _Token {
-            UINT64 Token;
-        } Token;
-    } ProcessValues;
+    HX_PROCESS_FIELD Field;
+    union {
+        UINT64 NtPathOffset;
+        HX_PROCESS_PROTECTION Protection;
+        HX_PROCESS_SIGNERS Signers;
+        HX_PROCESS_MITIGATION_FLAGS MitigationFlags;
+        UINT64 Token;
+        UINT64 ThreadsOffset;
+    };
 } HXS_GET_PROCESS_FIELD, * PHXS_GET_PROCESS_FIELD;
-
-typedef struct _HXS_GET_PROCESS_THREADS {
-    UINT32 NumberOfThreads;
-} HXS_GET_PROCESS_THREADS, * PHXS_GET_PROCESS_THREADS;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END PROCESS
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN SECURITY
 
 typedef struct _HXS_GET_TOKEN_FIELD {
-    enum _HX_TOKEN_FIELD Field;
-    union _TokenValues {
-        struct _SourceName {
-            CHAR Name[8];
-        } SourceName;
-        struct _AccountName {
-            UINT16 ByteLength;
-        } AccountName;
-        struct _Type {
-            HX_TOKEN_TYPE Type;
-        } Type;
-        struct _IntegrityLevelIndex {
-            UINT32 Index;
-        } IntegrityLevelIndex;
-        struct _MandatoryPolicy {
-            UINT32 Policy;
-        } MandatoryPolicy;
-        struct _ImpersonationLevel {
-            enum _HX_TOKEN_IMPERSONATION_LEVEL Level;
-        } ImpersonationLevel;
-        struct _Privileges {
-            struct _HX_TOKEN_PRIVILEGES Privileges;
-        } Privileges;
-    } TokenValues;
+    HX_TOKEN_FIELD Field;
+    union {
+        CHAR Name[8];
+        UINT64 NameOffset;
+        HX_TOKEN_TYPE Type;
+        UINT32 Index;
+        UINT32 Policy;
+        HX_TOKEN_IMPERSONATION_LEVEL Level;
+        HX_TOKEN_PRIVILEGES Privileges;
+    };
 } HXS_GET_TOKEN_FIELD, * PHXS_GET_TOKEN_FIELD;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END SECURITY
@@ -309,167 +381,102 @@ typedef struct _HXS_GET_TOKEN_FIELD {
 
 typedef struct _HXS_GET_THREAD_FIELD {
     enum _HX_THREAD_FIELD Field;
-    union _ThreadValues {
-        struct _ActiveImpersonationInfo {
-            BOOL Status;
-        } ActiveImpersonationInfo;
-        struct _AdjustClientToken {
-            PVOID Token;
-        } AdjustedClientToken;
-    } ThreadValues;
+    union {
+        BOOL ImpersonationStatus;
+        HX_TOKEN Token;
+    };
 } HXS_GET_THREAD_FIELD, * PHXS_GET_THREAD_FIELD;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END THREAD
+///////////////////////////////////////////////////////////////////////////////////////// BEGIN CALLBACKS
 
-typedef enum _HX_THREAD_FIELD {
-    HxThreadFieldUnknown = 0,
-    HxThreadFieldActiveImpersonationInfo = 1,
-    HxThreadFieldAdjustedClientToken = 2,
-} HX_THREAD_FIELD;
+typedef struct _HXS_CALLBACK_INFORMATION {
+    HX_OBJECT_TYPE ObjectType;
+    HX_OBJECT_STATE ObjectState;
+} HXS_CALLBACK_INFORMATION, * PHXS_CALLBACK_INFORMATION;
 
-typedef enum _HX_TOKEN_FIELD {
-    HxTokenFieldUnknown = 0,
-    HxTokenFieldSourceName = 1,
-    HxTokenFieldAccountName = 2,
-    HxTokenFieldType = 3,
-    HxTokenFieldIntegrityLevelIndex = 4,
-    HxTokenFieldMandatoryPolicy = 5,
-    HxTokenFieldImpersonationLevel = 6,
-    HxTokenFieldPresentPrivileges = 7,
-    HxTokenFieldEnabledPrivileges = 8,
-    HxTokenFieldEnabledByDefaultPrivileges = 9,
-} HX_TOKEN_FIELD;
+typedef struct _HXS_REGISTER_CALLBACK {
+    HX_CALLBACK Object;
+} HXS_REGISTER_CALLBACK, * PHXS_REGISTER_CALLBACK;
 
-typedef enum _HX_PROCESS_FIELD {
-    HxProcFieldUnknown = 0,
-    HxProcFieldNtPath = 1,
-    HxProcFieldProtection = 2,
-    HxProcFieldSigners = 3,
-    HxProcFieldMitigationFlags = 4,
-    HxProcFieldToken = 5,
-} HX_PROCESS_FIELD;
+///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
 
-typedef enum _HX_OPEN_TYPE {
-    HxOpenHandle = 0,
-    HxOpenHypervisor = 1
-} HX_OPEN_TYPE;
 
-typedef enum _HX_MAP_OPERATION {
-    HxMemMap = 0,
-    HxMemUnMap = 1
-} HX_MAP_OPERATION, * PHX_MAP_OPERATION;
-
-typedef enum _HX_MEMORY_POOL {
-    HxPoolNonPaged = 0
-} HX_MEMORY_POOL;
-
-typedef enum _HX_VM_OPERATION {
-    HxVmRead = 0,
-    HxVmWrite = 1
-} HX_VM_OPERATION;
-
-///////////////////////////////////////////////////////////////////////////////////////// BEGIN AUTH
-
-typedef struct _HXR_AUTH {
-    struct _UINT128 Guid;
-    UINT64 Permissions;
-} HXR_AUTH, * PHXR_AUTH;
-
-///////////////////////////////////////////////////////////////////////////////////////// END AUTH
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN MEMORY
 
-typedef struct _HXR_RW_VM {
-    PVOID ProcessAddress;
-    PVOID Address;
-    SIZE_T Count;
-    PVOID Output;
-    SIZE_T OutputSize;
-    enum _HX_VM_OPERATION Operation;
-} HXR_RW_VM, * PHXR_RW_VM;
-
-typedef struct _HXR_PROTECT_VM {
-    PVOID ProcessAddress;
-    PVOID Address;
-    UINT32 Protection;
-} HXR_PROTECT_VM, * PHXR_PROTECT_VM;
 
 typedef struct _HXR_ALLOCATE_MEMORY {
     UINT32 Size;
-    UINT32 Reserved;
-    enum _HX_MEMORY_POOL Pool;
+    HX_MEMORY_POOL Pool;
 } HXR_ALLOCATE_MEMORY, * PHXR_ALLOCATE_MEMORY;
 
-typedef struct _HXR_MAP_MEMORY {
-    PVOID Mdl;
-    PVOID MapAddress;
-    enum _HX_MAP_OPERATION Operation;
-} HXR_MAP_MEMORY, * PHXR_MAP_MEMORY;
-
 typedef struct _HXR_FREE_MEMORY {
-    PVOID Mdl;
+    HX_RMD Object;
 } HXR_FREE_MEMORY, * PHXR_FREE_MEMORY;
+
+typedef struct _HXR_MAP_VA_TO_PA {
+    HX_PROCESS AddressSpace;
+    HX_RMD MemoryDescriptor;
+    PVOID MapAddress;
+    HX_MAP_OPERATION Operation;
+} HXR_MAP_VA_TO_PA, * PHXR_MAP_VA_TO_PA;
+
+typedef struct _HXR_GET_SET_PAGE_ATTRIBUTE {
+    HX_PROCESS AddressSpace;
+    HX_PAGING_TYPE PagingType;
+    UINT64 TypeBits;
+    HX_PAGING_OPERATION Operation;
+} HXR_GET_SET_PAGE_ATTRIBUTE, * PHXR_GET_SET_PAGE_ATTRIBUTE;
+
 
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
 
 typedef struct _HXR_OPEN_PROCESS {
     UINT32 Id;
-    enum _HX_OPEN_TYPE OpenType;
+    HX_OPEN_TYPE OpenType;
 } HXR_OPEN_PROCESS, * PHXR_OPEN_PROCESS;
 
 typedef struct _HXR_CLOSE_PROCESS {
-    PVOID Address;
+    HX_PROCESS Address;
+    HX_OPEN_TYPE OpenType;
 } HXR_CLOSE_PROCESS, * PHXR_CLOSE_PROCESS;
 
 typedef struct _HXR_KILL_PROCESS {
-    PVOID Address;
+    HX_PROCESS Address;
     UINT32 ExitCode;
 } HXR_KILL_PROCESS, * PHXR_KILL_PROCESS;
 
 typedef struct _HXR_GET_PROCESS_FIELD {
-    PVOID Address;
-    enum _HX_PROCESS_FIELD Field;
-    PVOID Data;
-    SIZE_T DataLen;
+    HX_PROCESS Address;
+    HXS_GET_PROCESS_FIELD Data;
 } HXR_GET_PROCESS_FIELD, * PHXR_GET_PROCESS_FIELD;
 
 typedef struct _HXR_SET_PROCESS_FIELD {
-    PVOID Address;
-    enum _HX_PROCESS_FIELD Field;
-    PVOID Data;
-    SIZE_T DataLen;
+    HX_PROCESS Address;
+    HXS_GET_PROCESS_FIELD Data;
 } HXR_SET_PROCESS_FIELD, * PHXR_SET_PROCESS_FIELD;
-
-typedef struct _HXR_GET_PROCESS_THREADS {
-    PVOID Address;
-    PVOID Data;
-    SIZE_T DataLen;
-} HXR_GET_PROCESS_THREADS, * PHXR_GET_PROCESS_THREADS;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END PROCESS
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN SECURITY
 
 typedef struct _HXR_OPEN_TOKEN {
-    PVOID Address;
-    enum _HX_OPEN_TYPE OpenType;
+    HX_TOKEN Address;
+    HX_OPEN_TYPE OpenType;
 } HXR_OPEN_TOKEN, * PHXR_OPEN_TOKEN;
 
 typedef struct _HXR_CLOSE_TOKEN {
-    PVOID Address;
+    HX_TOKEN Address;
 } HXR_CLOSE_TOKEN, * PHXR_CLOSE_TOKEN;
 
 typedef struct _HXR_GET_TOKEN_FIELD {
-    PVOID Address;
-    enum _HX_TOKEN_FIELD Field;
-    PVOID Data;
-    SIZE_T DataLen;
+    HX_TOKEN Address;
+    HXS_GET_TOKEN_FIELD Data;
 } HXR_GET_TOKEN_FIELD, * PHXR_GET_TOKEN_FIELD;
 
 typedef struct _HXR_SET_TOKEN_FIELD {
-    PVOID Address;
-    enum _HX_TOKEN_FIELD Field;
-    PVOID Data;
-    SIZE_T DataLen;
+    HX_TOKEN Address;
+    HXS_GET_TOKEN_FIELD Data;
 } HXR_SET_TOKEN_FIELD, * PHXR_SET_TOKEN_FIELD;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END SECURITY
@@ -477,28 +484,36 @@ typedef struct _HXR_SET_TOKEN_FIELD {
 
 typedef struct _HXR_OPEN_THREAD {
     UINT32 Id;
-    enum _HX_OPEN_TYPE OpenType;
+    HX_OPEN_TYPE OpenType;
 } HXR_OPEN_THREAD, * PHXR_OPEN_THREAD;
 
 typedef struct _HXR_CLOSE_THREAD {
-    PVOID Address;
+    HX_THREAD Address;
 } HXR_CLOSE_THREAD, * PHXR_CLOSE_THREAD;
 
 typedef struct _HXR_GET_THREAD_FIELD {
-    PVOID Address;
-    enum _HX_THREAD_FIELD Field;
-    PVOID Data;
-    SIZE_T DataLen;
+    HX_THREAD Address;
+    HXS_GET_THREAD_FIELD Data;
 } HXR_GET_THREAD_FIELD, * PHXR_GET_THREAD_FIELD;
 
 typedef struct _HXR_SET_THREAD_FIELD {
-    PVOID Address;
-    enum _HX_THREAD_FIELD Field;
-    PVOID Data;
-    SIZE_T DataLen;
+    HX_THREAD Address;
+    HXS_GET_THREAD_FIELD Data;
 } HXR_SET_THREAD_FIELD, * PHXR_SET_THREAD_FIELD;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END THREAD
+///////////////////////////////////////////////////////////////////////////////////////// BEGIN CALLBACKS
+
+typedef struct _HXR_REGISTER_CALLBACK {
+    HX_OBJECT_TYPES ObjectType;
+    HANDLE EventHandle;
+} HXR_REGISTER_CALLBACK, * PHXR_REGISTER_CALLBACK;
+
+typedef struct _HXR_UNREGISTER_CALLBACK {
+    HX_CALLBACK Object;
+} HXR_UNREGISTER_CALLBACK, * PHXR_UNREGISTER_CALLBACK;
+
+///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
 
 typedef enum _HX_ERROR_SOURCE {
     HxSourceNt = 0,
@@ -522,8 +537,8 @@ typedef enum _HX_SERVICE_FUNCTION {
     HxSvcOpenProcess = 3,
     HxSvcCloseProcess = 4,
     HxSvcKillProcess = 5,
-    HxSvcAddAsyncHandler = 6,
-    HxSvcRemoveAsyncHandler = 7,
+    HxSvcRegisterNotifyEvent = 6,
+    HxSvcUnregisterNotifyEvent = 7,
     HxSvcGetProcessField = 8,
     HxSvcSetProcessField = 9,
     HxSvcProcessVMOperation = 10,
@@ -543,6 +558,10 @@ typedef enum _HX_SERVICE_FUNCTION {
     HxSvcGetTokenField = 24,
     HxSvcCloseToken = 25,
     HxSvcSetTokenField = 26,
+    HxSvcAwaitNotifyEvent = 27,
+    HxSvcCancelAsyncCall = 28,
+    HxSvcGetSetPageAttribute = 29,
+    HxSvcMapVaToPa = 30
 } HX_SERVICE_FUNCTION;
 
 typedef struct _HX_ERROR {
@@ -553,78 +572,45 @@ typedef struct _HX_ERROR {
 
 #pragma pack(push,1)
 typedef struct _HX_RESULT {
-    enum _HX_SERVICE_FUNCTION ServiceFunction : 16;
+    HX_SERVICE_FUNCTION ServiceFunction : 16;
     UINT32 ErrorSource : 2;
-    enum _HX_ERROR_CODE ErrorCode : 3;
+    HX_ERROR_CODE ErrorCode : 3;
     UINT32 Reserved : 11;
 } HX_RESULT, * PHX_RESULT;
 
 typedef struct _HX_CALL {
-    enum _HX_SERVICE_FUNCTION ServiceFunction : 16;
-    BOOL IsFast : 1;
+    HX_SERVICE_FUNCTION ServiceFunction : 16;
     BOOL IgnoreResult : 1;
-    BOOL YieldExecution : 1;
-    BOOL IsAsync : 1;
     BOOL ExtendedArgsPresent : 1;
-    UINT32 Reserved : 10;
+    UINT32 Reserved : 14;
 } HX_CALL, * PHX_CALL;
 
 typedef struct _HX_REQUEST_RESPONSE {
     HX_CALL Call;
     HX_RESULT Result;
 
-    // args
     UINT64 Arg1;
     UINT64 Arg2;
     UINT64 Arg3;
 
-    UINT128 ExtendedArg1;
-    UINT128 ExtendedArg2;
-    UINT128 ExtendedArg3;
-    UINT128 ExtendedArg4;
+    __uint128_t ExtendedArg1;
+    __uint128_t ExtendedArg2;
+    __uint128_t ExtendedArg3;
+    __uint128_t ExtendedArg4;
 } HX_REQUEST_RESPONSE, * PHX_REQUEST_RESPONSE;
 
-typedef struct _HX_ASYNC_INFO {
-    HANDLE Handle;
-    HX_RESULT Result;
-    UINT32 Pad0;
-
-    UINT64 Arg1;
-    UINT64 Arg2;
-    UINT64 Arg3;
-} HX_ASYNC_INFO, * PHX_ASYNC_INFO;
 #pragma pack(pop)
 
 BOOL HxIsError(PHX_ERROR Error);
 HX_ERROR HxErrorFromResult(PHX_RESULT Result);
 
-HX_CALL HxCallGetStatus();
-HX_CALL HxCallAuth();
-HX_CALL HxCallOpenProcess();
-HX_CALL HxCallOpenThread();
-HX_CALL HxCallOpenToken();
-HX_CALL HxCallCloseProcess();
-HX_CALL HxCallCloseThread();
-HX_CALL HxCallCloseToken();
-HX_CALL HxCallGetProcessField();
-HX_CALL HxCallGetTokenField();
-HX_CALL HxCallGetThreadField();
-HX_CALL HxCallSetProcessField();
-HX_CALL HxCallSetThreadField();
-HX_CALL HxCallMapMemory();
-HX_CALL HxCallFreeMemory();
-HX_CALL HxCallAllocateMemory();
-HX_CALL HxCallProcessVmOp();
-HX_CALL HxCallProtectVm();
-HX_CALL HxCallGetProcessThreads();
-
-
 __declspec(dllexport) HX_ERROR HxGetStatus(PHXS_STATUS Response);
-__declspec(dllexport) HX_ERROR HxpResponseFromAsync(PHX_ASYNC_INFO Async, PVOID Result);
-__declspec(dllexport) HANDLE HxpCreateEventHandle();
 
-__declspec(dllexport) HX_ERROR HxpResponseFromAsync(PHX_ASYNC_INFO Async, PVOID Result);
 __declspec(dllexport) HX_ERROR HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response);
 __declspec(dllexport) PHX_REQUEST_RESPONSE HxpRawFromRequest(HX_SERVICE_FUNCTION Function, PVOID Request);
 
-__declspec(dllexport) INT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse, PHX_ASYNC_INFO AsyncInfo);
+__declspec(dllexport) INT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse);
+
+__declspec(dllexport) UINT32 HxReadAsyncResponseLength(UINT64 Offset);
+__declspec(dllexport) PVOID HxReadAsyncResponseSlice(UINT64 Offset, PUINT32 Length);
+__declspec(dllexport) PVOID HxReadAsyncResponseType(UINT64 Offset);

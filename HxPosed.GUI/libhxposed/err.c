@@ -1,4 +1,3 @@
-#pragma once
 #include "hxposed.h"
 
 BOOL HxIsError(PHX_ERROR Error) {
@@ -6,7 +5,7 @@ BOOL HxIsError(PHX_ERROR Error) {
 }
 
 HX_ERROR HxErrorFromResult(PHX_RESULT Result) {
-	HX_ERROR error = { 0 };
+	HX_ERROR error;
 	error.ErrorCode = Result->ErrorCode;
 	error.ErrorSource = Result->ErrorSource;
 	return error;

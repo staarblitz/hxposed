@@ -8,9 +8,8 @@ option casemap:none
 
 ; args:
 ; HX_REQUEST_RESPONSE* rcx
-; HX_ASYNC_INFO* rdx
 
-; return:
+; return value on rax:
 ; -1 if hypervisor not loaded
 ; 0 if hypervisor catched the trap
 HxpTrap proc
@@ -30,25 +29,9 @@ HxpTrap proc
 	mov r10, [rdi + 24]
 
 	mov esi, [rdi]	; dereference the HX_CALL inside HX_REQUEST_RESPONSE
-	
-	; check if HX_ASYNC_INFO* is present
-	cmp rdx, 0
-	jz no_async	; nope, no async today.
-
-	; set the async flag
-	bts rsi, 20
-
-	; move handle
-	mov r11, qword ptr [rdx]
-	; move pointer to shared memory region
-	add rdx, 8
-	mov r12, rdx
-	sub rdx, 8
-
-no_async:
 
 	; check if extended args are present
-	bt rsi, 21
+	bt rsi, 17
 	jnc make_the_call
 
 	; extract extended args too
@@ -66,32 +49,24 @@ make_the_call:
 	cmp rcx, 2009h	; the normal cpuid behavior resets the rcx. in this case, it should stay the same.
 	je call_ok	
 	mov rax, -1	; hypervisor did NOT catch our trap
-	jmp end_fn
+	ret
 
 call_ok:
 	mov dword ptr [rdi + 4], esi	; save result to second field of HX_REQUEST_RESPONSE
 									; use esi instead of rsi, because HX_RESPONSE is 4 bytes long
 
-	cmp rdx, 0	; if not async, gett the regs immediately
-	jz fetch_regs
-
-	xor rax, rax
-	jmp end_fn
-
-fetch_regs:
-
 	; fetch regs returned by hypervisor
 	mov qword ptr [rdi + 8], r8
 	mov qword ptr [rdi + 16], r9
 	mov qword ptr [rdi + 24], r10
-
-end_fn:
 	
 	; get non-volatile rsi, r12, and rdi back
 	pextrq rsi, xmm4, 0
 	pextrq rdi, xmm4, 1
 	pextrq r12, xmm5, 0
- ret
+	
+	xor rax, rax ; good to go!
+	ret
 
 
 HxpTrap endp

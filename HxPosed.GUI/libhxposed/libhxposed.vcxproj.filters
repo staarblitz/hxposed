@@ -21,9 +21,6 @@
     <ClCompile Include="err.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="call.c">
-      <Filter>Quelldateien</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hxposed.h">

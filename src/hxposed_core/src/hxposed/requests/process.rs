@@ -42,10 +42,7 @@ impl VmcallRequest for OpenProcessRequest {
 
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
-            call: match self.open_type.clone() {
-                ObjectOpenType::Handle => HypervisorCall::open_process(),
-                ObjectOpenType::Hypervisor => HypervisorCall::open_process(),
-            },
+            call: HypervisorCall::open_process(),
             arg1: self.process_id as _,
             arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()

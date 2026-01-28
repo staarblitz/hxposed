@@ -17,6 +17,23 @@ pub struct FreeMemoryRequest {
     pub obj: RmdObject
 }
 
+
+#[derive(Debug)]
+pub struct MapVaToPaRequest {
+    pub addr_space: ProcessObject,
+    pub object: RmdObject,
+    pub map_addr: u64,
+    pub operation: MapOperation
+}
+
+#[derive(Debug)]
+pub struct PageAttributeRequest {
+    pub addr_space: ProcessObject,
+    pub paging_type: PagingType,
+    pub type_bits: u64,
+    pub operation: PageAttributeOperation,
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MemoryType {
     NonPagedPool,
@@ -40,22 +57,6 @@ impl From<u64> for MemoryType {
             _ => unreachable!(),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct MapVaToPaRequest {
-    pub addr_space: ProcessObject,
-    pub object: RmdObject,
-    pub map_addr: u64,
-    pub operation: MapOperation
-}
-
-#[derive(Debug)]
-pub struct PageAttributeRequest {
-    pub addr_space: ProcessObject,
-    pub paging_type: PagingType,
-    pub type_bits: u64,
-    pub operation: PageAttributeOperation,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -208,7 +209,6 @@ impl VmcallRequest for PageAttributeRequest {
             arg1: self.addr_space,
             arg2: self.operation.into_bits(),
             arg3: self.type_bits,
-            // now you know why I don't like to use Into and From traits
             extended_arg1: args.0 as _,
             extended_arg2: args.1 as _,
 
