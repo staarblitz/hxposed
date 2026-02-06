@@ -1,30 +1,27 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 
+pub(crate) mod arch;
 pub(crate) mod callback;
 pub(crate) mod context;
+pub(crate) mod event;
 pub(crate) mod guard;
 pub(crate) mod lock;
+pub(crate) mod mm;
 pub(crate) mod object;
-pub(crate) mod probe;
 pub(crate) mod process;
-pub(crate )mod registry;
+pub(crate) mod registry;
 pub(crate) mod thread;
 pub(crate) mod token;
-pub(crate) mod event;
-pub(crate) mod mm;
-pub(crate) mod arch;
 
+use crate::nt::registry::NtKey;
+use crate::win::*;
 use alloc::string::String;
 use alloc::vec::Vec;
-use crate::win::*;
+use core::ffi::c_void;
 use core::ptr::null_mut;
 use core::str::FromStr;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
-use hxposed_core::services::types::security_fields::TokenPrivilege;
-use wdk_sys::ntddk::{PsGetVersion, PsLookupProcessByProcessId, PsReferencePrimaryToken};
-use wdk_sys::{PACCESS_TOKEN, PEPROCESS, PETHREAD, PVOID, ULONG, WCHAR};
-use crate::nt::registry::NtKey;
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_UBR: AtomicU64 = AtomicU64::new(0);
@@ -50,10 +47,15 @@ pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
 #[allow(static_mut_refs)]
 pub(crate) fn get_nt_info() -> Result<(), ()> {
     // kys
-    let current_version = NtKey::open("\\Registry\\Machine\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion").unwrap();
+    let current_version =
+        NtKey::open("\\Registry\\Machine\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion")
+            .unwrap();
 
     // kys
-    let lcu_ver = current_version.get_value_string("LCUVer").unwrap().to_alloc_string();
+    let lcu_ver = current_version
+        .get_value_string("LCUVer")
+        .unwrap()
+        .to_alloc_string();
 
     let version_data = lcu_ver.split('.').collect::<Vec<&str>>();
 
@@ -92,9 +94,9 @@ pub(crate) fn get_nt_info() -> Result<(), ()> {
         //     get_nt_proc::<PsGetSetContextThreadInternal>(NtProcedure::PspGetContextThreadInternal)
         //         as _;
 
-        NT_EXP_LOOKUP_HANDLE_TABLE_ENTRY = get_nt_proc::<ExpLookupHandleTableEntryType>(
-            NtProcedure::ExpLookupHandleTableEntry
-        ) as _;
+        NT_EXP_LOOKUP_HANDLE_TABLE_ENTRY =
+            get_nt_proc::<ExpLookupHandleTableEntryType>(NtProcedure::ExpLookupHandleTableEntry)
+                as _;
 
         NT_EX_CREATE_HANDLE = get_nt_proc::<ExCreateHandleType>(NtProcedure::ExCreateHandle) as _;
 
@@ -106,10 +108,8 @@ pub(crate) fn get_nt_info() -> Result<(), ()> {
 }
 pub(crate) fn get_nt_base() -> PVOID {
     unsafe {
-        let entry = &mut *(PsLoadedModuleList);
         // first entry is always ntoskrnl
-        let nt = &mut *(entry.InLoadOrderLinks.Flink as *mut _LDR_DATA_TABLE_ENTRY);
-        nt.DllBase
+        (*((*(*PsLoadedModuleList).InLoadOrderLinks).Flink as *mut LDR_DATA_TABLE_ENTRY)).DllBase
     }
 }
 
@@ -328,15 +328,11 @@ pub(crate) unsafe fn get_logon_session_field<T: 'static>(
 }
 
 pub(crate) unsafe fn get_object_header(object: *mut u64) -> *mut u64 {
-    unsafe {
-        object.byte_offset(-0x30)
-    }
+    unsafe { object.byte_offset(-0x30) }
 }
 
-pub(crate) unsafe fn get_object_body(object_header: *mut  u64) -> *mut u64 {
-    unsafe {
-        object_header.byte_offset(0x30)
-    }
+pub(crate) unsafe fn get_object_body(object_header: *mut c_void) -> *mut c_void {
+    unsafe { object_header.byte_offset(0x30) as _ }
 }
 
 pub enum NtProcedure {
@@ -345,7 +341,7 @@ pub enum NtProcedure {
     PspGetContextThreadInternal,
     PspTerminateThreadByPointer,
     ExpLookupHandleTableEntry,
-    ExCreateHandle
+    ExCreateHandle,
 }
 
 pub enum LogonSessionField {
@@ -394,14 +390,5 @@ pub enum EProcessField {
     ObjectTable,
     Pad,
     DirectoryTableBase,
-    UserDirectoryTableBase
-}
-
-#[derive(Default, Debug, Clone)]
-#[repr(C)]
-#[allow(non_snake_case, non_camel_case_types)]
-pub struct _SEP_TOKEN_PRIVILEGES {
-    pub Present: TokenPrivilege,
-    pub Enabled: TokenPrivilege,
-    pub EnabledByDefault: TokenPrivilege,
+    UserDirectoryTableBase,
 }

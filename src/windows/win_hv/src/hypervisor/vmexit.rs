@@ -12,8 +12,6 @@ use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;
-use wdk_sys::ntddk::IoGetCurrentProcess;
-use wdk_sys::KEVENT;
 
 ///
 /// # Called when a CPUID with RCX = 2009 is executed.

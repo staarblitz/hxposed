@@ -3,7 +3,7 @@ name = "win_hv"
 description = "HxPosed kernel driver"
 version.workspace = true
 edition.workspace = true
-build = "build.rs"
+
 
 [lib]
 crate-type = ["cdylib"]
@@ -17,9 +17,6 @@ panic = "abort"
 [dependencies]
 hxposed_core = {path = "../../hxposed_core", default-features = false}
 hv = { path = "../../hvcore", default-features = false }
-wdk = "0.4.1"
-wdk-sys = "0.5.1"
-wdk-alloc = "0.4.1"
 bit_field = "0.10.3"
 microseh = {version = "1.1.2", default-features = false}
 log = {version = "0.4.29", default-features = false}
@@ -32,6 +29,4 @@ wyhash = {version = "0.6.0", default-features = false}
 wdk-build = "0.5.1"
 
 [package.metadata.wdk.driver-model]
-driver-type = "KMDF"
-kmdf-version-major = 1
-target-kmdf-version-minor = 31
+driver-type = "WDM"

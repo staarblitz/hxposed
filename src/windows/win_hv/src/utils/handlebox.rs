@@ -1,6 +1,5 @@
+use crate::win::{HANDLE, ZwClose};
 use core::mem;
-use wdk_sys::HANDLE;
-use wdk_sys::ntddk::ZwClose;
 
 pub struct HandleBox {
     handle: HANDLE,

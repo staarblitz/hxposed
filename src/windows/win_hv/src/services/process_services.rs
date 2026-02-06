@@ -1,11 +1,11 @@
 use crate::nt::process::NtProcess;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::process::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::hxposed::ObjectType;
 
 ///
 /// # Set Process Field (Sync)
@@ -25,7 +25,10 @@ use hxposed_core::hxposed::ObjectType;
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 pub(crate) fn set_process_field_sync(request: SetProcessFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
-    let process = match process.get_object_tracker_unchecked().get_open_process(request.process as _) {
+    let process = match process
+        .get_object_tracker_unchecked()
+        .get_open_process(request.process as _)
+    {
         Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
@@ -124,20 +127,6 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
 pub(crate) fn kill_process_sync(request: KillProcessRequest) -> HypervisorResponse {
     return HypervisorResponse::not_allowed(NotAllowedReason::Unknown);
-
-    let process = NtProcess::current();
-    let process = match process
-        .get_object_tracker_unchecked()
-        .pop_open_process(request.process as _)
-    {
-        Some(process) => process,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
-    };
-
-    match process.kill(request.exit_code as _) {
-        Ok(_) => EmptyResponse::with_service(ServiceFunction::KillProcess),
-        Err(err) => HypervisorResponse::nt_error(err as _),
-    }
 }
 
 ///

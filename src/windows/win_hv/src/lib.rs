@@ -1,4 +1,5 @@
 #![feature(unboxed_closures)]
+#![feature(allocator_api)]
 #![no_std]
 
 extern crate alloc;
@@ -13,6 +14,12 @@ mod services;
 mod utils;
 mod win;
 
+#[unsafe(no_mangle)]
+static __CxxFrameHandler3: u32 = 0;
+
+#[unsafe(no_mangle)]
+static _fltused: u32 = 0;
+
 #[global_allocator]
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
@@ -21,17 +28,13 @@ use crate::nt::guard::hxguard::HxGuard;
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::nt::thread::NtThread;
+use crate::objects::async_obj::AsyncState;
 use crate::utils::logger::NtLogger;
+use crate::win::winalloc::WdkAllocator;
+use crate::win::{Boolean, KeBugCheckEx, KeDelayExecutionThread, NtStatus, PVOID, ProcessorMode};
 use core::ptr;
 use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
-use wdk_alloc::WdkAllocator;
-use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{KeBugCheckEx, KeDelayExecutionThread};
-use wdk_sys::{
-    DRIVER_OBJECT, FALSE, NTSTATUS, PUNICODE_STRING, PVOID, STATUS_SUCCESS, STATUS_TOO_LATE,
-};
-use crate::objects::async_obj::AsyncState;
 
 static mut HX_GUARD: HxGuard = HxGuard::new();
 
@@ -44,8 +47,7 @@ extern "C" fn delayed_start(_arg: PVOID) {
 
     let mut time = utils::timing::relative(utils::timing::seconds(20));
 
-    let _ =
-        unsafe { KeDelayExecutionThread(KernelMode as _, FALSE as _, &mut time as *mut _ as _) };
+    let _ = unsafe { KeDelayExecutionThread(ProcessorMode::KernelMode, Boolean::False, &mut time) };
 
     log::info!("Delayed! Executing real entry!");
 
@@ -55,10 +57,7 @@ extern "C" fn delayed_start(_arg: PVOID) {
 #[unsafe(link_section = "INIT")]
 #[unsafe(export_name = "DriverEntry")]
 #[allow(static_mut_refs)]
-extern "C" fn driver_entry(
-    _driver: *mut DRIVER_OBJECT,
-    _registry_path: PUNICODE_STRING,
-) -> NTSTATUS {
+extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
     // SAFETY: we know its aligned and safe to read.
     let cfg = unsafe {
         // must use read_volatile so rust compiler doesn't assume things.
@@ -72,15 +71,17 @@ extern "C" fn driver_entry(
             log::info!("Loaded from HxLoader!");
             log::info!("Delaying startup....");
 
-            NtThread::create(Some(delayed_start), None);
+            panic!("HxLoader loading is not yet implemented");
 
-            return STATUS_SUCCESS;
+            //NtThread::create(Some(delayed_start), None);
+
+            return NtStatus::Success;
         }
         false => {}
     }
 
     match nt::get_nt_info() {
-        Err(_) => return STATUS_TOO_LATE,
+        Err(_) => return NtStatus::TooLate,
         Ok(_) => {}
     }
 
@@ -128,7 +129,7 @@ extern "C" fn driver_entry(
         }
     }
 
-    STATUS_SUCCESS
+    NtStatus::Success
 }
 
 #[panic_handler]

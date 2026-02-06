@@ -66,6 +66,8 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
             VmExitReason::Rdmsr(info) => handle_rdmsr(guest, &info),
             VmExitReason::Wrmsr(info) => handle_wrmsr(guest, &info),
             VmExitReason::XSetBv(info) => handle_xsetbv(guest, &info),
+            // Vmcall is made by qemu kvm quests
+            VmExitReason::VmCall(info) => guest.regs().rip = info.next_rip,
             VmExitReason::InitSignal | VmExitReason::StartupIpi | VmExitReason::NestedPageFault => {
             }
         }
@@ -209,6 +211,7 @@ pub(crate) enum VmExitReason {
     Rdmsr(InstructionInfo),
     Wrmsr(InstructionInfo),
     XSetBv(InstructionInfo),
+    VmCall(InstructionInfo),
     InitSignal,
     StartupIpi,
     NestedPageFault,

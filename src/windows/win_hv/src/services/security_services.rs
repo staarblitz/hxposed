@@ -1,8 +1,10 @@
+use crate::nt::SYSTEM_TOKEN;
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::nt::token::NtToken;
-use crate::nt::SYSTEM_TOKEN;
+use crate::win::PACCESS_TOKEN;
 use core::sync::atomic::Ordering;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -11,8 +13,6 @@ use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::security::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::hxposed::ObjectType;
-use wdk_sys::PACCESS_TOKEN;
 
 pub(crate) fn set_token_field_sync(request: SetTokenFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
@@ -56,7 +56,7 @@ pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HypervisorR
         TokenField::AccountName(_) => {
             let field = token.get_account_name();
             let raw_string = field.get_raw_bytes();
-            let offset =state.write_result(raw_string.as_ptr(), raw_string.len());
+            let offset = state.write_result(raw_string.as_ptr(), raw_string.len());
             GetTokenFieldResponse::AccountName(offset)
         }
         TokenField::Type(_) => GetTokenFieldResponse::Type(token.get_type()),

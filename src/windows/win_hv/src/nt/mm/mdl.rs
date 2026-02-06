@@ -1,18 +1,18 @@
 use crate::utils::alloc::PoolAllocSized;
 use crate::utils::danger::DangerPtr;
+use crate::win::{
+    Boolean, ExAllocatePool2, ExFreePool, IoAllocateMdl, IoFreeMdl, MDL, MemoryCacheType,
+    MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl,
+    MmMapLockedPagesSpecifyCache, MmProtectMdlSystemAddress, MmUnmapLockedPages, NtStatus, PVOID,
+    PoolFlags, ProcessorMode,
+};
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
-use wdk_sys::_MEMORY_CACHING_TYPE::{MmCached, MmNonCached};
-use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
-use wdk_sys::ntddk::{ExAllocatePool2, ExFreePool, IoAllocateMdl, IoFreeMdl, MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl, MmMapLockedPagesSpecifyCache, MmProtectMdlSystemAddress, MmUnmapLockedPages};
-use wdk_sys::{
-    _MDL, FALSE, KPROCESSOR_MODE, MM_ALLOCATE_PREFER_CONTIGUOUS, NTSTATUS, PFN_NUMBER, PHYSICAL_ADDRESS, PIRP, POOL_FLAG_NON_PAGED, PVOID, STATUS_ACCESS_VIOLATION, STATUS_MEMORY_NOT_ALLOCATED, STATUS_SUCCESS
-};
 
 /// Abstraction over MDL with Rust safety.
 #[derive(Debug)]
 pub struct MemoryDescriptor {
-    pub mdl: DangerPtr<_MDL>,
+    pub mdl: DangerPtr<MDL>,
     pub status: MapStatus,
     pub length: usize,
     pub owns: OwnType,
@@ -32,7 +32,7 @@ unsafe impl Sync for MemoryDescriptor {}
 pub enum OwnType {
     NonPaged(usize),
     MmAllocatePages,
-    NonOwning
+    NonOwning,
 }
 
 #[derive(Debug)]
@@ -45,12 +45,8 @@ pub enum MapStatus {
 impl Drop for MemoryDescriptor {
     fn drop(&mut self) {
         match self.owns {
-            OwnType::NonPaged(addr) => unsafe {
-                ExFreePool(addr as _)
-            }
-            OwnType::MmAllocatePages => unsafe {
-                MmFreePagesFromMdl(self.mdl.ptr)
-            }
+            OwnType::NonPaged(addr) => unsafe { ExFreePool(addr as _) },
+            OwnType::MmAllocatePages => unsafe { MmFreePagesFromMdl(self.mdl.ptr) },
             OwnType::NonOwning => {
                 // do nothing
             }
@@ -73,14 +69,18 @@ impl MemoryDescriptor {
             length: 0,
             status: MapStatus::NotInitialized,
             owns: OwnType::NonOwning,
-            init:false,
+            init: false,
         }
     }
 
     pub fn from_raw(ptr: PVOID, length: usize) -> Self {
         let mut me = Self::default();
         let mdl = unsafe {
-            ExAllocatePool2(POOL_FLAG_NON_PAGED, (size_of::<_MDL>() + size_of::<PFN_NUMBER>() * (((ptr as usize) + length + 4095) >> 12)) as u64, 0x2009)
+            ExAllocatePool2(
+                PoolFlags::NonPaged,
+                (size_of::<MDL>() + 8 * (((ptr as usize) + length + 4095) >> 12)),
+                0x2009,
+            )
         };
         me.mdl = DangerPtr { ptr: mdl as _ };
         me.init = true;
@@ -94,13 +94,15 @@ impl MemoryDescriptor {
     pub fn new_describe_nonpaged(ptr: PVOID, length: u32) -> Self {
         let me = Self {
             mdl: DangerPtr {
-                ptr: unsafe { IoAllocateMdl(ptr, length, FALSE as _, FALSE as _, PIRP::default()) },
+                ptr: unsafe {
+                    IoAllocateMdl(ptr, length, Boolean::False, Boolean::False, null_mut())
+                },
             },
             length: length as _,
             status: MapStatus::Allocated,
             // no, we do not own. we just "describe" the existing pages.
             owns: OwnType::NonOwning,
-            init:true,
+            init: true,
         };
         // this is crucial. because we should let the mdl know it's for non paged pool after IoAllocateMdl when it's going to be mapped to a user process.
         unsafe {
@@ -117,9 +119,7 @@ impl MemoryDescriptor {
     }
 
     pub fn new_nonpaged(length: u32) -> Self {
-        let pool = unsafe {
-            ExAllocatePool2(POOL_FLAG_NON_PAGED, length as _, 0x2009)
-        };
+        let pool = unsafe { ExAllocatePool2(PoolFlags::NonPaged, length as _, 0x2009) };
 
         let mut me = Self::new_describe_nonpaged(pool, length as _);
 
@@ -130,20 +130,17 @@ impl MemoryDescriptor {
     }
 
     pub fn init(&mut self, length: usize) {
-        const ZERO: PHYSICAL_ADDRESS = PHYSICAL_ADDRESS { QuadPart: 0 };
-        const MAX: PHYSICAL_ADDRESS = PHYSICAL_ADDRESS { QuadPart: i64::MAX };
-
         self.status = MapStatus::Allocated;
         self.length = length;
         self.mdl = DangerPtr {
             ptr: unsafe {
                 MmAllocatePagesForMdlEx(
-                    ZERO,
-                    MAX,
-                    ZERO,
+                    0,
+                    i64::MAX,
+                    0,
                     length as _,
-                    MmNonCached,
-                    MM_ALLOCATE_PREFER_CONTIGUOUS,
+                    MemoryCacheType::MmNonCached,
+                    0,
                 )
             },
         };
@@ -165,45 +162,40 @@ impl MemoryDescriptor {
         self.mdl.MappedSystemVa as _
     }
 
-    pub fn protect(
-        &self,
-        protection: u32
-    ) -> Result<(), NTSTATUS> {
-        match unsafe {
-            MmProtectMdlSystemAddress(self.mdl.ptr, protection)
-        } {
-            STATUS_SUCCESS => Ok(()),
-            err => Err(err)
+    pub fn protect(&self, protection: u32) -> Result<(), NtStatus> {
+        match unsafe { MmProtectMdlSystemAddress(self.mdl.ptr, protection) } {
+            NtStatus::Success => Ok(()),
+            err => Err(err),
         }
     }
 
     pub fn map(
         &mut self,
         address: Option<usize>,
-        mode: KPROCESSOR_MODE,
-        flags: i32,
-    ) -> Result<usize, NTSTATUS> {
+        mode: ProcessorMode,
+        flags: u32,
+    ) -> Result<usize, NtStatus> {
         let address = match microseh::try_seh(|| unsafe {
             MmMapLockedPagesSpecifyCache(
                 self.mdl.ptr,
                 mode,
-                MmCached,
+                MemoryCacheType::MmCached,
                 address.unwrap_or(0) as _,
-                FALSE as _,
-                flags as _,
+                Boolean::False,
+                flags,
             )
         }) {
             Ok(ptr) => match ptr as usize {
                 0 => {
                     log::error!("Error mapping pages: MmMapLockedPagesSpecifyCache returned 0");
-                    return Err(STATUS_MEMORY_NOT_ALLOCATED)
-                },
+                    return Err(NtStatus::NotAllocated);
+                }
                 x => x,
             },
             Err(err) => {
                 log::error!("Error mapping pages: {:?}", err);
-                return Err(STATUS_ACCESS_VIOLATION)
-            },
+                return Err(NtStatus::AccessViolation);
+            }
         };
 
         self.status = MapStatus::Mapped(address as _);

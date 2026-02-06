@@ -1,9 +1,10 @@
 use egui::{Color32, ViewportBuilder};
+use hxposed_core::hxposed::ObjectType;
+use hxposed_core::hxposed::requests::Vmcall;
 use hxposed_core::hxposed::requests::memory::MemoryType;
 use hxposed_core::hxposed::requests::status::StatusRequest;
-use hxposed_core::hxposed::requests::Vmcall;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::services::callbacks::HxCallback;
+use hxposed_core::services::cpu::HxCpu;
 use hxposed_core::services::memory::HxMemory;
 use hxposed_core::services::memory_map::{HxMemoryDescriptor, HxMemoryGuard};
 use hxposed_core::services::process::HxProcess;
@@ -14,7 +15,6 @@ use std::arch::asm;
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
-use hxposed_core::services::cpu::HxCpu;
 
 fn main() {
     let options = eframe::NativeOptions {
@@ -79,7 +79,7 @@ enum AppState {
     Process(&'static mut ProcessState),
     Memory(&'static mut MemoryState),
     Callbacks(&'static mut CallbacksState),
-    Io(&'static mut IoState)
+    Io(&'static mut IoState),
 }
 
 struct IoState {
@@ -147,27 +147,28 @@ impl eframe::App for HxTestApp {
                         ui.label("Value:");
                         ui.text_edit_singleline(&mut state.current_value);
                         ui.separator();
-                        if ui.button("Read").clicked(){
-                            match HxCpu::read_msr(u32::from_str_radix(&state.current_msr, 16).unwrap()) {
+                        if ui.button("Read").clicked() {
+                            match HxCpu::read_msr(
+                                u32::from_str_radix(&state.current_msr, 16).unwrap(),
+                            ) {
                                 Ok(x) => {
-                                    ok_update =
-                                        Some(format!("Msr Read! 0x{:x}", x));
+                                    ok_update = Some(format!("Msr Read! 0x{:x}", x));
                                 }
                                 Err(err) => {
-                                    error_update =
-                                        Some(format!("Error reading msr: {:?}", err));
+                                    error_update = Some(format!("Error reading msr: {:?}", err));
                                 }
                             }
                         }
-                        if ui.button("Write").clicked(){
-                            match HxCpu::write_msr(u32::from_str_radix(&state.current_msr, 16).unwrap(), u64::from_str_radix(&state.current_value, 16).unwrap()) {
+                        if ui.button("Write").clicked() {
+                            match HxCpu::write_msr(
+                                u32::from_str_radix(&state.current_msr, 16).unwrap(),
+                                u64::from_str_radix(&state.current_value, 16).unwrap(),
+                            ) {
                                 Ok(x) => {
-                                    ok_update =
-                                        Some(format!("Msr written!"));
+                                    ok_update = Some(format!("Msr written!"));
                                 }
                                 Err(err) => {
-                                    error_update =
-                                        Some(format!("Error writing msr: {:?}", err));
+                                    error_update = Some(format!("Error writing msr: {:?}", err));
                                 }
                             }
                         }
@@ -235,7 +236,8 @@ impl eframe::App for HxTestApp {
                         ui.horizontal(|ui| {
                             unsafe {
                                 if PROCESS_STATE.current_process.is_none() {
-                                    PROCESS_STATE.current_process = Some(HxProcess::current().unwrap());
+                                    PROCESS_STATE.current_process =
+                                        Some(HxProcess::current().unwrap());
                                 }
                             }
 
@@ -277,10 +279,9 @@ impl eframe::App for HxTestApp {
                         ui.text_edit_singleline(&mut state.current_value);
                         ui.horizontal(|ui| {
                             if ui.button("Read").clicked() {
-                                let guard = match state.guard.as_mut()  {
+                                let guard = match state.guard.as_mut() {
                                     None => {
-                                        error_update =
-                                            Some(format!("No memory was allocated."));
+                                        error_update = Some(format!("No memory was allocated."));
                                         return;
                                     }
                                     Some(x) => x,
@@ -291,17 +292,16 @@ impl eframe::App for HxTestApp {
                                 state.current_value = value.to_string();
                             }
                             if ui.button("Write").clicked() {
-                                let guard = match state.guard.as_mut()  {
+                                let guard = match state.guard.as_mut() {
                                     None => {
-                                        error_update =
-                                            Some(format!("No memory was allocated."));
+                                        error_update = Some(format!("No memory was allocated."));
                                         return;
                                     }
                                     Some(x) => x,
                                 };
 
-                                let ptr =guard.deref_mut();
-                                *ptr =u64::from_str(state.current_value.as_str()).unwrap()
+                                let ptr = guard.deref_mut();
+                                *ptr = u64::from_str(state.current_value.as_str()).unwrap()
                             }
                         });
                     }

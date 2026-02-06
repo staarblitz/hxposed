@@ -1,4 +1,4 @@
-use wdk_sys::ntddk::{
+use crate::win::{
     ExAcquirePushLockExclusiveEx, ExAcquirePushLockSharedEx, ExReleasePushLockExclusiveEx,
     ExReleasePushLockSharedEx,
 };

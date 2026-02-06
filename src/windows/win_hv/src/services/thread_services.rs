@@ -1,5 +1,6 @@
 use crate::nt::process::NtProcess;
 use crate::nt::thread::NtThread;
+use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::ObjectOpenType;
@@ -7,7 +8,6 @@ use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::thread::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use hxposed_core::hxposed::ObjectType;
 
 pub(crate) fn kill_thread_sync() -> HypervisorResponse {
     EmptyResponse::with_service(ServiceFunction::KillThread)
@@ -44,7 +44,10 @@ pub(crate) fn get_thread_field_sync(request: GetThreadFieldRequest) -> Hyperviso
 
 pub(crate) fn set_thread_field_sync(request: SetThreadFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
-    let thread = match process.get_object_tracker_unchecked().get_open_thread(request.thread) {
+    let thread = match process
+        .get_object_tracker_unchecked()
+        .get_open_thread(request.thread)
+    {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
@@ -82,10 +85,7 @@ pub(crate) fn open_thread_sync(request: OpenThreadRequest) -> HypervisorResponse
 
     match request.open_type {
         ObjectOpenType::Handle => OpenObjectResponse {
-            object: ObjectType::Handle(match thread.open_handle() {
-                Ok(handle) => handle.get_forget() as _,
-                Err(x) => return HypervisorResponse::nt_error(x as _),
-            }),
+            object: ObjectType::Handle(thread.open_handle().get_forget() as _),
         }
         .into_raw(),
         ObjectOpenType::Hypervisor => {

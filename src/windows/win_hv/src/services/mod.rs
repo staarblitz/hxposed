@@ -1,25 +1,29 @@
+use crate::services::callback_services::{
+    register_callback_receiver, unregister_callback_receiver,
+};
+use crate::services::io_services::rw_msr;
+use crate::services::memory_services::*;
 use crate::services::process_services::*;
 use crate::services::security_services::*;
 use crate::services::thread_services::*;
-use crate::services::memory_services::*;
 use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::requests::io::MsrIoRequest;
+use hxposed_core::hxposed::requests::memory::*;
+use hxposed_core::hxposed::requests::notify::{
+    RegisterNotifyHandlerRequest, UnregisterNotifyHandlerRequest,
+};
 use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use hxposed_core::hxposed::requests::io::MsrIoRequest;
-use hxposed_core::hxposed::requests::memory::*;
-use hxposed_core::hxposed::requests::notify::{RegisterNotifyHandlerRequest, UnregisterNotifyHandlerRequest};
 use hxposed_core::hxposed::responses::HypervisorResponse;
-use crate::services::callback_services::{register_callback_receiver, unregister_callback_receiver};
-use crate::services::io_services::rw_msr;
 
 mod callback_services;
+mod io_services;
 pub mod memory_services;
 pub mod process_services;
 pub mod security_services;
 pub mod thread_services;
-mod io_services;
 /*pub fn cancel_async_call(request: &HypervisorRequest) -> HypervisorResponse {
     let process = NtProcess::current();
     let request = CancelAsyncCallRequest::from_raw(request);
@@ -32,15 +36,19 @@ mod io_services;
 pub fn handle_cpu_io_services(request: &HypervisorRequest) -> HypervisorResponse {
     match request.call.func() {
         ServiceFunction::MsrIo => rw_msr(MsrIoRequest::from_raw(request)),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
 pub fn handle_callback_services(request: &HypervisorRequest) -> HypervisorResponse {
     match request.call.func() {
-        ServiceFunction::UnregisterNotifyEvent => unregister_callback_receiver(UnregisterNotifyHandlerRequest::from_raw(request)),
-        ServiceFunction::RegisterNotifyEvent => register_callback_receiver(RegisterNotifyHandlerRequest::from_raw(request)),
-        _ => unreachable!()
+        ServiceFunction::UnregisterNotifyEvent => {
+            unregister_callback_receiver(UnregisterNotifyHandlerRequest::from_raw(request))
+        }
+        ServiceFunction::RegisterNotifyEvent => {
+            register_callback_receiver(RegisterNotifyHandlerRequest::from_raw(request))
+        }
+        _ => unreachable!(),
     }
 }
 
@@ -81,9 +89,13 @@ pub fn handle_security_services(request: &HypervisorRequest) -> HypervisorRespon
 ///
 pub fn handle_memory_services(request: &HypervisorRequest) -> HypervisorResponse {
     match request.call.func() {
-        ServiceFunction::GetSetPageAttribute => get_set_page_attribute(PageAttributeRequest::from_raw(request)),
+        ServiceFunction::GetSetPageAttribute => {
+            get_set_page_attribute(PageAttributeRequest::from_raw(request))
+        }
         ServiceFunction::MapVaToPa => map_va_to_pa(MapVaToPaRequest::from_raw(request)),
-        ServiceFunction::AllocateMemory => allocate_memory(AllocateMemoryRequest::from_raw(request)),
+        ServiceFunction::AllocateMemory => {
+            allocate_memory(AllocateMemoryRequest::from_raw(request))
+        }
         ServiceFunction::FreeMemory => free_memory(FreeMemoryRequest::from_raw(request)),
         _ => unreachable!(),
     }

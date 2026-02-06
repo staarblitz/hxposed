@@ -3,16 +3,15 @@ use crate::nt::arch::pt::{PageMapLevel4, PagingEntry};
 use crate::nt::arch::virt_to_phys;
 use crate::nt::process::NtProcess;
 use crate::utils::transaction::Transaction;
+use crate::win::{
+    ExAllocatePool2, ExFreePool, MmAllocateContiguousMemory, MmFreeContiguousMemory, PoolFlags,
+};
 use alloc::vec::Vec;
 use core::arch::asm;
 use core::hash::Hash;
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use hxposed_core::hxposed::requests::memory::{MemoryType, Pa, Va};
 use spin::mutex::SpinMutex;
-use wdk_sys::ntddk::{
-    ExAllocatePool2, ExFreePool, MmAllocateContiguousMemory, MmFreeContiguousMemory,
-};
-use wdk_sys::{PEPROCESS, PHYSICAL_ADDRESS, POOL_FLAG_NON_PAGED};
 
 #[derive(Debug)]
 pub struct RawMemoryDescriptor {
@@ -43,15 +42,10 @@ impl RawMemoryDescriptor {
 
         let ptr = match memory_type {
             MemoryType::NonPagedPool => unsafe {
-                ExAllocatePool2(POOL_FLAG_NON_PAGED, size as _, 0x2009)
+                ExAllocatePool2(PoolFlags::NonPaged, size as _, 0x2009)
             },
             MemoryType::ContiguousPhysical => unsafe {
-                MmAllocateContiguousMemory(
-                    size as _,
-                    PHYSICAL_ADDRESS {
-                        QuadPart: u64::MAX as _,
-                    },
-                )
+                MmAllocateContiguousMemory(size as _, u64::MAX)
             },
         };
 
@@ -109,9 +103,7 @@ impl RawMemoryDescriptor {
             return Err(());
         }
 
-        unsafe {
-            self.free_unchecked()
-        }
+        unsafe { self.free_unchecked() }
 
         Ok(())
     }

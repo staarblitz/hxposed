@@ -1,6 +1,6 @@
+use bit_field::BitField;
 use core::arch::asm;
 use core::ops::BitAnd;
-use bit_field::BitField;
 use hxposed_core::hxposed::requests::memory::Pfn;
 
 pub struct Cr3(u64);
@@ -27,7 +27,7 @@ impl Cr3 {
 }
 
 pub struct Cr3Context {
-    old: u64
+    old: u64,
 }
 
 impl Drop for Cr3Context {
@@ -38,7 +38,9 @@ impl Drop for Cr3Context {
 
 impl Cr3Context {
     pub fn begin(cr3_base: u64) -> Self {
-        let me = Cr3Context { old: Cr3::read_raw() };
+        let me = Cr3Context {
+            old: Cr3::read_raw(),
+        };
         Cr3::write_raw(cr3_base);
         me
     }

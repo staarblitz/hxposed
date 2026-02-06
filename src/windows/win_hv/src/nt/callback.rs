@@ -4,29 +4,20 @@ use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
 use crate::nt::thread::NtThread;
 use crate::objects::async_obj::AsyncState;
-use crate::objects::{ObjectTracker, CALLER_PROCESSES};
+use crate::objects::{CALLER_PROCESSES, ObjectTracker};
 use crate::utils::rng::SimpleCounter;
+use crate::win::{Boolean, HANDLE, NtStatus, PEPROCESS, PVOID, PsSetCreateProcessNotifyRoutineEx};
 use alloc::boxed::Box;
-use alloc::collections::btree_map::Keys;
 use alloc::collections::VecDeque;
+use alloc::collections::btree_map::Keys;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
 use hxposed_core::hxposed::requests::notify::ObjectState;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
+use hxposed_core::hxposed::responses::notify::CallbackInformation;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::{CallbackObject, ObjectType};
 use spin::{Mutex, RwLock};
-use wdk_sys::ntddk::{
-    ObRegisterCallbacks, PsLookupThreadByThreadId, PsSetCreateProcessNotifyRoutineEx,
-    PsSetCreateThreadNotifyRoutineEx,
-};
-use wdk_sys::_MM_PAGE_PRIORITY::HighPagePriority;
-use wdk_sys::_MODE::UserMode;
-use wdk_sys::_PSCREATETHREADNOTIFYTYPE::PsCreateThreadNotifyNonSystem;
-use wdk_sys::{
-    MdlMappingNoWrite, BOOLEAN, FALSE, HANDLE, NTSTATUS, OB_CALLBACK_REGISTRATION, PEPROCESS, PPS_CREATE_NOTIFY_INFO, PVOID, STATUS_SUCCESS,
-};
-use hxposed_core::hxposed::responses::notify::CallbackInformation;
 
 static RNG: Mutex<SimpleCounter> = Mutex::new(SimpleCounter { state: 1 });
 
@@ -56,12 +47,11 @@ impl NtCallback {
         }
     }
 
-
-    pub fn init() -> Result<(), NTSTATUS> {
+    pub fn init() -> Result<(), NtStatus> {
         log::info!("Initializing callbacks...");
         unsafe {
-            match PsSetCreateProcessNotifyRoutineEx(Some(Self::process_callback), FALSE as _) {
-                STATUS_SUCCESS => {}
+            match PsSetCreateProcessNotifyRoutineEx(Self::process_callback as _, Boolean::False) {
+                NtStatus::Success => {}
                 err => return Err(err),
             }
         }
@@ -71,11 +61,7 @@ impl NtCallback {
 
     // from MSDN: Don't make calls into a user mode service to validate the process, thread, or image.
     // yeah. definitely.
-    unsafe extern "C" fn process_callback(
-        process: PEPROCESS,
-        id: HANDLE,
-        info: PPS_CREATE_NOTIFY_INFO,
-    ) {
+    unsafe extern "C" fn process_callback(process: PEPROCESS, id: HANDLE, info: PVOID) {
         let process = NtProcess::from_ptr_owning(process);
 
         // we dont do this in vmexit so we save cycles
@@ -85,7 +71,10 @@ impl NtCallback {
             process.free_hx_info();
             ObjectTracker::pop_caller_process(process.nt_process as _);
             return;
-        } else if !info.is_null() && !process.is_hx_info_present() && HxGuard::is_valid_caller(process.get_path_hash()) {
+        } else if !info.is_null()
+            && !process.is_hx_info_present()
+            && HxGuard::is_valid_caller(process.get_path_hash())
+        {
             // we are not in context of the process that is being created
             // we are in context of the parent
             // this wasted me 2 hours
@@ -135,5 +124,4 @@ impl NtCallback {
             }
         })
     }
-    unsafe extern "C" fn thread_callback(_pid: HANDLE, tid: HANDLE, create: BOOLEAN) {}
 }

@@ -9,8 +9,8 @@ use crate::utils::danger::DangerPtr;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use hashbrown::HashMap;
-use spin::mutex::SpinMutex;
 use hxposed_core::hxposed::*;
+use spin::mutex::SpinMutex;
 
 pub(crate) mod async_obj;
 
@@ -55,7 +55,7 @@ impl ObjectTracker {
 
     pub fn pop_caller_process(ptr: ProcessObject) -> Option<NtProcess> {
         let mut lock = CALLER_PROCESSES.lock();
-        if let Some(i) = lock.iter().position(|p| p.nt_process == ptr as _){
+        if let Some(i) = lock.iter().position(|p| p.nt_process == ptr as _) {
             Some(lock.remove(i))
         } else {
             None

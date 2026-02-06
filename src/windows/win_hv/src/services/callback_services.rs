@@ -1,16 +1,18 @@
-use hxposed_core::hxposed::error::NotFoundReason;
-use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::notify::{RegisterNotifyHandlerRequest, UnregisterNotifyHandlerRequest};
-use hxposed_core::hxposed::responses::empty::EmptyResponse;
-use hxposed_core::hxposed::responses::HypervisorResponse;
 use crate::nt::callback::NtCallback;
 use crate::nt::event::NtEvent;
 use crate::nt::process::NtProcess;
+use hxposed_core::hxposed::error::NotFoundReason;
+use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::requests::notify::{
+    RegisterNotifyHandlerRequest, UnregisterNotifyHandlerRequest,
+};
+use hxposed_core::hxposed::responses::HypervisorResponse;
+use hxposed_core::hxposed::responses::empty::EmptyResponse;
 
 pub fn register_callback_receiver(request: RegisterNotifyHandlerRequest) -> HypervisorResponse {
     let event = match NtEvent::from_handle(request.event_handle as _) {
         Ok(x) => x,
-        Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Event)
+        Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Event),
     };
 
     let process = NtProcess::current();

@@ -1,7 +1,7 @@
 use crate::nt::arch::phys_to_virt;
+use crate::win::{Boolean, MmIsAddressValid};
 use bitfield_struct::bitfield;
 use hxposed_core::hxposed::requests::memory::{Pa, Pfn};
-use wdk_sys::ntddk::MmIsAddressValid;
 
 pub trait PagingEntry {
     type DownType;
@@ -13,12 +13,11 @@ pub trait PagingEntry {
         unsafe {
             let ptr = phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType;
             match MmIsAddressValid(ptr as _) {
-                0 => {
+                Boolean::False => {
                     log::warn!("MmGetVirtualForPhysical failed!");
                     Err(())
-                },
-                1 => Ok(ptr.as_mut().unwrap()),
-                _ => unreachable!(),
+                }
+                Boolean::True => Ok(ptr.as_mut().unwrap()),
             }
         }
     }
@@ -72,12 +71,11 @@ impl PageMapLevel5 {
         unsafe {
             let ptr = phys_to_virt(addr.add(index as _).addr() as _) as *mut Self;
             match MmIsAddressValid(ptr as _) {
-                0 => {
+                Boolean::False => {
                     log::warn!("MmGetVirtualForPhysical failed!");
                     Err(())
-                },
-                1 => Ok(ptr.as_mut().unwrap()),
-                _ => unreachable!(),
+                }
+                Boolean::True => Ok(ptr.as_mut().unwrap()),
             }
         }
     }
@@ -110,12 +108,11 @@ impl PageMapLevel4 {
         unsafe {
             let ptr = phys_to_virt(addr.add(index as _).addr() as _) as *mut Self;
             match MmIsAddressValid(ptr as _) {
-                0 => {
+                Boolean::False => {
                     log::warn!("MmGetVirtualForPhysical failed!");
                     Err(())
-                },
-                1 => Ok(ptr.as_mut().unwrap()),
-                _ => unreachable!(),
+                }
+                Boolean::True => Ok(ptr.as_mut().unwrap()),
             }
         }
     }

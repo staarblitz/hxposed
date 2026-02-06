@@ -1,19 +1,16 @@
 use crate::nt::lock::pushlock::PushLock;
+use crate::nt::object::NtObject;
+use crate::nt::process::NtProcess;
 use crate::nt::{EThreadField, get_ethread_field};
 use crate::utils::handlebox::HandleBox;
-use crate::win::{KeGetCurrentThread, PspTerminateThread};
+use crate::win::{
+    Boolean, HANDLE, KeGetCurrentThread, NtStatus, PACCESS_TOKEN, PETHREAD, PsGetThreadId,
+    PsLookupThreadByThreadId, PsReferenceImpersonationToken, PspTerminateThread,
+    SecurityImpersonationLevel,
+};
 use bit_field::BitField;
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
-use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{
-    ObOpenObjectByPointer, ObfDereferenceObject, ObfReferenceObject, PsCreateSystemThread,
-    PsGetThreadId, PsLookupThreadByThreadId, PsReferenceImpersonationToken, ZwClose,
-};
-use wdk_sys::{
-    FALSE, HANDLE, NTSTATUS, PACCESS_TOKEN, PETHREAD, PKSTART_ROUTINE, PVOID, PsThreadType,
-    SECURITY_IMPERSONATION_LEVEL, STATUS_SUCCESS, THREAD_ALL_ACCESS,
-};
 
 pub struct NtThread {
     pub nt_thread: PETHREAD,
@@ -35,7 +32,7 @@ impl Drop for NtThread {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                ObfDereferenceObject(self.nt_thread as _);
+                NtObject::<u64>::decrement_ref_count(self.nt_thread as _);
             }
         }
     }
@@ -46,7 +43,7 @@ impl NtThread {
         let mut process = PETHREAD::default();
         let status = unsafe { PsLookupThreadByThreadId(id as _, &mut process) };
 
-        if status != STATUS_SUCCESS {
+        if status != NtStatus::Success {
             return None;
         }
 
@@ -70,46 +67,11 @@ impl NtThread {
         }
     }
 
-    pub fn open_handle(&self) -> Result<HandleBox, NTSTATUS> {
-        let mut handle = HANDLE::default();
-        match unsafe {
-            ObOpenObjectByPointer(
-                self.nt_thread as _,
-                0,
-                Default::default(),
-                THREAD_ALL_ACCESS,
-                *PsThreadType,
-                KernelMode as _,
-                &mut handle,
-            )
-        } {
-            STATUS_SUCCESS => Ok(HandleBox::new(handle)),
-            err => Err(err),
-        }
-    }
-
-    pub fn create(thread_entry: PKSTART_ROUTINE, start_context: Option<PVOID>) -> NTSTATUS {
-        let mut handle = HANDLE::default();
-        match unsafe {
-            PsCreateSystemThread(
-                &mut handle,
-                THREAD_ALL_ACCESS,
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                thread_entry,
-                start_context.unwrap_or(null_mut()),
-            )
-        } {
-            STATUS_SUCCESS => unsafe {
-                let _ = ZwClose(handle);
-                STATUS_SUCCESS
-            },
-            err => {
-                log::error!("Error creating worker thread: {:?}", err);
-                err
-            }
-        }
+    pub fn open_handle(&self) -> HandleBox {
+        HandleBox::new(
+            NtObject::create_handle(self.nt_thread, NtProcess::current().get_handle_table())
+                .unwrap(),
+        )
     }
 
     pub fn get_impersonation_info(&self) -> bool {
@@ -118,9 +80,9 @@ impl NtThread {
     }
 
     pub fn get_adjusted_client_token(&self) -> PACCESS_TOKEN {
-        let mut copy_on_open = FALSE as _;
-        let mut effective_only = FALSE as _;
-        let mut impersonation_level = SECURITY_IMPERSONATION_LEVEL::default();
+        let mut copy_on_open = Boolean::False;
+        let mut effective_only = Boolean::False;
+        let mut impersonation_level = SecurityImpersonationLevel::SecurityImpersonation;
 
         unsafe {
             PsReferenceImpersonationToken(
@@ -143,9 +105,9 @@ impl NtThread {
         };
 
         unsafe {
-            ObfDereferenceObject(*current_token as _);
+            NtObject::<u64>::decrement_ref_count(*current_token);
             //  its now being referenced by another process. we need to increase its reference count
-            ObfReferenceObject(token);
+            NtObject::<u64>::increment_ref_count(token);
         }
 
         unsafe {
@@ -153,9 +115,9 @@ impl NtThread {
         }
     }
 
-    pub fn kill(self, exit_code: NTSTATUS) -> Result<(), NTSTATUS> {
+    pub fn kill(self, exit_code: NtStatus) -> Result<(), NtStatus> {
         match unsafe { PspTerminateThread(self.nt_thread as _, exit_code, 1) } {
-            STATUS_SUCCESS => Ok(()),
+            NtStatus::Success => Ok(()),
             err => Err(err),
         }
     }

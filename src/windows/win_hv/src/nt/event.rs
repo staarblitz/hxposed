@@ -1,13 +1,11 @@
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
-use crate::utils::alloc::PoolAlloc;
-use alloc::boxed::Box;
-use wdk_sys::ntddk::{KeInitializeEvent, KeSetEvent, KeWaitForSingleObject, ObfDereferenceObject, ObfReferenceObject};
-use wdk_sys::_EVENT_TYPE::SynchronizationEvent;
-use wdk_sys::{HANDLE, KEVENT, LARGE_INTEGER, PKEVENT, STATUS_ALERTED, STATUS_SUCCESS, STATUS_TIMEOUT, STATUS_USER_APC, _KEVENT};
-use wdk_sys::_KWAIT_REASON::Executive;
-use wdk_sys::_MODE::KernelMode;
 use crate::utils::timing;
+use crate::win::{
+    Boolean, EventType, HANDLE, KeInitializeEvent, KeSetEvent, KeWaitForSingleObject, NtStatus,
+    PKEVENT, ProcessorMode, WaitReason,
+};
+use alloc::boxed::Box;
 
 pub struct NtEvent {
     pub nt_event: PKEVENT,
@@ -22,7 +20,7 @@ impl Drop for NtEvent {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                ObfDereferenceObject(self.nt_event as _);
+                NtObject::<u64>::decrement_ref_count(self.nt_event as _);
             }
         }
     }
@@ -37,28 +35,30 @@ pub enum WaitStatus {
 
 impl NtEvent {
     pub fn wait(&self, alertable: bool, timeout: i64) -> WaitStatus {
-        let timeout = timing::relative(timing::milliseconds(timeout));
-        let alertable = match alertable {
-            true => 1,
-            false => 0,
-        };
+        let mut timeout = timing::relative(timing::milliseconds(timeout));
         match unsafe {
-            KeWaitForSingleObject(self.nt_event as _, Executive as _, KernelMode as _, alertable, &timeout as *const i64 as *const LARGE_INTEGER as _)
+            KeWaitForSingleObject(
+                self.nt_event as _,
+                WaitReason::Executive,
+                ProcessorMode::KernelMode,
+                Boolean::from(alertable),
+                &mut timeout,
+            )
         } {
-            STATUS_SUCCESS => WaitStatus::Signaled,
-            STATUS_ALERTED | STATUS_USER_APC => WaitStatus::Alerted,
-            STATUS_TIMEOUT => WaitStatus::TimedOut,
-            _ => unreachable!()
+            NtStatus::Success => WaitStatus::Signaled,
+            NtStatus::Alerted | NtStatus::UserApc => WaitStatus::Alerted,
+            NtStatus::TimeOut => WaitStatus::TimedOut,
+            _ => unreachable!(),
         }
     }
 
     pub fn new() -> NtEvent {
         let me = Self {
-            nt_event: Box::into_raw(_KEVENT::alloc()),
+            nt_event: Box::into_raw(Box::new([0; 24])) as _,
             owns: false,
             owns_alloc: true,
         };
-        unsafe { KeInitializeEvent(me.nt_event, SynchronizationEvent as _, 0) };
+        unsafe { KeInitializeEvent(me.nt_event, EventType::SynchronizationEvent, Boolean::False) };
 
         me
     }
@@ -69,17 +69,17 @@ impl NtEvent {
 
     pub fn from_handle(handle: HANDLE) -> Result<NtEvent, ()> {
         let process = NtProcess::current();
-        let obj = match NtObject::<KEVENT>::from_handle(handle, process.get_handle_table()) {
+        let obj = match NtObject::<PKEVENT>::from_handle(handle, process.get_handle_table()) {
             Ok(ptr) => ptr,
             Err(_) => return Err(()),
         };
 
-        Ok(Self::open_event(obj.object_addr, true))
+        Ok(Self::open_event(obj.object_addr as _, true))
     }
 
     fn open_event(ptr: PKEVENT, owns: bool) -> Self {
         unsafe {
-            ObfReferenceObject(ptr as _);
+            NtObject::<u64>::increment_ref_count(ptr as _);
         }
         Self {
             nt_event: ptr,
@@ -89,6 +89,6 @@ impl NtEvent {
     }
 
     pub fn signal(&self) -> bool {
-        unsafe { KeSetEvent(self.nt_event, 0, 0) == 0 }
+        unsafe { KeSetEvent(self.nt_event, 0, Boolean::False) == 0 }
     }
 }

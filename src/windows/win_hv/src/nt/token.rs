@@ -1,19 +1,16 @@
+use crate::nt::object::NtObject;
+use crate::nt::process::NtProcess;
 use crate::nt::{
     _SEP_TOKEN_PRIVILEGES, AccessTokenField, LogonSessionField, PSEP_LOGON_SESSION_REFERENCES,
     get_access_token_field, get_logon_session_field,
 };
 use crate::utils::handlebox::HandleBox;
+use crate::win::unicode_string::UnicodeString;
+use crate::win::{PACCESS_TOKEN, UNICODE_STRING};
 use core::hash::{Hash, Hasher};
 use hxposed_core::services::types::security_fields::{
     ImpersonationLevel, TokenPrivilege, TokenType,
 };
-use wdk_sys::_MODE::KernelMode;
-use wdk_sys::ntddk::{ObOpenObjectByPointer, ObfDereferenceObject};
-use wdk_sys::{
-    HANDLE, NTSTATUS, PACCESS_TOKEN, PUNICODE_STRING, STATUS_SUCCESS, SeTokenObjectType,
-    TOKEN_ALL_ACCESS, UNICODE_STRING,
-};
-use crate::win::unicode_string::UnicodeString;
 
 pub struct NtToken {
     pub nt_token: PACCESS_TOKEN,
@@ -33,7 +30,7 @@ impl Drop for NtToken {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                ObfDereferenceObject(self.nt_token as _);
+                NtObject::<u64>::decrement_ref_count(self.nt_token);
             }
         }
     }
@@ -65,27 +62,14 @@ impl NtToken {
             )
         };
 
-        UnicodeString::from_unicode_string(unsafe {
-            &*uc
-        })
+        UnicodeString::from_unicode_string(unsafe { &*uc })
     }
 
-    pub fn open_handle(&self) -> Result<HandleBox, NTSTATUS> {
-        let mut handle = HANDLE::default();
-        match unsafe {
-            ObOpenObjectByPointer(
-                self.nt_token as _,
-                0,
-                Default::default(),
-                TOKEN_ALL_ACCESS,
-                *SeTokenObjectType,
-                KernelMode as _,
-                &mut handle,
-            )
-        } {
-            STATUS_SUCCESS => Ok(HandleBox::new(handle)),
-            err => Err(err),
-        }
+    pub fn open_handle(&self) -> HandleBox {
+        HandleBox::new(
+            NtObject::create_handle(self.nt_token, NtProcess::current().get_handle_table())
+                .unwrap(),
+        )
     }
 
     pub fn get_source_name(&self) -> u64 {

@@ -1,9 +1,6 @@
-use alloc::{string::ToString, vec::Vec};
+use crate::win::UNICODE_STRING;
 use alloc::string::String;
-use wdk_sys::{
-    UNICODE_STRING,
-    ntddk::{RtlFreeUnicodeString, RtlInitUnicodeString},
-};
+use alloc::{string::ToString, vec::Vec};
 
 pub struct UnicodeString {
     buffer: Vec<u16>,
@@ -16,7 +13,7 @@ impl UnicodeString {
     }
 
     pub fn from_raw(data: *const u16) -> Self {
-        let len = unsafe{get_wcstr_len(data)};
+        let len = unsafe { get_wcstr_len(data) };
         let mut vec: Vec<u16> = Vec::with_capacity(len / 2);
         unsafe {
             // not Vec::from_raw_parts because it does not copy, it owns the buffer

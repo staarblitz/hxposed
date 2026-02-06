@@ -1,5 +1,3 @@
-# https://sagiegurari.github.io/cargo-make
-
 extend = "target/rust-driver-makefile.toml"
 
 [env]

@@ -1,11 +1,10 @@
 use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::utils::danger::DangerPtr;
+use crate::win::{NtStatus, PagePriority, ProcessorMode};
 use crate::{nt::process::NtProcess, utils::alloc::PoolAlloc};
 use alloc::boxed::Box;
 use core::hash::{Hash, Hasher};
 use spin::mutex::SpinMutex;
-use wdk_sys::{_MM_PAGE_PRIORITY::HighPagePriority, _MODE::UserMode, MdlMappingNoWrite, NTSTATUS};
-use wdk_sys::ntddk::ExFreePool;
 
 /// Represents an async state for a process.
 #[repr(C)]
@@ -29,21 +28,28 @@ pub struct AsyncResultData {
 }
 
 impl AsyncState {
-    pub fn alloc_new(process: NtProcess) -> Result<Box<Self>, NTSTATUS> {
-        let mut addr = unsafe {Box::<AsyncResultData>::new_zeroed().assume_init() };
+    pub fn alloc_new(process: NtProcess) -> Result<Box<Self>, NtStatus> {
+        let mut addr = unsafe { Box::<AsyncResultData>::new_zeroed().assume_init() };
 
         let mut me = Self {
             data_index: 0,
-            user_mdl: MemoryDescriptor::new_describe_nonpaged(addr.as_mut() as *mut _ as _, size_of::<AsyncResultData>() as _),
+            user_mdl: MemoryDescriptor::new_describe_nonpaged(
+                addr.as_mut() as *mut _ as _,
+                size_of::<AsyncResultData>() as _,
+            ),
             process,
             data_system_address: addr,
             write_lock: SpinMutex::new(()),
         };
 
-        match me.user_mdl.map(Some(0x20090000), UserMode as _, ((HighPagePriority as u32) | MdlMappingNoWrite) as _) {
+        match me.user_mdl.map(
+            Some(0x20090000),
+            ProcessorMode::UserMode,
+            ((PagePriority::HighPagePriority as u32) | PagePriority::NoWrite as u32) as _,
+        ) {
             Ok(_) => {}
             Err(err) => {
-                log::error!("Failed to map async result into 0x20090000: {}", err);
+                log::error!("Failed to map async result into 0x20090000: {:x}", err);
                 return Err(err);
             }
         };

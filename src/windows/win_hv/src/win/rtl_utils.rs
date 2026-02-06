@@ -1,21 +1,17 @@
 use crate::utils::danger::DangerPtr;
 use crate::win::unicode_string::UnicodeString;
-use crate::win::{_LDR_DATA_TABLE_ENTRY, PsLoadedModuleList};
+use crate::win::{
+    HANDLE, LDR_DATA_TABLE_ENTRY, OBJECT_ATTRIBUTES, ObjectAttributes, PVOID, PsLoadedModuleList,
+    UNICODE_STRING,
+};
 use alloc::boxed::Box;
 use alloc::string::String;
 use core::ffi::c_void;
-use wdk_sys::ntddk::{
-    ExAllocatePool2, RtlCompareMemory, RtlCompareUnicodeString, RtlCopyUnicodeString,
-};
-use wdk_sys::{
-    FALSE, HANDLE, LIST_ENTRY, OBJECT_ATTRIBUTES, POOL_FLAG_NON_PAGED, PUNICODE_STRING, PVOID,
-    ULONG, UNICODE_STRING,
-};
 
 #[inline]
 pub fn init_object_attributes(
-    n: PUNICODE_STRING,
-    a: ULONG,
+    n: *mut UNICODE_STRING,
+    a: ObjectAttributes,
     r: HANDLE,
     s: PVOID,
 ) -> OBJECT_ATTRIBUTES {
@@ -25,10 +21,10 @@ pub fn init_object_attributes(
         Attributes: a,
         ObjectName: n,
         SecurityDescriptor: s,
-        SecurityQualityOfService: s,
+        SecurityQOS: s,
     }
 }
-
+/*
 pub unsafe fn RtlBufferContainsBuffer(
     Buffer1: *const c_void,
     Buffer1Length: usize,
@@ -55,3 +51,4 @@ pub unsafe fn RtlBufferContainsBuffer(
 
     false
 }
+*/

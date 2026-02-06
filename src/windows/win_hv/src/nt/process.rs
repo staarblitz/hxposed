@@ -7,7 +7,10 @@ use crate::objects::async_obj::AsyncState;
 use crate::utils::danger::DangerPtr;
 use crate::utils::handlebox::HandleBox;
 use crate::win::unicode_string::UnicodeString;
-use crate::win::{PHANDLE_TABLE, PsTerminateProcess};
+use crate::win::{
+    IoGetCurrentProcess, LIST_ENTRY, NtStatus, PACCESS_TOKEN, PEPROCESS, PETHREAD, PHANDLE_TABLE,
+    PsGetProcessId, PsGetThreadId, PsLookupProcessByProcessId, PsTerminateProcess, UNICODE_STRING,
+};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
@@ -15,12 +18,6 @@ use hxposed_core::hxposed::requests::memory::Pa;
 use hxposed_core::services::types::process_fields::{
     MitigationOptions, ProcessProtection, ProcessSignatureLevels,
 };
-use wdk_sys::ntddk::{
-    IoGetCurrentProcess, ObfDereferenceObject, ObfReferenceObject, PsGetProcessId, PsGetThreadId,
-    PsLookupProcessByProcessId,
-};
-use wdk_sys::{_KTHREAD, LIST_ENTRY, NTSTATUS, PACCESS_TOKEN, PEPROCESS, PETHREAD, PLIST_ENTRY, STATUS_SUCCESS, UNICODE_STRING, STATUS_ALREADY_INITIALIZED};
-
 ///
 /// # Kernel Process
 ///
@@ -30,7 +27,7 @@ use wdk_sys::{_KTHREAD, LIST_ENTRY, NTSTATUS, PACCESS_TOKEN, PEPROCESS, PETHREAD
 pub struct NtProcess {
     pub nt_process: PEPROCESS,
     pub lock: PushLock,
-    pub thread_list_head: PLIST_ENTRY,
+    pub thread_list_head: *mut LIST_ENTRY,
     pub id: u32,
     pub owns: bool,
 }
@@ -46,9 +43,7 @@ impl PartialEq<Self> for NtProcess {
     }
 }
 
-impl Eq for NtProcess {
-
-}
+impl Eq for NtProcess {}
 
 impl Clone for NtProcess {
     fn clone(&self) -> Self {
@@ -62,10 +57,8 @@ unsafe impl Sync for NtProcess {}
 impl Drop for NtProcess {
     fn drop(&mut self) {
         if self.owns {
-            // this works.
-            // somehow
             unsafe {
-                ObfDereferenceObject(self.nt_process as _);
+                NtObject::<u64>::decrement_ref_count(self.nt_process as _);
             }
         }
     }
@@ -76,7 +69,7 @@ impl NtProcess {
         let mut process = PEPROCESS::default();
         let status = unsafe { PsLookupProcessByProcessId(id as _, &mut process) };
 
-        if status != STATUS_SUCCESS {
+        if status != NtStatus::Success {
             return None;
         }
 
@@ -145,9 +138,9 @@ impl NtProcess {
             == false
     }
 
-    pub fn setup_hx_info(&self) -> Result<(), NTSTATUS> {
+    pub fn setup_hx_info(&self) -> Result<(), NtStatus> {
         if self.is_hx_info_present() {
-            return Err(STATUS_ALREADY_INITIALIZED);
+            return Err(NtStatus::Unsuccessful);
         }
 
         let state_ptr =
@@ -319,8 +312,8 @@ impl NtProcess {
         let ptr = unsafe { get_eprocess_field::<u64>(EProcessField::Token, self.nt_process) };
 
         unsafe {
-            ObfDereferenceObject(*ptr as _);
-            ObfReferenceObject(token);
+            NtObject::<u64>::decrement_ref_count(*ptr as _);
+            NtObject::<u64>::increment_ref_count(token);
         }
 
         unsafe { ptr.write(token as _) }
@@ -354,10 +347,8 @@ impl NtProcess {
 
             // gets the real ETHREAD
             let thread = unsafe {
-                get_ethread_field::<_KTHREAD>(
-                    EThreadField::OffsetFromListEntry,
-                    current_entry.ptr as _,
-                ) as PETHREAD
+                get_ethread_field::<u64>(EThreadField::OffsetFromListEntry, current_entry.ptr as _)
+                    as PETHREAD
             };
 
             thread_numbers.push(unsafe { PsGetThreadId(thread) as _ });
@@ -366,9 +357,9 @@ impl NtProcess {
         thread_numbers
     }
 
-    pub fn kill(self, exit_code: NTSTATUS) -> Result<(), NTSTATUS> {
+    pub fn kill(self, exit_code: NtStatus) -> Result<(), NtStatus> {
         match unsafe { PsTerminateProcess(self.nt_process, exit_code) } {
-            STATUS_SUCCESS => Ok(()),
+            NtStatus::Success => Ok(()),
             err => Err(err),
         }
     }

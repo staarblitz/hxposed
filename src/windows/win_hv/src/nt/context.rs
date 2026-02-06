@@ -1,5 +1,4 @@
-use wdk_sys::ntddk::{KeStackAttachProcess, KeUnstackDetachProcess};
-use wdk_sys::{KAPC_STATE, PEPROCESS};
+use crate::win::{KAPC_STATE, KeStackAttachProcess, KeUnstackDetachProcess, PEPROCESS};
 
 pub struct ApcProcessContext {
     apc_state: KAPC_STATE,

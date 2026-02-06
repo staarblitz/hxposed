@@ -1,3 +1,4 @@
+use crate::nt::arch::cr3::Cr3Context;
 use crate::nt::arch::pt::{
     PageDirectoryEntry, PageDirectoryPointerEntry, PageMapLevel4, PageMapLevel5, PageTableEntry,
     PagingEntry,
@@ -11,7 +12,6 @@ use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::memory::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use crate::nt::arch::cr3::Cr3Context;
 
 // I hate this so much
 pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorResponse {
@@ -134,7 +134,7 @@ pub fn map_va_to_pa(request: MapVaToPaRequest) -> HypervisorResponse {
     // should I add a dispatcher?
     match request.operation {
         MapOperation::Map => {}
-        MapOperation::Unmap => return unmap_va(request)
+        MapOperation::Unmap => return unmap_va(request),
     }
 
     let process = NtProcess::from_ptr(request.addr_space as _);

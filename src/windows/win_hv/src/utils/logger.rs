@@ -5,7 +5,7 @@ use core::cell::OnceCell;
 use core::fmt::Write;
 use log::{Metadata, Record};
 use spin::Mutex;
-use wdk::print;
+use crate::println;
 
 struct LogBuffer {
     buffer: Vec<u8>,
@@ -106,7 +106,7 @@ impl log::Log for NtLogger {
             let _ = lock.get_mut().unwrap().write_str(args.as_str());
         }
 
-        print!("{}", args);
+        println!("{}", args);
     }
 
     fn flush(&self) {}

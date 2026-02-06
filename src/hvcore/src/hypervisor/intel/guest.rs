@@ -95,6 +95,7 @@ impl Guest for VmxGuest {
     fn run(&mut self) -> VmExitReason {
         const VMX_EXIT_REASON_INIT: u16 = 3;
         const VMX_EXIT_REASON_SIPI: u16 = 4;
+        const VMX_EXIT_REASON_VMCALL: u16 = 18;
         const VMX_EXIT_REASON_CPUID: u16 = 10;
         const VMX_EXIT_REASON_RDMSR: u16 = 31;
         const VMX_EXIT_REASON_WRMSR: u16 = 32;
@@ -107,7 +108,7 @@ impl Guest for VmxGuest {
         // Execute the guest until VM-exit occurs.
         let flags = unsafe { run_vmx_guest(&mut self.registers) };
         if let Err(err) = vmx_succeed(RFlags::from_raw(flags)) {
-            panic!("{err}");
+            panic!("Failed to VMENTRY guest: {err}");
         }
 
         self.registers.rip = vmread(vmcs::guest::RIP);
@@ -126,6 +127,9 @@ impl Guest for VmxGuest {
                 self.handle_sipi_signal();
                 VmExitReason::StartupIpi
             }
+            VMX_EXIT_REASON_VMCALL => VmExitReason::VmCall(InstructionInfo {
+                next_rip: self.registers.rip + vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN),
+            }),
             VMX_EXIT_REASON_CPUID => VmExitReason::Cpuid(InstructionInfo {
                 next_rip: self.registers.rip + vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN),
             }),
@@ -141,7 +145,7 @@ impl Guest for VmxGuest {
             _ => {
                 log::error!("{:#x?}", self.vmcs);
                 panic!(
-                    "Unhandled VM-exit reason: {:?}",
+                    "Unhandled VM-exit reason: 0n{:?}",
                     vmread(vmcs::ro::EXIT_REASON)
                 )
             }
