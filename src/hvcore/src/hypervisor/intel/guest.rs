@@ -17,6 +17,7 @@ use alloc::{
     format,
     string::{String, ToString},
 };
+use core::arch::asm;
 use derive_more::Debug;
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use spin::Lazy;
@@ -29,6 +30,7 @@ use x86::{
     },
     vmx::vmcs,
 };
+use crate::hypervisor::host::VmcallInfo;
 
 /// Representation of a guest.
 pub(crate) struct VmxGuest {
@@ -93,8 +95,10 @@ impl Guest for VmxGuest {
     }
 
     fn run(&mut self) -> VmExitReason {
+        const VMX_EXIT_REASON_EXTERNAL_INTERRUPT: u16 = 1;
         const VMX_EXIT_REASON_INIT: u16 = 3;
         const VMX_EXIT_REASON_SIPI: u16 = 4;
+        const VMX_EXIT_REASON_INTERRUPT_WINDOW: u16 = 7;
         const VMX_EXIT_REASON_VMCALL: u16 = 18;
         const VMX_EXIT_REASON_CPUID: u16 = 10;
         const VMX_EXIT_REASON_RDMSR: u16 = 31;
@@ -127,8 +131,14 @@ impl Guest for VmxGuest {
                 self.handle_sipi_signal();
                 VmExitReason::StartupIpi
             }
-            VMX_EXIT_REASON_VMCALL => VmExitReason::VmCall(InstructionInfo {
-                next_rip: self.registers.rip + vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN),
+            VMX_EXIT_REASON_VMCALL => VmExitReason::VmCall(VmcallInfo {
+                rcx: self.registers.rcx,
+                rdx: self.registers.rdx,
+                r8: self.registers.r8,
+                r9: self.registers.r9,
+                instruction_info: InstructionInfo {
+                    next_rip: self.registers.rip + vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN),
+                }
             }),
             VMX_EXIT_REASON_CPUID => VmExitReason::Cpuid(InstructionInfo {
                 next_rip: self.registers.rip + vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN),
@@ -166,7 +176,7 @@ impl VmxGuest {
             vmcs::control::VMEXIT_CONTROLS,
             Self::adjust_vmx_control(
                 VmxControl::VmExit,
-                vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits() as _,
+                ((vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits())) as u64,
             ),
         );
         vmwrite(
@@ -205,9 +215,7 @@ impl VmxGuest {
             vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS,
             Self::adjust_vmx_control(
                 VmxControl::ProcessorBased,
-                (vmcs::control::PrimaryControls::USE_MSR_BITMAPS
-                    | vmcs::control::PrimaryControls::SECONDARY_CONTROLS)
-                    .bits() as _,
+                (vmcs::control::PrimaryControls::SECONDARY_CONTROLS.bits()) as _
             ),
         );
         // ENABLE_USER_WAIT_PAUSE is required for win11+
@@ -215,19 +223,13 @@ impl VmxGuest {
             vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS,
             Self::adjust_vmx_control(
                 VmxControl::ProcessorBased2,
-                (vmcs::control::SecondaryControls::ENABLE_EPT
-                    | vmcs::control::SecondaryControls::ENABLE_RDTSCP
+                (vmcs::control::SecondaryControls::ENABLE_RDTSCP
                     | vmcs::control::SecondaryControls::ENABLE_INVPCID
                     | vmcs::control::SecondaryControls::ENABLE_XSAVES_XRSTORS
                     | vmcs::control::SecondaryControls::ENABLE_USER_WAIT_PAUSE)
                     .bits() as _,
             ),
         );
-
-        let msr_bitmaps_va = SHARED_GUEST_DATA.msr_bitmaps.as_ref() as *const _;
-        let msr_bitmaps_pa = platform_ops::get().pa(msr_bitmaps_va as *const _);
-        vmwrite(vmcs::control::MSR_BITMAPS_ADDR_FULL, msr_bitmaps_pa);
-        vmwrite(vmcs::control::EPTP_FULL, SHARED_GUEST_DATA.epts.eptp().0);
     }
 
     /// Initializes the guest-state fields of the VMCS.
@@ -616,6 +618,10 @@ impl VmxGuest {
 
     /// Handles VM-exit due to the Startup-IPI (SIPI) signal.
     fn handle_sipi_signal(&mut self) {
+
+        unsafe {
+            asm!("int 0x3")
+        }
         // "For a start-up IPI (SIPI), the exit qualification contains the SIPI
         //  vector information in bits 7:0. Bits 63:8 of the exit qualification are
         //  cleared to 0."
@@ -646,6 +652,7 @@ impl VmxGuest {
 struct SharedGuestData {
     msr_bitmaps: Box<Page>,
     epts: Box<Epts>,
+    waiting_interrupt_vector: u64
 }
 
 static SHARED_GUEST_DATA: Lazy<SharedGuestData> = Lazy::new(|| {
@@ -655,6 +662,7 @@ static SHARED_GUEST_DATA: Lazy<SharedGuestData> = Lazy::new(|| {
     SharedGuestData {
         msr_bitmaps: zeroed_box::<Page>(),
         epts,
+        waiting_interrupt_vector: 0
     }
 });
 

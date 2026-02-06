@@ -7,6 +7,7 @@ use x86::{
     controlregs::{Cr4, Xcr0},
     cpuid::cpuid,
 };
+use x86::bits64::rflags::RFlags;
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use super::{amd::Amd, intel::Intel};
 use crate::hypervisor::{
@@ -57,6 +58,9 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
     guest.activate();
     guest.initialize(registers);
 
+    // re enable interrupts so we dont get deadlocked.
+    unsafe { x86::irq::enable() };
+
     log::info!("Starting the guest");
     loop {
         // Then, run the guest until VM-exit occurs. Some of the events are handled
@@ -67,14 +71,30 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
             VmExitReason::Wrmsr(info) => handle_wrmsr(guest, &info),
             VmExitReason::XSetBv(info) => handle_xsetbv(guest, &info),
             // Vmcall is made by qemu kvm quests
-            VmExitReason::VmCall(info) => guest.regs().rip = info.next_rip,
+            VmExitReason::VmCall(info) => handle_vmcall(guest, &info),
             VmExitReason::InitSignal | VmExitReason::StartupIpi | VmExitReason::NestedPageFault => {
             }
         }
     }
 }
 
-fn handle_vmcall<T: Guest>(guest: &mut T, info: &InstructionInfo) -> bool {
+// passthrough enlightened calls
+fn handle_vmcall<T: Guest>(guest: &mut T, info: &VmcallInfo) {
+    let guest_rcx = info.rcx;
+    let guest_rdx = info.rdx;
+    let guest_r8 = info.r8;
+    let guest_r9 = info.r9;
+
+    let result_rax: u64;
+    unsafe {
+        asm!("vmcall", in("rcx") guest_rcx, in("rdx") guest_rdx, in("r8") guest_r8, in("r9") guest_r9, lateout("rax") result_rax);
+    }
+
+    guest.regs().rax = result_rax;
+    guest.regs().rip = info.instruction_info.next_rip
+}
+
+fn handle_custom_vmcall<T: Guest>(guest: &mut T, info: &InstructionInfo) -> bool {
     guest.regs().rip = info.next_rip;
     let call = HypervisorCall::from_bits(guest.regs().rsi as _);
     unsafe { SHARED_HOST_DATA.get_unchecked().vmcall_handler.unwrap()(guest, call) }
@@ -86,7 +106,7 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
 
     if sub_leaf == 0x2009 {
         // our CPUID trap
-        match handle_vmcall(guest, info) {
+        match handle_custom_vmcall(guest, info) {
             true => {
                 guest.regs().rcx = 0x2009; // This leaf indicates that CPUID was handled by the hypervisor.
                 return;
@@ -104,8 +124,9 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
         // Clear this to prevent other hypervisor tries to use it. On AMD, it is
         // a reserved bit.
         // See: Table 3-10. Feature Information Returned in the ECX Register
-        cpuid_result.ecx &= !(1 << 5);
-        cpuid_result.ecx &= !(1 << 31); // Hide presence of hypervisor
+        /*cpuid_result.ecx &= !(1 << 5); // hide presence of vmx
+        cpuid_result.ecx &= !(1 << 31); // hide presence of hypervisor*/
+        // disabled to support hyper-v enlightments
     } else if leaf == HV_CPUID_INTERFACE {
         // Return non "Hv#1" into EAX. This indicate that our hypervisor does NOT
         // conform to the Microsoft hypervisor interface. This prevents the guest
@@ -114,7 +135,11 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
         // in the virtualization platform that supports the Microsoft hypervisor
         // interface, such as VMware, and not required for a baremetal.
         // See: Hypervisor Top Level Functional Specification
-        cpuid_result.eax = 0;
+
+        // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        // that would be correct, but not in our case.
+        // from
+        cpuid_result.eax = SHARED_HOST_DATA.get().unwrap().hv_cpuid_eax;
     }
 
     guest.regs().rax = u64::from(cpuid_result.eax);
@@ -206,15 +231,23 @@ pub trait Guest {
 }
 
 /// The reasons of VM-exit and additional information.
-pub(crate) enum VmExitReason {
+pub enum VmExitReason {
     Cpuid(InstructionInfo),
     Rdmsr(InstructionInfo),
     Wrmsr(InstructionInfo),
     XSetBv(InstructionInfo),
-    VmCall(InstructionInfo),
+    VmCall(VmcallInfo),
     InitSignal,
     StartupIpi,
     NestedPageFault,
+}
+
+pub struct VmcallInfo {
+    pub rcx: u64,
+    pub rdx: u64,
+    pub r8: u64,
+    pub r9: u64,
+    pub instruction_info: InstructionInfo
 }
 
 pub struct InstructionInfo {

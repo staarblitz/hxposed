@@ -2,6 +2,8 @@ use crate::hypervisor::ops;
 use crate::hypervisor::vmexit::vmcall_handler;
 use crate::win::{ExAllocatePool2, PoolFlags};
 use alloc::boxed::Box;
+use core::arch::x86_64::__cpuid;
+use hv::hypervisor::HV_CPUID_INTERFACE;
 use hv::SharedHostData;
 
 pub(crate) fn init_hypervisor() {

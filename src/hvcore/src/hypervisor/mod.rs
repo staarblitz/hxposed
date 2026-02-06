@@ -54,8 +54,7 @@ pub fn virtualize_system(shared_host: SharedHostData) {
 
         let mut mask = PROCESSOR_BITMASK.load(Ordering::Acquire);
         if !mask.get_bit(index as _) {
-            mask.set_bit(index as _, true);
-            PROCESSOR_BITMASK.store(mask, Ordering::Release);
+            PROCESSOR_BITMASK.store(*mask.set_bit(index as _, true), Ordering::Release);
 
             log::info!("Virtualizing processor: {}", index);
 
@@ -86,10 +85,12 @@ pub struct SharedHostData {
     /// the current GDTs and TSSes are used for both the host and the guest.
     pub gdts: Option<Vec<GdtTss>>,
 
+    pub hv_cpuid_eax: u32,
+
     pub vmcall_handler: Option<fn(&mut dyn Guest, HypervisorCall) -> bool>,
 }
 
 static SHARED_HOST_DATA: Once<SharedHostData> = Once::new();
 
 const HV_CPUID_VENDOR_AND_MAX_FUNCTIONS: u32 = 0x4000_0000;
-const HV_CPUID_INTERFACE: u32 = 0x4000_0001;
+pub const HV_CPUID_INTERFACE: u32 = 0x4000_0001;

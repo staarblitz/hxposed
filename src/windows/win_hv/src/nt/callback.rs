@@ -49,12 +49,12 @@ impl NtCallback {
 
     pub fn init() -> Result<(), NtStatus> {
         log::info!("Initializing callbacks...");
-        unsafe {
+      /*  unsafe {
             match PsSetCreateProcessNotifyRoutineEx(Self::process_callback as _, Boolean::False) {
                 NtStatus::Success => {}
                 err => return Err(err),
             }
-        }
+        }*/
         log::info!("Successfully initialized callbacks");
         Ok(())
     }
