@@ -14,6 +14,7 @@ use crate::win::{
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
+use core::sync::atomic::AtomicPtr;
 use hxposed_core::hxposed::requests::memory::Pa;
 use hxposed_core::services::types::process_fields::{
     MitigationOptions, ProcessProtection, ProcessSignatureLevels,
@@ -142,6 +143,13 @@ impl NtProcess {
         if self.is_hx_info_present() {
             return Err(NtStatus::Unsuccessful);
         }
+        let state = match AsyncState::alloc_new(NtProcess::from_ptr_owning(self.nt_process)) {
+            Ok(x) => x,
+            Err(err) => {
+                log::error!("Failed to allocate state for process.");
+                return Err(err);
+            }
+        };
 
         let state_ptr =
             unsafe { get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
@@ -151,18 +159,9 @@ impl NtProcess {
                 .byte_offset(8)
         };
 
-        let state = match AsyncState::alloc_new(NtProcess::from_ptr_owning(self.nt_process)) {
-            Ok(x) => x,
-            Err(err) => {
-                log::error!("Failed to allocate state for process.");
-                return Err(err);
-            }
-        };
-
         let state = Box::into_raw(state);
 
         unsafe { (state_ptr as *mut u64).write(state.addr() as _) };
-
         unsafe { (tracker_ptr as *mut u64).write(ObjectTracker::alloc_new() as _) };
 
         Ok(())

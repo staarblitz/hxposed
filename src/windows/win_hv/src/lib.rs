@@ -71,9 +71,12 @@ extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
             log::info!("Loaded from HxLoader!");
             log::info!("Delaying startup....");
 
-            panic!("HxLoader loading is not yet implemented");
-
-            //NtThread::create(Some(delayed_start), None);
+            match NtThread::create(delayed_start, None) {
+                Ok(_) => {}
+                Err(err) => {
+                    panic!("Failed to create thread: {}", err);
+                }
+            };
 
             return NtStatus::Success;
         }
@@ -125,7 +128,7 @@ extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
     match nt::callback::NtCallback::init() {
         Ok(_) => {}
         Err(err) => {
-            panic!("Failed to initialize callbacks: {:x}", err);
+            panic!("Failed to initialize callbacks: {}", err);
         }
     }
 

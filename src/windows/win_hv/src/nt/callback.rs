@@ -49,12 +49,12 @@ impl NtCallback {
 
     pub fn init() -> Result<(), NtStatus> {
         log::info!("Initializing callbacks...");
-      /*  unsafe {
+        unsafe {
             match PsSetCreateProcessNotifyRoutineEx(Self::process_callback as _, Boolean::False) {
                 NtStatus::Success => {}
                 err => return Err(err),
             }
-        }*/
+        }
         log::info!("Successfully initialized callbacks");
         Ok(())
     }
@@ -106,20 +106,8 @@ impl NtCallback {
                 let offset = async_state.write_type(callback_info);
                 async_state.write_type_no_ring(0, offset as u32);
 
-                // FIXME: this may be an unnecessary practice
-                // if returns true, that means the event was already signaled and we need to wait for user-mode app to finish.
-
                 log::info!("Signaling event...");
-                if !callback.event.signal() {
-                    log::info!("Receiver was busy! Waiting 200 ms.");
-                    match callback.event.wait(false, 200) {
-                        WaitStatus::TimedOut => log::warn!("Timeout for waiting callback handle to get signaled. Continuing anyway..."),
-                        WaitStatus::Alerted => unreachable!(),
-                        WaitStatus::Signaled => {}
-                    }
-                    log::info!("Re-signaling event...");
-                    callback.event.signal();
-                }
+                callback.event.signal();
                 log::info!("Callback fired");
             }
         })

@@ -59,7 +59,6 @@ impl HxCallback {
     pub fn new(target: ObjectType) -> Result<HxCallback, HypervisorError> {
         match target {
             ObjectType::Process(_) => {}
-            ObjectType::Thread(_) => {}
             _ => {
                 return Err(HypervisorError::from_response(
                     HypervisorResponse::invalid_params(ServiceParameter::Arg1),
@@ -68,7 +67,7 @@ impl HxCallback {
         }
 
         let event_handle = unsafe {
-            CreateEventA(null_mut(), 1, 0, null_mut())
+            CreateEventA(null_mut(), 0, 0, null_mut())
         };
 
         let response = RegisterNotifyHandlerRequest {
@@ -116,9 +115,6 @@ impl HxCallback {
             }),
             _ => Err(HypervisorError::async_time_out())
         };
-
-        // reset, tell the hypervisor that we are done with it.
-        unsafe {ResetEvent(self.event_handle) };
 
         response
     }

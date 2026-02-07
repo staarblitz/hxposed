@@ -3,11 +3,7 @@ use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::nt::{EThreadField, get_ethread_field};
 use crate::utils::handlebox::HandleBox;
-use crate::win::{
-    Boolean, HANDLE, KeGetCurrentThread, NtStatus, PACCESS_TOKEN, PETHREAD, PsGetThreadId,
-    PsLookupThreadByThreadId, PsReferenceImpersonationToken, PspTerminateThread,
-    SecurityImpersonationLevel,
-};
+use crate::win::{Boolean, HANDLE, KeGetCurrentThread, NtStatus, PACCESS_TOKEN, PETHREAD, PsGetThreadId, PsLookupThreadByThreadId, PsReferenceImpersonationToken, PspTerminateThread, SecurityImpersonationLevel, PVOID, PsCreateSystemThread, ThreadAccessRights};
 use bit_field::BitField;
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
@@ -112,6 +108,16 @@ impl NtThread {
 
         unsafe {
             current_token.write(token);
+        }
+    }
+
+    pub fn create(ptr: extern "C" fn(PVOID), arg: Option<PVOID>) -> Result<(), NtStatus> {
+        let mut handle = HANDLE::default();
+        match unsafe {
+            PsCreateSystemThread(&mut handle, ThreadAccessRights::All, null_mut(), null_mut(), null_mut(), ptr as _, arg.unwrap_or(null_mut()))
+        } {
+            NtStatus::Success => Ok(()),
+            err => Err(err),
         }
     }
 

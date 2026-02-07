@@ -58,7 +58,7 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
     guest.activate();
     guest.initialize(registers);
 
-    // re enable interrupts so we dont get deadlocked.
+    // re-enable interrupts so we don't get deadlocked.
     unsafe { x86::irq::enable() };
 
     log::info!("Starting the guest");
@@ -85,6 +85,7 @@ fn handle_vmcall<T: Guest>(guest: &mut T, info: &VmcallInfo) {
     let guest_r8 = info.r8;
     let guest_r9 = info.r9;
 
+    // pass the vmcall to QEMU
     let result_rax: u64;
     unsafe {
         asm!("vmcall", in("rcx") guest_rcx, in("rdx") guest_rdx, in("r8") guest_r8, in("r9") guest_r9, lateout("rax") result_rax);
@@ -138,7 +139,7 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
 
         // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         // that would be correct, but not in our case.
-        // from
+        // since we support hyper-v enlightenment, we have to return what QEMU returned to us.
         cpuid_result.eax = SHARED_HOST_DATA.get().unwrap().hv_cpuid_eax;
     }
 

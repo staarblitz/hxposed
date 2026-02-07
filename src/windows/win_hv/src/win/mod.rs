@@ -15,7 +15,7 @@ use ::alloc::vec::Vec;
 use bitfield_struct::bitfield;
 use core::arch::{asm, naked_asm};
 use core::ffi::{c_char, c_void};
-use core::fmt::{Formatter, LowerHex};
+use core::fmt::{Display, Formatter, LowerHex, Write};
 use core::mem;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
@@ -38,6 +38,7 @@ pub enum ProcessorMode {
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum StandardRights {
+    Required = 0x000F0000,
     Read = 0x00020000,
     Synchronize = 0x00100000,
     All = 0x001F0000,
@@ -69,6 +70,12 @@ pub enum KeyValueInformationClass {
     KeyValuePartialInformationAlign64,
     KeyValueLayerInformation,
     MaxKeyValueInfoClass,
+}
+
+#[repr(u32)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ThreadAccessRights {
+    All = (StandardRights::Required as u32 | StandardRights::Synchronize as u32 | 0xFFFFu32),
 }
 
 #[repr(u32)]
@@ -137,12 +144,12 @@ pub enum NtStatus {
     Unsuccessful = 0xC0000001,
     NotAllocated = 0xC00000A0,
     AccessViolation = 0xC0000005,
-    BufferTooSmall = 0xc0000023
+    BufferTooSmall = 0xc0000023,
 }
 
-impl LowerHex for NtStatus {
+impl Display for NtStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        f.write_str(stringify!(self.0))
+        f.write_fmt(format_args!("{:?}", self))
     }
 }
 
@@ -282,6 +289,15 @@ unsafe extern "C" {
     pub fn PsSetCreateProcessNotifyRoutineEx(Routine: PVOID, Remove: Boolean) -> NtStatus;
     pub fn PsGetProcessId(Process: PEPROCESS) -> HANDLE;
     pub fn PsGetThreadId(Thread: PETHREAD) -> HANDLE;
+    pub fn PsCreateSystemThread(
+        ThreadHandle: *mut HANDLE,
+        DesiredAccess: ThreadAccessRights,
+        ObjectAttributes: *mut OBJECT_ATTRIBUTES,
+        ProcessHandle: HANDLE,
+        ClientId: *mut CLIENT_ID,
+        StartRoutine: PVOID,
+        Parameter: PVOID
+    ) -> NtStatus;
 
     pub fn KeDelayExecutionThread(WaitMode: ProcessorMode, Alertable: Boolean, interval: *mut i64);
 
@@ -341,8 +357,14 @@ unsafe extern "C" {
         Timeout: *mut i64,
     ) -> NtStatus;
     pub fn KeQueryActiveProcessorCountEx(GroupNumber: u16) -> u32;
-    pub fn KeGetProcessorNumberFromIndex(ProcIndex: u32, ProcNumber: *mut PROCESSOR_NUMBER) -> NtStatus;
-    pub fn KeSetSystemGroupAffinityThread(Affinity: *mut GROUP_AFFINITY, PreviousAffinity: *mut GROUP_AFFINITY);
+    pub fn KeGetProcessorNumberFromIndex(
+        ProcIndex: u32,
+        ProcNumber: *mut PROCESSOR_NUMBER,
+    ) -> NtStatus;
+    pub fn KeSetSystemGroupAffinityThread(
+        Affinity: *mut GROUP_AFFINITY,
+        PreviousAffinity: *mut GROUP_AFFINITY,
+    );
     pub fn KeRevertToUserGroupAffinityThread(Previous: *mut GROUP_AFFINITY);
 
     pub fn ZwOpenKey(
@@ -373,10 +395,17 @@ unsafe extern "C" {
 
 #[repr(C)]
 #[derive(Default, Clone)]
+pub struct CLIENT_ID {
+    pub UniqueProcess: HANDLE,
+    pub UniqueThread: HANDLE,
+}
+
+#[repr(C)]
+#[derive(Default, Clone)]
 pub struct GROUP_AFFINITY {
     pub Mask: u64,
     pub Group: u16,
-    pub Reserved: [u16;3]
+    pub Reserved: [u16; 3],
 }
 
 #[repr(C)]
@@ -384,7 +413,7 @@ pub struct GROUP_AFFINITY {
 pub struct PROCESSOR_NUMBER {
     pub Group: u16,
     pub Number: u8,
-    pub Reserved: u8
+    pub Reserved: u8,
 }
 
 #[repr(C)]

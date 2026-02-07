@@ -135,49 +135,50 @@ impl RawMemoryDescriptor {
         }*/
 
         // we have to ALWAYS check the address using MmIsAddressValid. Somehow, MmGetVirtualForPhysical returns garbage.
+        unsafe {
+            let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index())?;
+            (*pml4).make_user_accessible();
+            if !(*pml4).present() {
+                let addr = Self::new_for_paging();
+                (*pml4).set_pfn(addr.pa.into_pfn());
+                tx.enlist(move || addr.free().unwrap());
+            }
 
-        let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index())?;
-        pml4.make_user_accessible();
-        if !pml4.present() {
-            let addr = Self::new_for_paging();
-            pml4.set_pfn(addr.pa.into_pfn());
-            tx.enlist(move || addr.free().unwrap());
+            let pdp = (*pml4).walk_down(virt.get_pdp_index())?;
+            (*pdp).make_user_accessible();
+            if !(*pdp).present() {
+                let addr = Self::new_for_paging();
+                (*pdp).set_pfn(addr.pa.into_pfn());
+                tx.enlist(move || addr.free().unwrap());
+            }
+
+            let pd = (*pdp).walk_down(virt.get_pd_index())?;
+            (*pd).make_user_accessible();
+            if !(*pd).present() {
+                let addr = Self::new_for_paging();
+                (*pd).set_pfn(addr.pa.into_pfn());
+                tx.enlist(move || addr.free().unwrap());
+            }
+
+            let pt = (*pd).walk_down(virt.get_pt_index())?;
+            (*pt).make_user_accessible();
+            if !(*pt).present() {
+                (*pt).set_pfn(self.pa.into_pfn())
+            } else {
+                // something occupies this address
+                drop(tx);
+                return Err(());
+            }
+
+            tx.commit();
+
+            (*pt).set_present(true);
+            (*pd).set_present(true);
+            (*pdp).set_present(true);
+            (*pml4).set_present(true);
+            /*pml5.set_present(true);*/
+
         }
-
-        let pdp = pml4.walk_down(virt.get_pdp_index())?;
-        pdp.make_user_accessible();
-        if !pdp.present() {
-            let addr = Self::new_for_paging();
-            pdp.set_pfn(addr.pa.into_pfn());
-            tx.enlist(move || addr.free().unwrap());
-        }
-
-        let pd = pdp.walk_down(virt.get_pd_index())?;
-        pd.make_user_accessible();
-        if !pd.present() {
-            let addr = Self::new_for_paging();
-            pd.set_pfn(addr.pa.into_pfn());
-            tx.enlist(move || addr.free().unwrap());
-        }
-
-        let pt = pd.walk_down(virt.get_pt_index())?;
-        pt.make_user_accessible();
-        if !pt.present() {
-            pt.set_pfn(self.pa.into_pfn())
-        } else {
-            // something occupies this address
-            drop(tx);
-            return Err(());
-        }
-
-        tx.commit();
-
-        pt.set_present(true);
-        pd.set_present(true);
-        pdp.set_present(true);
-        pml4.set_present(true);
-        /*pml5.set_present(true);*/
-
         unsafe {
             asm!("invlpg ({})", in(reg) (virt.get_addr() as usize), options(att_syntax, nostack, preserves_flags));
         }
@@ -206,27 +207,29 @@ impl RawMemoryDescriptor {
             return Err(());
         }*/
 
-        let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index())?;
-        if !pml4.present() {
-            return Err(());
-        }
+        unsafe {
+            let pml4 = PageMapLevel4::from_phys(base, virt.get_pml4_index())?;
+            if !(*pml4).present() {
+                return Err(());
+            }
 
-        let pdp = pml4.walk_down(virt.get_pdp_index())?;
-        if !pdp.present() {
-            return Err(());
-        }
+            let pdp = (*pml4).walk_down(virt.get_pdp_index())?;
+            if !(*pdp).present() {
+                return Err(());
+            }
 
-        let pd = pdp.walk_down(virt.get_pd_index())?;
-        if !pd.present() {
-            return Err(());
-        }
+            let pd = (*pdp).walk_down(virt.get_pd_index())?;
+            if !(*pd).present() {
+                return Err(());
+            }
 
-        let pt = pd.walk_down(virt.get_pt_index())?;
-        if pt.present() {
-            pt.set_present(false);
-            Ok(())
-        } else {
-            Err(())
+            let pt = (*pd).walk_down(virt.get_pt_index())?;
+            if (*pt).present() {
+                (*pt).set_present(false);
+                Ok(())
+            } else {
+                Err(())
+            }
         }
     }
 }

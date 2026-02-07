@@ -7,7 +7,7 @@ pub trait PagingEntry {
     type DownType;
     /// Caller must check that PFN is valid and present bit is set. Otherwise, a #GP or #PG whatever might occur.
     /// We should return a DangerPtr, actually.
-    fn walk_down(&self, index: u16) -> Result<&'static mut Self::DownType, ()> {
+    fn walk_down(&self, index: u16) -> Result<*mut Self::DownType, ()> {
         let addr: u64 = self.pfn().into_phys().into();
 
         unsafe {
@@ -17,7 +17,7 @@ pub trait PagingEntry {
                     log::warn!("MmGetVirtualForPhysical failed!");
                     Err(())
                 }
-                Boolean::True => Ok(ptr.as_mut().unwrap()),
+                Boolean::True => Ok(ptr),
             }
         }
     }
@@ -65,7 +65,7 @@ impl PagingEntry for PageMapLevel5 {
 }
 
 impl PageMapLevel5 {
-    pub fn from_phys(addr: Pa, index: u16) -> Result<&'static mut Self, ()> {
+    pub fn from_phys(addr: Pa, index: u16) -> Result<*mut Self, ()> {
         let addr: u64 = addr.into();
         let addr = addr as *mut Self;
         unsafe {
@@ -75,7 +75,7 @@ impl PageMapLevel5 {
                     log::warn!("MmGetVirtualForPhysical failed!");
                     Err(())
                 }
-                Boolean::True => Ok(ptr.as_mut().unwrap()),
+                Boolean::True => Ok(ptr),
             }
         }
     }
@@ -102,7 +102,7 @@ pub struct PageMapLevel4 {
 }
 
 impl PageMapLevel4 {
-    pub fn from_phys(addr: Pa, index: u16) -> Result<&'static mut Self, ()> {
+    pub fn from_phys(addr: Pa, index: u16) -> Result<* mut Self, ()> {
         let addr: u64 = addr.into();
         let addr = addr as *mut Self;
         unsafe {
@@ -112,7 +112,7 @@ impl PageMapLevel4 {
                     log::warn!("MmGetVirtualForPhysical failed!");
                     Err(())
                 }
-                Boolean::True => Ok(ptr.as_mut().unwrap()),
+                Boolean::True => Ok(ptr),
             }
         }
     }

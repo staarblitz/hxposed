@@ -70,7 +70,7 @@ impl HxGuard {
         let key = match NtKey::open("\\Registry\\Machine\\SOFTWARE\\HxPosed\\HxGuard") {
             Ok(x) => x,
             Err(err) => {
-                log::error!("Failed to open HxPosed key: {:x}", err);
+                log::error!("Failed to open HxPosed key: {}", err);
                 return;
             }
         };
@@ -79,7 +79,7 @@ impl HxGuard {
             Ok(x) => *x == Boolean::True,
             Err(err) => {
                 log::warn!(
-                    "Failed to read CallerVerification. Reverting to default (TRUE): {:x}",
+                    "Failed to read CallerVerification. Reverting to default (TRUE): {}",
                     err
                 );
                 true
@@ -93,7 +93,7 @@ impl HxGuard {
             },
             Err(err) => {
                 log::warn!(
-                    "Failed to read RegistryProtection. Reverting to default (TRUE): {:x}",
+                    "Failed to read RegistryProtection. Reverting to default (TRUE): {}",
                     err
                 );
                 RegistryProtection::Enabled
@@ -108,7 +108,7 @@ impl HxGuard {
             ) {
                 Ok(x) => x,
                 Err(err) => {
-                    panic!("Failed to open CallerVerification key: {:x}", err)
+                    panic!("Failed to open CallerVerification key: {}", err)
                 }
             };
 
@@ -117,7 +117,7 @@ impl HxGuard {
                 Ok(x) => x,
                 Err(err) => {
                     log::error!(
-                        "Failed to read VerifiedCallers key! No caller is allowed. {:x}",
+                        "Failed to read VerifiedCallers key! No caller is allowed. {}",
                         err
                     );
                     &mut default
