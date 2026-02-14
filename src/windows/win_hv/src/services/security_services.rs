@@ -17,7 +17,7 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 pub(crate) fn set_token_field_sync(request: SetTokenFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
 
-    let mut token = match process
+    let token = match process
         .get_object_tracker_unchecked()
         .get_open_token(request.token)
     {

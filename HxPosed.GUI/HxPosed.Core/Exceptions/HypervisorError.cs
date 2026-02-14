@@ -5,11 +5,14 @@ using System.Text;
 
 namespace HxPosed.Core.Exceptions
 {
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Explicit)]
     public struct HypervisorError
     {
+        [FieldOffset(0)]
         public ErrorSource Source;
+        [FieldOffset(4)]
         public ushort Error;
+        [FieldOffset(6)]
         public ushort Reason;
 
         public void ThrowIfError()

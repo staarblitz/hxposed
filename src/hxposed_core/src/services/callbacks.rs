@@ -41,17 +41,11 @@ impl HxCallback {
     ///
     /// To deregister the callback, use [`drop`].
     ///
-    /// ## Permissions
-    /// * [`PluginPermissions::INTERCEPT_PROCESS`] if `target` is [`ObjectType::Process`]
-    /// * [`PluginPermissions::INTERCEPT_THREAD`] if `target` is [`ObjectType::Thread`]
-    ///
-    /// Remember that you may also need [`PluginPermissions::PROCESS_EXECUTIVE`] or [`PluginPermissions::THREAD_EXECUTIVE`] if you want to control those objects.
-    ///
     /// ## Arguments
     /// - `target` - Type of objects that will be intercepted. Valid values are:
-    /// 1. [`ObjectType::Process`]
-    /// 2. [`ObjectType::Thread`]
-    /// 3. [`ObjectType::Registry`]. Though, not yet available
+    /// 1. [`ObjectType::Process(0)`]
+    /// 2. [`ObjectType::Thread(0)`]
+    /// 3. [`ObjectType::Registry(0)`]. Though, not yet available
     ///
     /// ## Return
     /// * [`HxCallback`] - An abstraction that represents the callback object. The callback is active upon return.
@@ -59,6 +53,7 @@ impl HxCallback {
     pub fn new(target: ObjectType) -> Result<HxCallback, HypervisorError> {
         match target {
             ObjectType::Process(_) => {}
+            ObjectType::Thread(_) => {}
             _ => {
                 return Err(HypervisorError::from_response(
                     HypervisorResponse::invalid_params(ServiceParameter::Arg1),
@@ -99,7 +94,7 @@ impl HxCallback {
     /// loop {
     ///     match callback.wait_for_callback() {
     ///         Ok(info) => {
-    ///             // do something
+    ///             let process = HxProcess::open(info.object_value)
     ///         }
     ///         Err(_) => /* ignore */
     ///     }
@@ -107,15 +102,13 @@ impl HxCallback {
     /// ```
     pub fn wait_for_callback(&self) -> Result<CallbackInformation, HypervisorError>
     {
-        let response = match unsafe {
+        match unsafe {
             WaitForSingleObject(self.event_handle, 2000)
         } {
             0 => Ok(unsafe {
                 read_response_type::<CallbackInformation>(CALLBACK_RESPONSE_RESERVED_OFFSET)
             }),
             _ => Err(HypervisorError::async_time_out())
-        };
-
-        response
+        }
     }
 }

@@ -1,6 +1,5 @@
 use bit_field::BitField;
 use core::arch::asm;
-use core::ops::BitAnd;
 use hxposed_core::hxposed::requests::memory::Pfn;
 
 pub struct Cr3(u64);

@@ -125,7 +125,7 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
 /// ## Return
 /// * [`HypervisorResponse::ok`] - The process was killed.
 /// * [`HypervisorResponse::nt_error`] - [`PsTerminateProcess`] returned an NTSTATUS indicating failure.
-pub(crate) fn kill_process_sync(request: KillProcessRequest) -> HypervisorResponse {
+pub(crate) fn kill_process_sync(_request: KillProcessRequest) -> HypervisorResponse {
     return HypervisorResponse::not_allowed(NotAllowedReason::Unknown);
 }
 

@@ -9,7 +9,6 @@ use crate::win::{
 use alloc::vec::Vec;
 use core::arch::asm;
 use core::hash::Hash;
-use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use hxposed_core::hxposed::requests::memory::{MemoryType, Pa, Va};
 use spin::mutex::SpinMutex;
 

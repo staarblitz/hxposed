@@ -16,7 +16,6 @@ pub(crate) mod token;
 
 use crate::nt::registry::NtKey;
 use crate::win::*;
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::ffi::c_void;
 use core::ptr::null_mut;

@@ -1,23 +1,15 @@
-use crate::nt::event::{NtEvent, WaitStatus};
+use crate::nt::event::NtEvent;
 use crate::nt::guard::hxguard::HxGuard;
-use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
-use crate::nt::thread::NtThread;
-use crate::objects::async_obj::AsyncState;
 use crate::objects::{CALLER_PROCESSES, ObjectTracker};
 use crate::utils::rng::SimpleCounter;
-use crate::win::{Boolean, HANDLE, NtStatus, PEPROCESS, PVOID, PsSetCreateProcessNotifyRoutineEx};
-use alloc::boxed::Box;
-use alloc::collections::VecDeque;
-use alloc::collections::btree_map::Keys;
-use alloc::vec::Vec;
+use crate::win::{Boolean, HANDLE, NtStatus, PEPROCESS, PVOID, PsSetCreateProcessNotifyRoutineEx, PsSetCreateThreadNotifyRoutineEx, CreateThreadNotifType};
 use core::hash::{Hash, Hasher};
 use hxposed_core::hxposed::requests::notify::ObjectState;
-use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::notify::CallbackInformation;
-use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::hxposed::responses::VmcallResponse;
 use hxposed_core::hxposed::{CallbackObject, ObjectType};
-use spin::{Mutex, RwLock};
+use spin::Mutex;
 
 static RNG: Mutex<SimpleCounter> = Mutex::new(SimpleCounter { state: 1 });
 
@@ -50,10 +42,8 @@ impl NtCallback {
     pub fn init() -> Result<(), NtStatus> {
         log::info!("Initializing callbacks...");
         unsafe {
-            match PsSetCreateProcessNotifyRoutineEx(Self::process_callback as _, Boolean::False) {
-                NtStatus::Success => {}
-                err => return Err(err),
-            }
+            PsSetCreateProcessNotifyRoutineEx(Self::process_callback as _, Boolean::False).into_result()?;
+            PsSetCreateThreadNotifyRoutineEx(CreateThreadNotifType::PsCreateThreadNotifyNonSystem, Self::thread_callback as _).into_result()?;
         }
         log::info!("Successfully initialized callbacks");
         Ok(())
@@ -89,6 +79,8 @@ impl NtCallback {
             let async_state = nt.get_hx_async_state_unchecked();
 
             for (_, callback) in &mut object_tracker.callbacks {
+                if callback.object_type != ObjectType::Process(0) {continue}
+
                 log::info!("Firing callback for: {}", callback.callback);
 
                 let obj = ObjectType::Process(id as _).into_raw();
@@ -98,6 +90,38 @@ impl NtCallback {
                     object_state: match info.is_null() {
                         true => ObjectState::Deleted,
                         false => ObjectState::Created
+                    },
+                };
+
+                log::info!("Callback information: {:?}", callback_info);
+
+                let offset = async_state.write_type(callback_info);
+                async_state.write_type_no_ring(0, offset as u32);
+
+                log::info!("Signaling event...");
+                callback.event.signal();
+                log::info!("Callback fired");
+            }
+        })
+    }
+
+    unsafe extern "C" fn thread_callback(_process_id: HANDLE, thread_id: HANDLE, create: Boolean) {
+        CALLER_PROCESSES.lock().iter_mut().for_each(|nt| {
+            let object_tracker = nt.get_object_tracker_unchecked();
+            let async_state = nt.get_hx_async_state_unchecked();
+
+            for (_, callback) in &mut object_tracker.callbacks {
+                if callback.object_type != ObjectType::Thread(0) {continue}
+
+                log::info!("Firing callback for: {}", callback.callback);
+
+                let obj = ObjectType::Thread(thread_id as _).into_raw();
+                let callback_info = CallbackInformation {
+                    object_type: obj.0,
+                    object_value: obj.1,
+                    object_state: match create {
+                        Boolean::False => ObjectState::Deleted,
+                        Boolean::True => ObjectState::Created
                     },
                 };
 

@@ -1,14 +1,12 @@
-use crate::nt::event::NtEvent;
 use crate::nt::guard::hxguard::HxGuard;
-use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::services;
 use crate::utils::benchmark::CpuBenchmark;
 use hv::hypervisor::host::Guest;
-use hxposed_core::hxposed::call::{HypervisorCall, ServiceParameter};
+use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use hxposed_core::hxposed::requests::{HypervisorRequest};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::status::HypervisorStatus;

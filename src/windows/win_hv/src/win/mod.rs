@@ -147,6 +147,15 @@ pub enum NtStatus {
     BufferTooSmall = 0xc0000023,
 }
 
+impl NtStatus {
+    pub const fn into_result(self) -> Result<(), NtStatus> {
+        match self {
+            NtStatus::Success => Ok(()),
+            err => Err(self)
+        }
+    }
+}
+
 impl Display for NtStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("{:?}", self))
@@ -218,6 +227,12 @@ pub enum MdlFlags {
     Internal = 0x8000,
 }
 
+#[repr(u32)]
+#[derive(Clone, Debug)]
+pub enum CreateThreadNotifType {
+    PsCreateThreadNotifyNonSystem
+}
+
 pub(crate) type PsTerminateProcessType = unsafe extern "C" fn(PEPROCESS, NtStatus) -> NtStatus;
 pub(crate) type PsTerminateThreadType = unsafe extern "C" fn(PETHREAD, NtStatus, i8) -> NtStatus;
 pub(crate) type ExpLookupHandleTableEntryType =
@@ -287,6 +302,7 @@ unsafe extern "C" {
         Level: *mut SecurityImpersonationLevel,
     ) -> PACCESS_TOKEN;
     pub fn PsSetCreateProcessNotifyRoutineEx(Routine: PVOID, Remove: Boolean) -> NtStatus;
+    pub fn PsSetCreateThreadNotifyRoutineEx(NotifyType: CreateThreadNotifType, Routine: PVOID) -> NtStatus;
     pub fn PsGetProcessId(Process: PEPROCESS) -> HANDLE;
     pub fn PsGetThreadId(Thread: PETHREAD) -> HANDLE;
     pub fn PsCreateSystemThread(

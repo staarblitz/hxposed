@@ -604,7 +604,7 @@ typedef struct _HX_REQUEST_RESPONSE {
 BOOL HxIsError(PHX_ERROR Error);
 HX_ERROR HxErrorFromResult(PHX_RESULT Result);
 
-__declspec(dllexport) HX_ERROR HxGetStatus(PHXS_STATUS Response);
+__declspec(dllexport) VOID HxGetStatus(PHXS_STATUS Response, PHX_ERROR Eror);
 
 __declspec(dllexport) HX_ERROR HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response);
 __declspec(dllexport) PHX_REQUEST_RESPONSE HxpRawFromRequest(HX_SERVICE_FUNCTION Function, PVOID Request);

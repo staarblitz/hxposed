@@ -4,6 +4,7 @@ HX_ERROR HxNotLoaded() {
 	HX_ERROR err;
 	err.ErrorCode = HxErrNotLoaded;
 	err.ErrorSource = HxSourceHx;
+	err.ErrorReason = 0;
 	return err;
 }
 
@@ -11,6 +12,7 @@ HX_ERROR HxOk() {
 	HX_ERROR err;
 	err.ErrorCode = HxErrOk;
 	err.ErrorSource = HxSourceHx;
+	err.ErrorReason = 0;
 	return err;
 }
 
@@ -227,15 +229,20 @@ __declspec(dllexport) PVOID HxReadAsyncResponseType(UINT64 Offset) {
 	return (PVOID)(HX_ASYNC_BASE + typeOffset);
 }
 
-__declspec(dllexport) HX_ERROR HxGetStatus(PHXS_STATUS Response) {
-	HX_REQUEST_RESPONSE reqResp;
+__declspec(dllexport) VOID HxGetStatus(PHXS_STATUS Response, PHX_ERROR Error) {
+	// allocating from heap since i dont have memset to initialize the local variable to zero
+	PHX_REQUEST_RESPONSE reqResp = (PHX_REQUEST_RESPONSE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(HX_REQUEST_RESPONSE));
 
-	if (HxpTrap(&reqResp) == -1) {
-		return HxNotLoaded();
+	reqResp->Call.ServiceFunction = HxSvcGetState;
+
+	if (HxpTrap(reqResp) == -1) {
+		HeapFree(GetProcessHeap(), NULL, reqResp);
+		*Error = HxNotLoaded();
+		return;
 	}
 
-	Response->Status = reqResp.Arg1;
-	Response->Version = reqResp.Arg2;
+	Response->Status = reqResp->Arg1;
+	Response->Version = reqResp->Arg2;
 
-	return HxErrorFromResult(&reqResp.Result);
+	*Error = HxErrorFromResult(&reqResp->Result);
 }

@@ -180,6 +180,9 @@
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalOptions>-Wno-error=int-conversion -Wno-int-conversion %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <Lib>
+      <AdditionalDependencies>ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="err.c" />

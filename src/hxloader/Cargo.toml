@@ -16,3 +16,5 @@ uefi = { version = "0.36.1", features = [ "panic_handler", "alloc", "global_allo
 log = {version =  "0.4.29", default-features = false}
 spin = {version = "0.10.0"}
 com_logger = {version = "0.1.2", default-features = false}
+bitfield-struct = "0.12.1"
+bit_field = "0.10.3"

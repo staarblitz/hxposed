@@ -1,4 +1,3 @@
-use crate::utils::alloc::PoolAllocSized;
 use crate::utils::danger::DangerPtr;
 use crate::win::{
     Boolean, ExAllocatePool2, ExFreePool, IoAllocateMdl, IoFreeMdl, MDL, MemoryCacheType,
@@ -78,7 +77,7 @@ impl MemoryDescriptor {
         let mdl = unsafe {
             ExAllocatePool2(
                 PoolFlags::NonPaged,
-                (size_of::<MDL>() + 8 * (((ptr as usize) + length + 4095) >> 12)),
+                size_of::<MDL>() + 8 * (((ptr as usize) + length + 4095) >> 12) ,
                 0x2009,
             )
         };

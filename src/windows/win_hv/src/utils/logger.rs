@@ -1,11 +1,11 @@
+use alloc::{format, vec};
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use alloc::{format, vec};
 use core::cell::OnceCell;
 use core::fmt::Write;
 use log::{Metadata, Record};
 use spin::Mutex;
-use crate::println;
+use crate::print;
 
 struct LogBuffer {
     buffer: Vec<u8>,
@@ -95,7 +95,7 @@ impl log::Log for NtLogger {
             record.file().unwrap_or("<unknown>"),
             record.line().unwrap_or(0),
         )
-        .to_string();
+            .to_string();
 
         /*{
             let mut lock = self.serial.lock();
@@ -106,7 +106,7 @@ impl log::Log for NtLogger {
             let _ = lock.get_mut().unwrap().write_str(args.as_str());
         }
 
-        println!("{}", args);
+        print!("{}", args);
     }
 
     fn flush(&self) {}

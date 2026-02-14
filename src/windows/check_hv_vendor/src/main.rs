@@ -11,7 +11,6 @@ use hxposed_core::services::process::HxProcess;
 use hxposed_core::services::types::process_fields::{
     ProcessProtection, ProtectionSigner, ProtectionType,
 };
-use std::arch::asm;
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -164,7 +163,7 @@ impl eframe::App for HxTestApp {
                                 u32::from_str_radix(&state.current_msr, 16).unwrap(),
                                 u64::from_str_radix(&state.current_value, 16).unwrap(),
                             ) {
-                                Ok(x) => {
+                                Ok(_x) => {
                                     ok_update = Some(format!("Msr written!"));
                                 }
                                 Err(err) => {

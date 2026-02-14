@@ -14,7 +14,7 @@ namespace HxPosed.Core
     public class HypervisorManager
     {
         [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern HypervisorError HxGetStatus(out HxStatus response);
+        private static extern void HxGetStatus(out HxStatus response, out HypervisorError error);
 
 
         /// <summary>
@@ -23,11 +23,8 @@ namespace HxPosed.Core
         /// <exception cref="HypervisorException">Throws if hypervisor is not responding to CPUID traps.</exception>
         public static HxStatus GetHypervisorStatus()
         {
-            var error = HxGetStatus(out var response);
-
-            if (error.IsError())
-                throw new HypervisorException(error);
-
+            HxGetStatus(out var response, out var err);
+            err.ThrowIfError();
             return response;
         }
     }

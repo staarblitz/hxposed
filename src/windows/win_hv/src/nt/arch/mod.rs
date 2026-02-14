@@ -1,5 +1,4 @@
 use crate::win::{MmGetPhysicalAddress, MmGetVirtualForPhysical};
-use bit_field::BitField;
 
 pub(crate) mod cr3;
 pub(crate) mod pt;

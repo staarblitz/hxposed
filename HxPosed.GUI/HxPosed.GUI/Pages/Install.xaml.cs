@@ -44,7 +44,7 @@ namespace HxPosed.GUI.Pages
             _ctx.Icon = icon;
             _ctx.StatusText = status;
             _ctx.DescriptorText = desc;
-            App.MainWindowNavigationView.IsEnabled = canInstall;
+            App.MainWindowNavigationView.IsEnabled = !canInstall;
         }
 
         private async void Button_Click(object sender, RoutedEventArgs e)

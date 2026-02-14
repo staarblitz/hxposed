@@ -25,16 +25,14 @@ static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::boot::HX_LOADER_PARAMETER_BLOCK;
 use crate::nt::guard::hxguard::HxGuard;
-use crate::nt::object::NtObject;
-use crate::nt::process::NtProcess;
 use crate::nt::thread::NtThread;
-use crate::objects::async_obj::AsyncState;
-use crate::utils::logger::NtLogger;
 use crate::win::winalloc::WdkAllocator;
-use crate::win::{Boolean, KeBugCheckEx, KeDelayExecutionThread, NtStatus, PVOID, ProcessorMode};
+use crate::win::{Boolean, KeDelayExecutionThread, NtStatus, PVOID, ProcessorMode, KeBugCheckEx};
 use core::ptr;
 use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
+use spin::Lazy;
+use crate::utils::logger::NtLogger;
 
 static mut HX_GUARD: HxGuard = HxGuard::new();
 

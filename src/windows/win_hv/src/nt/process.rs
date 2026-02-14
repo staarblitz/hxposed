@@ -14,7 +14,6 @@ use crate::win::{
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
-use core::sync::atomic::AtomicPtr;
 use hxposed_core::hxposed::requests::memory::Pa;
 use hxposed_core::services::types::process_fields::{
     MitigationOptions, ProcessProtection, ProcessSignatureLevels,

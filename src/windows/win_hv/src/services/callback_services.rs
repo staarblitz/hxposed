@@ -28,7 +28,7 @@ pub fn unregister_callback_receiver(request: UnregisterNotifyHandlerRequest) -> 
 
     match tracker.pop_open_callback(request.callback) {
         None => HypervisorResponse::not_found_what(NotFoundReason::Callback),
-        Some(x) => {
+        Some(_x) => {
             // drop the obj
 
             EmptyResponse::with_service(ServiceFunction::UnregisterNotifyEvent)

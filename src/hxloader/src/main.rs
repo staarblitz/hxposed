@@ -6,14 +6,20 @@ mod nt;
 mod pe;
 mod utils;
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
 use crate::nt::bootmgfw::Bootmgfw;
 use crate::nt::*;
 use crate::pe::detour::Detour;
 use crate::utils::hxposed::HxPosed;
 use core::sync::atomic::{AtomicPtr, AtomicU64};
 use spin::Mutex;
+use uefi::boot::MemoryAttribute;
+use uefi::Identify;
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
+use uefi::proto::ProtocolPointer;
+use uefi::proto::security::MemoryProtection;
 
 pub static IMG_ARCH_START_BOOT_APPLICATION_DETOUR: Mutex<Detour<ImgArchStartBootApplicationType>> =
     Mutex::new(Detour::<ImgArchStartBootApplicationType>::default());
@@ -34,9 +40,8 @@ fn main() -> Status {
         .setup();
 
     {
-        let proto = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle()).unwrap();
-
         log::info!("Welcome to HxLoader!");
+        let proto = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle()).unwrap();
         log::info!("HxLoader's image base: {:x}", proto.info().0 as u64);
         log::info!("HxLoader's image size: {:x}", proto.info().1);
     }

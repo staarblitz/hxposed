@@ -1,14 +1,9 @@
 use crate::HX_GUARD;
-use crate::nt::process::NtProcess;
 use crate::nt::registry::NtKey;
-use crate::utils::alloc::PoolAllocSized;
-use crate::win::unicode_string::{self, UnicodeString};
-use crate::win::{Boolean, NtStatus, PVOID};
-use alloc::string::ToString;
+use crate::win::Boolean;
 use core::arch::x86_64::{
     __m128i, _mm_cmpeq_epi64, _mm_loadu_si128, _mm_movemask_pd, _mm_set1_epi64x,
 };
-use core::ptr::null_mut;
 
 pub static mut VALID_CALLERS: [u64; 256] = [0; 256];
 //pub static VALID_CALLER_COUNT: AtomicU32 = AtomicU32::new(0);

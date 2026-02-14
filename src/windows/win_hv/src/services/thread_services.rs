@@ -8,24 +8,10 @@ use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::thread::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-
-pub(crate) fn kill_thread_sync() -> HypervisorResponse {
-    EmptyResponse::with_service(ServiceFunction::KillThread)
-    /*let thread = match ObjectTracker::get_open_thread(request.command.thread as _) {
-        Some(thread) => thread.take(),
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
-    };
-
-    match thread.kill(request.command.exit_code as _) {
-        Ok(_) => EmptyResponse::with_service(ServiceFunction::KillThread),
-        Err(err) => HypervisorResponse::nt_error(err as _),
-    }*/
-}
-
 pub(crate) fn get_thread_field_sync(request: GetThreadFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
     let tracker = process.get_object_tracker_unchecked();
-    let mut thread = match tracker.get_open_thread(request.thread) {
+    let thread = match tracker.get_open_thread(request.thread) {
         Some(thread) => thread,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
@@ -37,7 +23,6 @@ pub(crate) fn get_thread_field_sync(request: GetThreadFieldRequest) -> Hyperviso
         ThreadField::AdjustedClientToken(_) => {
             GetThreadFieldResponse::AdjustedClientToken(thread.get_adjusted_client_token() as _)
         }
-        _ => return HypervisorResponse::not_found(),
     }
     .into_raw()
 }

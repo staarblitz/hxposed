@@ -1,6 +1,6 @@
 use crate::nt::arch::cr3::Cr3Context;
 use crate::nt::arch::pt::{
-    PageDirectoryEntry, PageDirectoryPointerEntry, PageMapLevel4, PageMapLevel5, PageTableEntry,
+    PageDirectoryEntry, PageDirectoryPointerEntry, PageMapLevel4, PageTableEntry,
     PagingEntry,
 };
 use crate::nt::arch::virt_to_phys;
@@ -20,7 +20,7 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
 
     let resp = match request.paging_type {
         PagingType::Pml5(_) => unreachable!("No elegant way to choose between pml5 and 4 yet"),
-        PagingType::Pml4(va) => {
+        PagingType::Pml4(va) => unsafe {
             let field = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
@@ -30,19 +30,19 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                     *field = PageMapLevel4::from_bits(request.type_bits);
                     0
                 }
-                PageAttributeOperation::Get => field.into_bits(),
+                PageAttributeOperation::Get =>(*field).into_bits(),
             }
         }
-        PagingType::Pdp(va) => {
+        PagingType::Pdp(va) => unsafe {
             let pml4 = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
-                Ok(field) if !field.present() => {
+                Ok(field) if !(*field).present() => {
                     return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
 
-            let field = match pml4.walk_down(va.get_pdp_index()) {
+            let field = match (*pml4).walk_down(va.get_pdp_index()) {
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
@@ -51,27 +51,27 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                     *field = PageDirectoryPointerEntry::from_bits(request.type_bits);
                     0
                 }
-                PageAttributeOperation::Get => field.into_bits(),
+                PageAttributeOperation::Get => (*pml4).into_bits(),
             }
         }
-        PagingType::Pd(va) => {
+        PagingType::Pd(va) => unsafe {
             let pml4 = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
-                Ok(field) if !field.present() => {
+                Ok(field) if !(*field).present() => {
                     return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
 
-            let pdp = match pml4.walk_down(va.get_pdp_index()) {
-                Ok(field) if !field.present() => {
+            let pdp = match (*pml4).walk_down(va.get_pdp_index()) {
+                Ok(field) if !(*field).present() => {
                     return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
 
-            let field = match pdp.walk_down(va.get_pd_index()) {
+            let field = match (*pdp).walk_down(va.get_pd_index()) {
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
@@ -80,35 +80,35 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                     *field = PageDirectoryEntry::from_bits(request.type_bits);
                     0
                 }
-                PageAttributeOperation::Get => field.into_bits(),
+                PageAttributeOperation::Get => (*field).into_bits(),
             }
         }
-        PagingType::Pt(va) => {
+        PagingType::Pt(va) => unsafe {
             let pdp = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
-                Ok(field) if !field.present() => {
+                Ok(field) if !(*field).present() => {
                     return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
 
-            let pdp = match pdp.walk_down(va.get_pdp_index()) {
-                Ok(field) if !field.present() => {
+            let pdp = match (*pdp).walk_down(va.get_pdp_index()) {
+                Ok(field) if !(*field).present() => {
                     return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
 
-            let pd = match pdp.walk_down(va.get_pd_index()) {
-                Ok(field) if !field.present() => {
+            let pd = match (*pdp).walk_down(va.get_pd_index()) {
+                Ok(field) if !(*field).present() => {
                     return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
 
-            let field = match pd.walk_down(va.get_pt_index()) {
+            let field = match (*pd).walk_down(va.get_pt_index()) {
                 Ok(field) => field,
                 Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
             };
@@ -118,7 +118,7 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
                     // TODO: invalidate page?
                     0
                 }
-                PageAttributeOperation::Get => field.into_bits(),
+                PageAttributeOperation::Get => (*field).into_bits(),
             }
         }
     };

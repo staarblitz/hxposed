@@ -1,7 +1,6 @@
 use crate::nt::mm::mdl::MemoryDescriptor;
-use crate::utils::danger::DangerPtr;
 use crate::win::{NtStatus, PagePriority, ProcessorMode};
-use crate::{nt::process::NtProcess, utils::alloc::PoolAlloc};
+use crate::nt::process::NtProcess;
 use alloc::boxed::Box;
 use core::hash::{Hash, Hasher};
 use spin::mutex::SpinMutex;
@@ -49,7 +48,7 @@ impl AsyncState {
         ) {
             Ok(_) => {}
             Err(err) => {
-                log::error!("Failed to map async result into 0x20090000: {:x}", err);
+                log::error!("Failed to map async result into 0x20090000: {}", err);
                 return Err(err);
             }
         };

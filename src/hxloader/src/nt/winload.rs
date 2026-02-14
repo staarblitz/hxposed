@@ -1,3 +1,5 @@
+use core::arch::asm;
+use bit_field::BitField;
 use crate::nt::{
     BL_IMG_ALLOCATE_IMAGE_BUFFER_PATTERN, BlImgAllocateImageBufferType,
     OSL_FWP_KERNEL_SETUP_PHASE1_PATTERN, OslFwpKernelSetupPhase1Type,
@@ -48,16 +50,29 @@ impl Winload {
 
         log::info!("BlImgAllocateImageBuffer: {:x}", bl_img_pos.addr());
 
-        {
-            let mut detour = OSL_FWP_KERNEL_SETUP_PHASE1_DETOUR.lock();
-            detour.init(osl_fwp_pos, osl_fwp_kernel_setup_phase1 as _);
-            detour.detour();
+        unsafe {
+            // disable WP
+            let mut cr0= 0u64;
+            asm!("mov {}, cr0", out(reg) cr0);
+
+            cr0.set_bit(16, false);
+            asm!("mov cr0, {}", in(reg) cr0);
         }
 
         {
+            log::info!("Patching OslFwpKernelSetupPhase1...");
+            let mut detour = OSL_FWP_KERNEL_SETUP_PHASE1_DETOUR.lock();
+            detour.init(osl_fwp_pos, osl_fwp_kernel_setup_phase1 as _);
+            detour.detour();
+            log::info!("Patched!");
+        }
+
+        {
+            log::info!("Patching BlImgAllocateImageBuffer...");
             let mut detour = BL_IMG_ALLOCATE_IMAGE_BUFFER_DETOUR.lock();
             detour.init(bl_img_pos, bl_img_allocate_image_buffer as _);
             detour.detour();
+            log::info!("Patched!");
         }
 
         log::info!("Functions hooked");

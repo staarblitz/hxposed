@@ -21,7 +21,7 @@ pub struct NtKey {
 
 impl NtKey {
     pub fn open(path: &str) -> Result<NtKey, NtStatus> {
-        let mut unicode_string = UnicodeString::new(path);
+        let unicode_string = UnicodeString::new(path);
         let mut str = unicode_string.to_unicode_string();
         let mut attr = init_object_attributes(
             &mut str,
@@ -67,7 +67,7 @@ impl NtKey {
     pub fn get_value<T>(&self, value: &str) -> Result<&mut T, NtStatus> {
         let mut return_size = u32::default();
         let mut info: Box<KEY_VALUE_FULL_INFORMATION>;
-        let mut string = UnicodeString::new(value);
+        let string = UnicodeString::new(value);
         let mut value_name = string.to_unicode_string();
 
         match unsafe {

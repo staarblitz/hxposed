@@ -80,7 +80,7 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
 
 // passthrough enlightened calls
 fn handle_vmcall<T: Guest>(guest: &mut T, info: &VmcallInfo) {
-    let guest_rcx = info.rcx;
+   /* let guest_rcx = info.rcx;
     let guest_rdx = info.rdx;
     let guest_r8 = info.r8;
     let guest_r9 = info.r9;
@@ -91,7 +91,9 @@ fn handle_vmcall<T: Guest>(guest: &mut T, info: &VmcallInfo) {
         asm!("vmcall", in("rcx") guest_rcx, in("rdx") guest_rdx, in("r8") guest_r8, in("r9") guest_r9, lateout("rax") result_rax);
     }
 
-    guest.regs().rax = result_rax;
+    //TODO: support fastcall
+
+    guest.regs().rax = result_rax;*/
     guest.regs().rip = info.instruction_info.next_rip
 }
 
@@ -125,8 +127,8 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
         // Clear this to prevent other hypervisor tries to use it. On AMD, it is
         // a reserved bit.
         // See: Table 3-10. Feature Information Returned in the ECX Register
-        /*cpuid_result.ecx &= !(1 << 5); // hide presence of vmx
-        cpuid_result.ecx &= !(1 << 31); // hide presence of hypervisor*/
+        cpuid_result.ecx &= !(1 << 5); // hide presence of vmx
+        cpuid_result.ecx &= !(1 << 31); // hide presence of hypervisor
         // disabled to support hyper-v enlightments
     } else if leaf == HV_CPUID_INTERFACE {
         // Return non "Hv#1" into EAX. This indicate that our hypervisor does NOT
@@ -140,7 +142,9 @@ fn handle_cpuid<T: Guest>(guest: &mut T, info: &InstructionInfo) {
         // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         // that would be correct, but not in our case.
         // since we support hyper-v enlightenment, we have to return what QEMU returned to us.
-        cpuid_result.eax = SHARED_HOST_DATA.get().unwrap().hv_cpuid_eax;
+        //cpuid_result.eax = SHARED_HOST_DATA.get().unwrap().hv_cpuid_eax;
+
+        cpuid_result.eax = 0;
     }
 
     guest.regs().rax = u64::from(cpuid_result.eax);
