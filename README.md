@@ -2,6 +2,8 @@
 A hypervisor based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
 Based on [barevisor](https://github.com/tandasat/barevisor)
 
+Demo: [YouTube](https://www.youtube.com/watch?v=EzxZ9oxnZNE)
+
 ## What does HxPosed do?
 HxPosed grants you hypervisor and kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
 
@@ -106,8 +108,6 @@ From now on, you'll never worry about:
 It *just works*. Because we know how frustrating it is when it *just doesn't*.
 
 Easy. Powerful. No-nonsense.
-
-![the demo](assets/prev.gif)
 
 > [!IMPORTANT]
 > Bindings for C# and C are on the way!
