@@ -20,7 +20,7 @@ handle_fail:
 # rax is returned msr value
 # rdx defines if msr exists. -1 if not, 0 if exists.
 rdmsr_failsafe_naked:
-    pinsrq xmm4, r9, 0 # r9 is nonvolatile, save it
+    mov rbx, r9         # save r9
     mov r9, 0x2009     # put our beloved
     rdmsr
     cmp r9, 0          # check if this triggered a #GP
@@ -32,7 +32,7 @@ rdmsr_failsafe_naked:
 fail:
     mov rdx, -1         # no such msr
 end:
-    pextrq r9, xmm4, 0  # get it back
+    mov r9, rbx         # get it back
     ret
 
 .align 16
@@ -47,7 +47,7 @@ wrmsr_failsafe_naked:
     shr rax, 32         # bit shift ecx to low
     mov rcx, rdx
 
-    pinsrq xmm4, r9, 0 # save r9
+    mov rbx, r9        # save r9
     mov r9, 0x2009     # same deal
     wrmsr
 
@@ -56,6 +56,6 @@ wrmsr_failsafe_naked:
     cmp r9, 0          # check if it resulted in a #GP
     cmove rax, rcx      # branchless!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    pextrq r9, xmm4, 0
+    mov r9, rbx
 
     ret
