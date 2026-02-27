@@ -24,14 +24,6 @@ pub mod memory_services;
 pub mod process_services;
 pub mod security_services;
 pub mod thread_services;
-/*pub fn cancel_async_call(request: &HypervisorRequest) -> HypervisorResponse {
-    let process = NtProcess::current();
-    let request = CancelAsyncCallRequest::from_raw(request);
-
-    process.get_hx_async_state().cancel(request.Cookie);
-
-    EmptyResponse::with_service(ServiceFunction::CancelAsyncCall)
-}*/
 
 pub fn handle_cpu_io_services(request: &HypervisorRequest) -> HypervisorResponse {
     match request.call.func() {

@@ -15,16 +15,17 @@ use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
 
-fn main() {
+fn main()  {
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default().with_inner_size([500.0, 400.0]),
         ..Default::default()
     };
-    let _ = eframe::run_native(
+    let value = eframe::run_native(
         "HxTest",
         options,
         Box::new(|_| Ok(Box::<HxTestApp>::default())),
     );
+    println!("{:?}", value);
 }
 
 #[derive(Default)]

@@ -19,6 +19,7 @@ mod x86_instructions;
 
 extern crate hxposed_core;
 
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use bit_field::BitField;

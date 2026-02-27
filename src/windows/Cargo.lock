@@ -4007,6 +4007,7 @@ dependencies = [
  "spin",
  "wdk-build",
  "wyhash",
+ "x86",
 ]
 
 [[package]]

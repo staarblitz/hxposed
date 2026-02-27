@@ -24,6 +24,7 @@ bitfield-struct = "0.12.1"
 spin = {version = "0.10.0", default-features = false}
 hashbrown = {version = "0.16.1", features = ["core"]}
 wyhash = {version = "0.6.0", default-features = false}
+x86 = "0.52.0"
 
 [build-dependencies]
 wdk-build = "0.5.1"

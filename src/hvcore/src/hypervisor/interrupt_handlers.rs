@@ -3,9 +3,11 @@
 use core::arch::global_asm;
 
 use alloc::boxed::Box;
+use core::ffi::c_void;
+use core::ops::BitAnd;
 use x86::{bits64::rflags::RFlags, dtables::DescriptorTablePointer, segmentation::SegmentSelector};
 
-use crate::hypervisor::x86_instructions::cr2;
+use crate::hypervisor::x86_instructions::{cr2, rdmsr};
 
 use super::support::zeroed_box;
 
@@ -16,6 +18,25 @@ pub struct InterruptDescriptorTable {
 }
 
 impl InterruptDescriptorTable {
+    // why do we clone it?
+    // because BP and other exceptions must work through windbg
+    pub fn clone_host(idt_base: *const InterruptDescriptorTableRaw) -> Self {
+        let mut idt = zeroed_box::<InterruptDescriptorTableRaw>();
+        for i in 0..idt.0.len() {
+            unsafe {
+                idt.0[i] = (*idt_base).0[i].clone();
+            }
+        }
+
+        // and last but not least, our own #GP handler:
+        idt.0[13] = InterruptDescriptorTableEntry::new(
+            asm_interrupt_handler0 as *const () as usize + 0x10 * 13,
+            x86::segmentation::cs(),
+        );
+
+        Self { ptr: idt }
+    }
+
     pub fn new(cs: SegmentSelector) -> Self {
         // Build the IDT. Each interrupt handler (i.e. asm_interrupt_handlerN) is
         // 16 byte long and can be located from asm_interrupt_handler0.
@@ -28,7 +49,7 @@ impl InterruptDescriptorTable {
         Self { ptr: idt }
     }
 
-    pub(crate) fn idtr(&self) -> DescriptorTablePointer<u64> {
+    pub fn idtr(&self) -> DescriptorTablePointer<u64> {
         let mut idtr = DescriptorTablePointer::<u64>::default();
         let base = self.ptr.as_ref() as *const _;
         idtr.base = base as _;
@@ -42,7 +63,7 @@ impl InterruptDescriptorTable {
 pub struct InterruptDescriptorTableRaw([InterruptDescriptorTableEntry; 0x100]);
 const _: () = assert!(core::mem::size_of::<InterruptDescriptorTableRaw>() == 4096);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C, align(16))]
 pub struct InterruptDescriptorTableEntry {
     offset_low: u16,
@@ -53,10 +74,11 @@ pub struct InterruptDescriptorTableEntry {
     offset_upper: u32,
     reserved_2: u32,
 }
+
 const _: () = assert!(core::mem::size_of::<InterruptDescriptorTableEntry>() == 16);
 
 impl InterruptDescriptorTableEntry {
-    fn new(handler: usize, cs: SegmentSelector) -> Self {
+    pub fn new(handler: usize, cs: SegmentSelector) -> Self {
         // P=1, DPL=00b, S=0, type=1110b => type_attr=1000_1110b => 0x8E
         const INTERRUPT_GATE: u8 = 0x8E;
         Self {
@@ -68,6 +90,14 @@ impl InterruptDescriptorTableEntry {
             offset_upper: (handler >> 32) as _,
             reserved_2: 0,
         }
+    }
+
+    pub fn get_base(&self) -> u64 {
+        let low = self.offset_low as u64;
+        let mid = (self.offset_high as u64) << 16;
+        let high = (self.offset_upper as u64) << 32;
+
+        (low | mid | high)
     }
 }
 
@@ -104,23 +134,14 @@ struct HostExceptionStack {
 extern "C" fn handle_host_exception(stack: *mut HostExceptionStack) {
     assert!(!stack.is_null());
     let stack = unsafe { &mut *stack };
-
-    // this means this exception was expected (get it? lol)
-    if stack.r15 == 0x2009 {
-        stack.r15 = 0;
-        stack.rdx = 0;
-        stack.rax = 0;
-    } else {
-        // this exception was not expected (get it?). panic
-        panic!(
-            "Exception {} occurred in host: {stack:#x?}, cr2: {:#x?}",
-            stack.exception_number,
-            cr2(),
-        );
-    }
+    panic!(
+        "Exception {} occurred in host: {stack:#x?}, cr2: {:#x?}",
+        stack.exception_number,
+        cr2(),
+    );
 }
 
 global_asm!(include_str!("interrupt_handlers.S"));
 unsafe extern "C" {
-    fn asm_interrupt_handler0();
+    pub fn asm_interrupt_handler0();
 }

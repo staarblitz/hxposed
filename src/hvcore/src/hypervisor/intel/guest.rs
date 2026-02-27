@@ -179,6 +179,7 @@ impl VmxGuest {
                 ((vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits())) as u64,
             ),
         );
+
         vmwrite(
             vmcs::control::VMENTRY_CONTROLS,
             Self::adjust_vmx_control(
@@ -197,12 +198,6 @@ impl VmxGuest {
         // synchronous events, mainly those caused by the execution of specific
         // instructions.
         //
-        // - MSR bitmaps are used; this is not to cause VM-exit as much as possible.
-        //   We are setting the MSR bitmaps that are all cleared. This prevents
-        //   VM-exits from occurring when 0x0 - 0x1fff and 0xc0000000 - 0xc0001fff
-        //   are accessed. VM-exit still occurs if outside the range is accessed,
-        //   and it is not possible to prevent this.
-        //
         // - The secondary processor-based controls are used; this is to:
         //   - Enable EPT and unrestricted guest to allow a real-mode guest, which
         //     is required for the UEFI version where a guest runs in real-mode
@@ -218,6 +213,7 @@ impl VmxGuest {
                 (vmcs::control::PrimaryControls::SECONDARY_CONTROLS.bits()) as _
             ),
         );
+
         // ENABLE_USER_WAIT_PAUSE is required for win11+
         vmwrite(
             vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS,
@@ -671,7 +667,7 @@ unsafe extern "C" {
     fn run_vmx_guest(registers: &mut Registers) -> u64;
 }
 global_asm!(include_str!("../capture_registers.inc"));
-global_asm!(include_str!("run_guest.S"));
+global_asm!(include_str!("run_guest.asm"));
 
 #[expect(dead_code)]
 #[derive(Clone, Copy, Debug)]
