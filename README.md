@@ -110,7 +110,7 @@ It *just works*. Because we know how frustrating it is when it *just doesn't*.
 Easy. Powerful. No-nonsense.
 
 > [!IMPORTANT]
-> Bindings for C# and C are on the way!
+> Bindings for C# won't be made manually.
 
 ## Technical Details
 Here is a diagram of how a guest (the plugin) makes a call.
