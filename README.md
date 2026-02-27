@@ -112,6 +112,47 @@ Easy. Powerful. No-nonsense.
 > [!IMPORTANT]
 > Bindings for C# won't be made manually.
 
+## Features
+These all come out of the box.
+
+Process services:
+- Get/set protection
+- Get/set mitigation flags
+- Get/set signature levels
+- Get token
+- Swap token
+- Get threads
+- Get NT path (Not from PEB)
+- Open handle with all access
+
+Thread services:
+- Suspend/resume/freeze
+- Get impersonation token
+- Swap impersonation token
+- Check if thread is impersonating
+- Kill
+- Open handle with all access
+
+Memory services:
+- Get/set paging type attributes
+- Allocate contiguous physical or from nonpaged pool
+- Map memory to arbitrary process context
+
+Security services:
+- Get present privileges
+- Get system present privileges (TODO: Change to get system token)
+- Get/set enabled privileges
+- Get default enabled privileges
+- Get source name
+- Get account name
+- Open handle with all access
+
+Cpu services:
+- Read write arbitrary MSR
+
+Callback services:
+- Process creation/termination callbacks
+
 ## Technical Details
 Here is a diagram of how a guest (the plugin) makes a call.
 ![Diagram showing how it works](assets/Diagram.png)
