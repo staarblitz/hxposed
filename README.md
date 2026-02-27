@@ -8,7 +8,7 @@ Demo: [YouTube](https://www.youtube.com/watch?v=EzxZ9oxnZNE)
 HxPosed grants you hypervisor and kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
 
 And yes, we mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
-- A safe API written in Rust (available for C# and C too),
+- A safe API written in Rust (available for C too),
 - A beautifully documented hypervisor interface,
 - A no-nonsense "it just works" functionality.
 
