@@ -6,7 +6,7 @@ use alloc::boxed::Box;
 use core::ffi::c_void;
 use core::ops::BitAnd;
 use x86::{bits64::rflags::RFlags, dtables::DescriptorTablePointer, segmentation::SegmentSelector};
-
+use x86::dtables::sidt;
 use crate::hypervisor::x86_instructions::{cr2, rdmsr};
 
 use super::support::zeroed_box;
@@ -20,17 +20,20 @@ pub struct InterruptDescriptorTable {
 impl InterruptDescriptorTable {
     // why do we clone it?
     // because BP and other exceptions must work through windbg
-    pub fn clone_host(idt_base: *const InterruptDescriptorTableRaw) -> Self {
+    pub fn clone_host(gp_handler: *mut c_void) -> Self {
+        let mut table = DescriptorTablePointer::<u64>::default();
+        unsafe { sidt(&mut table) };
+
         let mut idt = zeroed_box::<InterruptDescriptorTableRaw>();
         for i in 0..idt.0.len() {
             unsafe {
-                idt.0[i] = (*idt_base).0[i].clone();
+                idt.0[i] = (*(table.base as *mut InterruptDescriptorTableRaw)).0[i].clone();
             }
         }
 
         // and last but not least, our own #GP handler:
         idt.0[13] = InterruptDescriptorTableEntry::new(
-            asm_interrupt_handler0 as *const () as usize + 0x10 * 13,
+            gp_handler as _,
             x86::segmentation::cs(),
         );
 

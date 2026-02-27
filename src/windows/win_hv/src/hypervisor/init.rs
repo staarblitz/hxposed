@@ -26,33 +26,7 @@ pub(crate) fn init_hypervisor() {
     // TODO: use custom gdt and so on for more security?
     let mut host_data = SharedHostData::default();
     host_data.vmcall_handler = Some(vmcall_handler);
-    hijack_idt();
+    host_data.idt = Some(InterruptDescriptorTable::clone_host(intrin::hx_gp_handler as _));
 
     hv::virtualize_system(host_data);
-}
-
-// NOT PATCHGUARD COMPATIBLE
-// TODO: move to nt module?
-pub(crate) fn hijack_idt() {
-    hv::platform_ops::get().run_on_all_processors(|_| {
-        let mut table = DescriptorTablePointer::<u64>::default();
-        unsafe { sidt(&mut table) };
-
-        unsafe {
-            // unset WP
-            asm!(
-            "mov rax, cr0",
-            "btr rax, 16",
-            "mov cr0, rax"
-            )
-        }
-        let gp_entry = unsafe { (table.base as *mut InterruptDescriptorTableEntry).offset(13) };
-        unsafe {
-            intrin::ORIGINAL_GP_HANDLER = gp_entry.read().get_base();
-            gp_entry.write(InterruptDescriptorTableEntry::new(
-                intrin::hx_gp_handler as _,
-                x86::segmentation::cs(),
-            ));
-        }
-    });
 }

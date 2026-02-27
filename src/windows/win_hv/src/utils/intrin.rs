@@ -1,8 +1,5 @@
 use core::arch::{asm, global_asm, naked_asm};
 
-#[unsafe(no_mangle)]
-pub static mut ORIGINAL_GP_HANDLER: u64 = 0;
-
 pub unsafe fn interlocked_increment(object: *mut u64) {
     unsafe { asm!("lock inc qword ptr [{0}]", in(reg) object) }
 }

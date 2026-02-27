@@ -1,12 +1,10 @@
-.extern ORIGINAL_GP_HANDLER
-
 .align 16
 .global hx_gp_handler
 hx_gp_handler:
-    cmp r9, 0x2009         # check if called by us
+    cmp r9, 0x2009          # check if called by us
     je handle_fail
 
-    jmp [rip + ORIGINAL_GP_HANDLER] # its no longer our problem
+    hlt                     # access violation in hypervisor! bug!
 
 handle_fail:
     xor r9, r9              # signal that it failed
