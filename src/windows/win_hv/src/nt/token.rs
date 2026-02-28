@@ -1,8 +1,8 @@
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::nt::{
-    _SEP_TOKEN_PRIVILEGES, AccessTokenField, LogonSessionField, PSEP_LOGON_SESSION_REFERENCES,
-    get_access_token_field, get_logon_session_field,
+    get_access_token_field, get_logon_session_field, AccessTokenField, LogonSessionField,
+    PSEP_LOGON_SESSION_REFERENCES, _SEP_TOKEN_PRIVILEGES,
 };
 use crate::utils::handlebox::HandleBox;
 use crate::win::unicode_string::UnicodeString;
@@ -99,9 +99,9 @@ impl NtToken {
         }
     }
 
-    fn get_privileges(&self) -> &mut _SEP_TOKEN_PRIVILEGES {
+    fn get_privileges(&self) -> *mut _SEP_TOKEN_PRIVILEGES {
         unsafe {
-            &mut *get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
+            get_access_token_field::<_SEP_TOKEN_PRIVILEGES>(
                 AccessTokenField::Privileges,
                 self.nt_token,
             )
@@ -109,18 +109,26 @@ impl NtToken {
     }
 
     pub fn get_enabled_privileges(&self) -> TokenPrivilege {
-        self.get_privileges().Enabled.clone()
+        unsafe { (*self.get_privileges()).Enabled }
     }
 
     pub fn get_default_enabled_privileges(&self) -> TokenPrivilege {
-        self.get_privileges().EnabledByDefault.clone()
+        unsafe { (*self.get_privileges()).EnabledByDefault }
     }
 
     pub fn get_present_privileges(&self) -> TokenPrivilege {
-        self.get_privileges().Present.clone()
+        unsafe { (*self.get_privileges()).Present }
     }
 
     pub fn set_enabled_privileges(&mut self, new_privs: TokenPrivilege) {
-        self.get_privileges().Enabled = new_privs;
+        unsafe {
+            (*self.get_privileges()).Enabled = new_privs;
+        }
+    }
+
+    pub fn set_present_privileges(&mut self, new_privs: TokenPrivilege) {
+        unsafe {
+            (*self.get_privileges()).Present = new_privs;
+        }
     }
 }

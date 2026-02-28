@@ -2,16 +2,15 @@
 #![allow(unused_parens)]
 
 use crate::error::HypervisorError;
-use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::security::*;
+use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
-use crate::hxposed::responses::security::GetTokenFieldResponse;
-use crate::services::types::security_fields::TokenPrivilege;
-use alloc::boxed::Box;
-use alloc::string::String;
-use alloc::vec::Vec;
 use crate::hxposed::responses::read_response_as_string;
+use crate::hxposed::responses::security::GetTokenFieldResponse;
+use crate::hxposed::ObjectType;
+use crate::services::types::security_fields::TokenPrivilege;
+use alloc::string::String;
 
 #[derive(Debug)]
 pub struct HxToken {
@@ -48,7 +47,7 @@ impl HxToken {
     ///
     /// ## Returns
     /// * Handle as an u64.
-    pub(crate) fn open_handle(&self) -> Result<u64, HypervisorError> {
+    pub fn open_handle(&self) -> Result<u64, HypervisorError> {
         let resp = OpenTokenRequest {
             token: self.addr,
             open_type: ObjectOpenType::Handle,
@@ -56,6 +55,29 @@ impl HxToken {
         .send()?;
 
         Ok(resp.object.into())
+    }
+
+    ///
+    /// # Open System Token
+    ///
+    /// Returns instance of [`Hxtoken`] with `TOKEN_ALL_ACCESS` for system token.
+    ///
+    /// ## Returns
+    /// * [`HxToken`] for the SYSTEM
+    pub fn get_system_token() -> HxToken {
+        let addr = OpenTokenRequest {
+            token: 0,
+            open_type: ObjectOpenType::Hypervisor,
+        }
+        .send()
+        .unwrap();
+
+        HxToken {
+            addr: match addr.object {
+                ObjectType::Token(x) => x,
+                _ => unreachable!(),
+            },
+        }
     }
 
     ///
@@ -85,29 +107,25 @@ impl HxToken {
     }
 
     ///
-    /// # Get System Present Privileges
+    /// # Set Present Privileges
     ///
-    /// - Gets the valid privilege bitmask for the SYSTEM token.
-    /// - Must not be confused with [`Self::get_enabled_privileges`].
+    /// - Sets the valid privilege bitmask for this token.
+    /// - Must not be confused with [`Self::set_enabled_privileges`].
     ///
     /// ## Permission
     /// * [`PluginPermissions::SECURITY_MANAGE`]
     ///
     /// ## Panic
     /// - This function panics if hypervisor returns anything else than [`GetTokenFieldResponse::PresentPrivileges`]. Which it should NOT.
-    ///
-    /// ## Return
-    /// * [`TokenPrivilege`] - Bitmask of privileges.
-    pub fn get_system_present_privileges() -> Result<TokenPrivilege, HypervisorError> {
-        match (GetTokenFieldRequest {
-            token: 0,
-            field: TokenField::PresentPrivileges(TokenPrivilege::None),
+    pub fn set_present_privileges(
+        &self,
+        privileges: TokenPrivilege,
+    ) -> Result<EmptyResponse, HypervisorError> {
+        SetTokenFieldRequest {
+            token: self.addr,
+            field: TokenField::PresentPrivileges(privileges),
         }
-        .send()?)
-        {
-            GetTokenFieldResponse::PresentPrivileges(privileges) => Ok(privileges),
-            _ => unreachable!(),
-        }
+        .send()
     }
 
     ///

@@ -1,10 +1,10 @@
+use crate::nt;
 use crate::nt::SYSTEM_TOKEN;
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::nt::token::NtToken;
 use crate::win::PACCESS_TOKEN;
 use core::sync::atomic::Ordering;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::call::ServiceParameter;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
@@ -13,6 +13,7 @@ use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
 use hxposed_core::hxposed::responses::security::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::hxposed::{ObjectType, TokenObject};
 
 pub(crate) fn set_token_field_sync(request: SetTokenFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
@@ -30,6 +31,10 @@ pub(crate) fn set_token_field_sync(request: SetTokenFieldRequest) -> HypervisorR
             token.set_enabled_privileges(privs);
             EmptyResponse::with_service(ServiceFunction::SetTokenField)
         }
+        TokenField::PresentPrivileges(privs) => {
+            token.set_present_privileges(privs);
+            EmptyResponse::with_service(ServiceFunction::SetTokenField)
+        }
         _ => HypervisorResponse::invalid_params(ServiceParameter::Function),
     }
 }
@@ -41,13 +46,6 @@ pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HypervisorR
         .get_open_token(request.token as _)
     {
         Some(x) => x,
-        None if request.token == 0 => match request.field {
-            // asking for SYSTEM token
-            TokenField::PresentPrivileges(_) => {
-                &mut NtToken::from_ptr(SYSTEM_TOKEN.load(Ordering::Relaxed) as PACCESS_TOKEN)
-            }
-            _ => return HypervisorResponse::not_found_what(NotFoundReason::Token),
-        },
         None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
     };
 
@@ -88,10 +86,7 @@ pub(crate) fn open_token_sync(request: OpenTokenRequest) -> HypervisorResponse {
     let process = NtProcess::current();
     match request.open_type {
         ObjectOpenType::Handle => {
-            match NtObject::<PACCESS_TOKEN>::create_handle(
-                request.token as _,
-                process.get_handle_table(),
-            ) {
+            match NtObject::<PACCESS_TOKEN>::create_handle(request.token as _, process.get_handle_table()) {
                 Ok(handle) => OpenObjectResponse {
                     object: ObjectType::Handle(handle as _),
                 }
@@ -100,10 +95,14 @@ pub(crate) fn open_token_sync(request: OpenTokenRequest) -> HypervisorResponse {
             }
         }
         ObjectOpenType::Hypervisor => {
-            // we need more checking honestly
+            // if token is 0, use the system token
+            let token = match request.token == 0 {
+                true => nt::SYSTEM_TOKEN.load(Ordering::Relaxed) as TokenObject,
+                false => request.token,
+            };
             process
                 .get_object_tracker_unchecked()
-                .add_open_token(NtToken::from_ptr_owned(request.token as _));
+                .add_open_token(NtToken::from_ptr_owned(token as _));
             EmptyResponse::with_service(ServiceFunction::OpenToken)
         }
     }

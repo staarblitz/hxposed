@@ -31,7 +31,6 @@ use crate::win::{Boolean, KeDelayExecutionThread, NtStatus, PVOID, ProcessorMode
 use core::ptr;
 use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
-use spin::Lazy;
 use crate::utils::logger::NtLogger;
 
 static mut HX_GUARD: HxGuard = HxGuard::new();
