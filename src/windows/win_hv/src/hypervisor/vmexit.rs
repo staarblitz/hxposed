@@ -36,8 +36,6 @@ use hxposed_core::hxposed::status::HypervisorStatus;
 /// Don't you dare to "take your time". This interrupts the whole CPU and making the kernel scheduler forget its purpose.
 ///
 pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> bool {
-    log::trace!("Handling vmcall function: {:?}", info.func());
-    let benchmark = CpuBenchmark::begin();
     let process = NtProcess::current();
 
     match HxGuard::is_valid_caller(process.get_path_hash()) {
@@ -112,10 +110,5 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
     };
 
     guest.write_response(result);
-
-    let cycles = benchmark.end();
-
-    log::trace!("vmcall handling finished. Cycles used: {}", cycles);
-
     true
 }
