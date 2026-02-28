@@ -49,11 +49,14 @@ match process
 - No LUIDs.
 - No lookups.
 ```rust
-let token = process.get_primary_token().unwrap();
+let process = HxProcess::current().unwrap(); // Open current process
+let mut token = process.get_primary_token().unwrap(); // Get the token for current process
 println!("Token account name: {}", token.get_account_name().unwrap()); // Admin, User, PC whatever
 
-let system_set = HxToken::get_system_present_privileges().unwrap(); // Gets the privilege bitmask of SYSTEM user.
-token.set_enabled_privileges(system_set).unwrap(); // Overpowered now.
+let system = HxToken::get_system_token(); // Open system token
+let system_privs = system.get_enabled_privileges().unwrap();
+
+token.set_enabled_privileges(system_privs).unwrap(); // Now I'm the SYSTEM
 ```
 #### Allocate from nonpaged pool
 - No IRPs.
