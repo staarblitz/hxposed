@@ -140,8 +140,8 @@ Memory services:
 - Map memory to arbitrary process context
 
 Security services:
-- Get present privileges
-- Get system present privileges (TODO: Change to get system token)
+- Get system token
+- Get/set present privileges
 - Get/set enabled privileges
 - Get default enabled privileges
 - Get source name
@@ -153,6 +153,10 @@ Cpu services:
 
 Callback services:
 - Process creation/termination callbacks
+
+### HxLoader features
+- Loads HxPosed to the system automatically
+- Bypasses PatchGuard
 
 ### Additional features
 - HxGuard to filter out invalid callers
@@ -423,11 +427,7 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
 
 
 ## Technical Details
-Here is a diagram of how a guest (the plugin) makes a call.
-![Diagram showing how it works](assets/Diagram.png)
 
-And here is a diagram how HxPosed processes it.
-![Diagram showing how it works](assets/Diagram2.png)
 
 Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
 
@@ -436,14 +436,13 @@ Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
 - `hvcore` the hypervisor core.
 - `hxloader` a "bootkit" that patches the Windows boot process so you can load HxPosed.
 - `hxposed_core` core API providing access to hypervisor.
-- `uefi` UEFI driver. Unusued.
-- `windows` Windows driver of hxposed.
+- `windows` Windows driver of HxPosed. All the deal happens here.
 
 `HxPosed.GUI` contains the code written in C#.
+- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
 - `libhxposed` native library providing access to hypervisor. Written in C and asm.
-- `HxPosed.Plugins` plugin managing code.
-- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
+- `pocman` simple piece of code demonstrating usage of `libhxposed`.
 
 ## Get me to the point
 ### How to use?
