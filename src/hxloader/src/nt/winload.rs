@@ -48,16 +48,19 @@ impl Winload {
             Some(pos) => pos as *const BlImgAllocateImageBufferType,
         };
 
-        log::info!("BlImgAllocateImageBuffer: {:x}", bl_img_pos.addr());
-
+        log::info!("Disabling CR0.WP...");
         unsafe {
-            // disable WP
             let mut cr0= 0u64;
             asm!("mov {}, cr0", out(reg) cr0);
 
             cr0.set_bit(16, false);
             asm!("mov cr0, {}", in(reg) cr0);
         }
+
+        log::info!("Disabled kernel write protection");
+
+
+        log::info!("BlImgAllocateImageBuffer: {:x}", bl_img_pos.addr());
 
         {
             log::info!("Patching OslFwpKernelSetupPhase1...");

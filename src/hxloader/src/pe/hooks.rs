@@ -9,6 +9,7 @@ use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
 use uefi::runtime::{VariableAttributes, VariableVendor};
 use uefi::{CStr16, Char16, Guid, Status};
+use crate::nt::ntoskrnl::NtOsKrnl;
 
 pub extern "C" fn img_arch_start_boot_application(
     app_entry: *mut u8,
@@ -150,6 +151,14 @@ pub extern "C" fn osl_fwp_kernel_setup_phase1(loader: *mut _LOADER_PARAMETER_BLO
 
     log::info!("ntoskrnl base: {:x}", ntoskrnl_entry.DllBase.addr());
     log::info!("ntoskrnl size: {:x}", ntoskrnl_entry.SizeOfImage);
+
+    log::info!("Patching PatchGuard...");
+    match NtOsKrnl::disable_kpp(ntoskrnl_entry.DllBase as _, ntoskrnl_entry.SizeOfImage as _) {
+        Ok(_) => {}
+        Err(_) => {
+            log::warn!("Failed to disable PatchGuard!")
+        }
+    }
 
     let mapped_entry = unsafe {
         manually_map(
