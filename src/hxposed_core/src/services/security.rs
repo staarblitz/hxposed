@@ -144,7 +144,7 @@ impl HxToken {
     ///
     /// ## Return
     /// * Nothing
-    pub async fn set_enabled_privileges(
+    pub fn set_enabled_privileges(
         &self,
         privileges: TokenPrivilege,
     ) -> Result<EmptyResponse, HypervisorError> {

@@ -14,6 +14,7 @@ use hxposed_core::services::types::process_fields::{
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
+use hxposed_core::services::security::HxToken;
 
 fn main()  {
     let options = eframe::NativeOptions {
