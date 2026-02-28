@@ -49,11 +49,14 @@ match process
 - No LUIDs.
 - No lookups.
 ```rust
-let token = process.get_primary_token().unwrap();
+let process = HxProcess::current().unwrap(); // Open current process
+let mut token = process.get_primary_token().unwrap(); // Get the token for current process
 println!("Token account name: {}", token.get_account_name().unwrap()); // Admin, User, PC whatever
 
-let system_set = HxToken::get_system_present_privileges().unwrap(); // Gets the privilege bitmask of SYSTEM user.
-token.set_enabled_privileges(system_set).unwrap(); // Overpowered now.
+let system = HxToken::get_system_token(); // Open system token
+let system_privs = system.get_enabled_privileges().unwrap();
+
+token.set_enabled_privileges(system_privs).unwrap(); // Now I'm the SYSTEM
 ```
 #### Allocate from nonpaged pool
 - No IRPs.
@@ -140,8 +143,8 @@ Memory services:
 - Map memory to arbitrary process context
 
 Security services:
-- Get present privileges
-- Get system present privileges (TODO: Change to get system token)
+- Get system token
+- Get/set present privileges
 - Get/set enabled privileges
 - Get default enabled privileges
 - Get source name
@@ -153,6 +156,10 @@ Cpu services:
 
 Callback services:
 - Process creation/termination callbacks
+
+### HxLoader features
+- Loads HxPosed to the system automatically
+- Bypasses PatchGuard
 
 ### Additional features
 - HxGuard to filter out invalid callers
@@ -423,27 +430,59 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
 
 
 ## Technical Details
-Here is a diagram of how a guest (the plugin) makes a call.
-![Diagram showing how it works](assets/Diagram.png)
+Interested in how HxPosed works?
+- Refer to [my blog](https://staarblitz.github.io/)
+- Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
 
-And here is a diagram how HxPosed processes it.
-![Diagram showing how it works](assets/Diagram2.png)
+The source code is also extremely descriptive. Here is an example:
+```asm
+.align 16
+.global hx_gp_handler
+hx_gp_handler:
+    cmp r9, 0x2009          # check if called by us
+    je handle_fail
 
-Refer to [wiki](https://github.com/staarblitz/hxposed/wiki)
+    hlt                     # access violation in hypervisor! bug!
+
+handle_fail:
+    xor r9, r9              # signal that it failed
+    add rsp, 8              # ignore the error code
+    add qword ptr [rsp], 2  # wrmsr/rdmsr is 2 bytes long. since this is a fault, we need to increment rip manually.
+    iretq                   # where we were?
+
+.align 16
+.global rdmsr_failsafe_naked
+# ms x64 calling convention
+# rcx is msr id
+# rax is returned msr value
+# rdx defines if msr exists. -1 if not, 0 if exists.
+rdmsr_failsafe_naked:
+    mov r9, 0x2009     # put our beloved
+    rdmsr
+    cmp r9, 0          # check if this triggered a #GP
+    jz fail
+    shl rdx, 32
+    or rax, rdx         # combine with some bitshift
+    xor rdx, rdx        # beautiful
+    jmp end
+fail:
+    mov rdx, -1         # no such msr
+end:
+    ret
+```
 
 ## Repo structure
 `src` contains the code written in Rust.
 - `hvcore` the hypervisor core.
 - `hxloader` a "bootkit" that patches the Windows boot process so you can load HxPosed.
 - `hxposed_core` core API providing access to hypervisor.
-- `uefi` UEFI driver. Unusued.
-- `windows` Windows driver of hxposed.
+- `windows` Windows driver of HxPosed. All the deal happens here.
 
 `HxPosed.GUI` contains the code written in C#.
+- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
 - `libhxposed` native library providing access to hypervisor. Written in C and asm.
-- `HxPosed.Plugins` plugin managing code.
-- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
+- `pocman` simple piece of code demonstrating usage of `libhxposed`.
 
 ## Get me to the point
 ### How to use?
