@@ -498,10 +498,8 @@ Of course, coding them yourself would be nicer. But if you are just an everyday 
 Build instructions are given in the wiki.
 
 ## What we have so far?
-- [x] GetState service.
-- [x] Authorization service.
-- [x] Async message sending receiving (works with your favourite runtime).
-- [x] Plugin permission management.
+- [x] All services implemented and tested.
+- [x] Hyper-V enlightment support.
 - [x] Cool fluent UI that fits Windows 11 design.
 - [x] Support for AMD and Intel.
 - [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
