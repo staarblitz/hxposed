@@ -1,38 +1,32 @@
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ServiceFunction {
-    #[default]
-    Unknown = 0,
-    Authorize = 1,
-    GetState = 2,
-    OpenProcess = 3,
-    CloseProcess = 4,
-    KillProcess = 5,
-    RegisterNotifyEvent = 6,
-    UnregisterNotifyEvent = 7,
-    GetProcessField = 8,
-    SetProcessField = 9,
-    ProcessVMOperation = 10,
-    ProtectProcessMemory = 11,
-    AllocateMemory = 12,
-    MapMemory = 13,
-    FreeMemory = 14,
-    GetProcessThreads = 15,
-    OpenThread = 16,
-    CloseThread = 17,
-    SuspendResumeThread = 18,
-    KillThread = 19,
-    GetSetThreadContext = 20,
-    GetThreadField = 21,
-    SetThreadField = 22,
-    OpenToken = 23,
-    GetTokenField = 24,
-    CloseToken = 25,
-    SetTokenField = 26,
-    AwaitNotifyEvent = 27,
-    CancelAsyncCall = 28,
-    GetSetPageAttribute = 29,
-    MapVaToPa= 30,
-    MsrIo = 31
+    // Separated by CATEGORY - FUNCTION
+    GetState = 0b_0000_0000,
+
+    OpenProcess = 0b_0001_0000,
+    CloseProcess = 0b_0001_0001,
+    GetProcessField = 0b_0001_0010,
+    SetProcessField = 0b_0001_0011,
+
+    RegisterNotifyEvent = 0b_0010_0000,
+    UnregisterNotifyEvent = 0b_0010_0001,
+
+    AllocateMemory = 0b_0011_0000,
+    FreeMemory = 0b_0011_0001,
+    GetSetPageAttribute = 0b_0011_0010,
+    MapVaToPa = 0b_0011_0011,
+
+    OpenThread = 0b_0100_0000,
+    CloseThread = 0b_0100_0001,
+    GetThreadField = 0b_0100_0010,
+    SetThreadField = 0b_0100_0011,
+
+    OpenToken = 0b_0101_0000,
+    CloseToken = 0b_0101_0001,
+    GetTokenField = 0b_0101_0011,
+    SetTokenField = 0b_0101_0100,
+
+    MsrIo = 0b_0110_0000,
 }
 
 impl ServiceFunction {
@@ -40,41 +34,10 @@ impl ServiceFunction {
         self as u16
     }
 
-    pub const fn from_bits(bits: u16) -> Self {
-        match bits {
-            0 => ServiceFunction::Unknown,
-            1 => ServiceFunction::Authorize,
-            2 => ServiceFunction::GetState,
-            3 => ServiceFunction::OpenProcess,
-            4 => ServiceFunction::CloseProcess,
-            5 => ServiceFunction::KillProcess,
-            6 => ServiceFunction::RegisterNotifyEvent,
-            7 => ServiceFunction::UnregisterNotifyEvent,
-            8 => ServiceFunction::GetProcessField,
-            9 => ServiceFunction::SetProcessField,
-            10 => ServiceFunction::ProcessVMOperation,
-            11 => ServiceFunction::ProtectProcessMemory,
-            12 => ServiceFunction::AllocateMemory,
-            13 => ServiceFunction::MapMemory,
-            14 => ServiceFunction::FreeMemory,
-            15 => ServiceFunction::GetProcessThreads,
-            16 => ServiceFunction::OpenThread,
-            17 => ServiceFunction::CloseThread,
-            18 => ServiceFunction::SuspendResumeThread,
-            19 => ServiceFunction::KillThread,
-            20 => ServiceFunction::GetSetThreadContext,
-            21 => ServiceFunction::GetThreadField,
-            22 => ServiceFunction::SetThreadField,
-            23 => ServiceFunction::OpenToken,
-            24 => ServiceFunction::GetTokenField,
-            25 => ServiceFunction::CloseToken,
-            26 => ServiceFunction::SetTokenField,
-            27 => ServiceFunction::AwaitNotifyEvent,
-            28 => ServiceFunction::CancelAsyncCall,
-            29 => ServiceFunction::GetSetPageAttribute,
-            30 => ServiceFunction::MapVaToPa,
-            31 => ServiceFunction::MsrIo,
-            _ => ServiceFunction::Unknown,
+    pub const fn from_bits(bits: u8) -> Self {
+        // get rekt
+        unsafe {
+            core::mem::transmute(bits)
         }
     }
 }

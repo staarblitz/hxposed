@@ -18,18 +18,15 @@ use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use hxposed_core::hxposed::responses::HypervisorResponse;
 
-mod callback_services;
-mod io_services;
+pub mod callback_services;
+pub mod io_services;
 pub mod memory_services;
 pub mod process_services;
 pub mod security_services;
 pub mod thread_services;
 
 pub fn handle_cpu_io_services(request: &HypervisorRequest) -> HypervisorResponse {
-    match request.call.func() {
-        ServiceFunction::MsrIo => rw_msr(MsrIoRequest::from_raw(request)),
-        _ => unreachable!(),
-    }
+    rw_msr(MsrIoRequest::from_raw(request))
 }
 
 pub fn handle_callback_services(request: &HypervisorRequest) -> HypervisorResponse {
@@ -47,8 +44,6 @@ pub fn handle_callback_services(request: &HypervisorRequest) -> HypervisorRespon
 pub fn handle_thread_services(request: &HypervisorRequest) -> HypervisorResponse {
     match request.call.func() {
         ServiceFunction::OpenThread => open_thread_sync(OpenThreadRequest::from_raw(request)),
-        ServiceFunction::SuspendResumeThread => HypervisorResponse::not_found(),
-        ServiceFunction::KillThread => HypervisorResponse::not_found(),
         ServiceFunction::GetThreadField => {
             get_thread_field_sync(GetThreadFieldRequest::from_raw(request))
         }
@@ -70,7 +65,7 @@ pub fn handle_security_services(request: &HypervisorRequest) -> HypervisorRespon
         ServiceFunction::GetTokenField => {
             get_token_field_sync(GetTokenFieldRequest::from_raw(request))
         }
-        _ => unreachable!("forgot to implement this one"),
+        _ => unreachable!(),
     }
 }
 
@@ -108,8 +103,6 @@ pub fn handle_process_services(request: &HypervisorRequest) -> HypervisorRespons
         ServiceFunction::SetProcessField => {
             set_process_field_sync(SetProcessFieldRequest::from_raw(request))
         }
-        ServiceFunction::GetProcessThreads => HypervisorResponse::not_found(),
-        ServiceFunction::KillProcess => kill_process_sync(KillProcessRequest::from_raw(request)),
         _ => unreachable!(),
     }
 }

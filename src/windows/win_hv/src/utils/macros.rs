@@ -1,5 +1,24 @@
 use core::fmt;
 use crate::win::DbgPrint;
+use crate::hypervisor::init::*;
+
+#[macro_export]
+macro_rules! hyper_row {
+    ($($func:expr),*) => {
+        {
+            const ARR: [VmcallHandler; 16] = {
+                let mut row = [INV; 16];
+                let mut i = 0;
+                $(
+                    row[i] = $func;
+                    i += 1;
+                )*
+                row
+            };
+            ARR
+        }
+    };
+}
 
 #[macro_export]
 macro_rules! as_pvoid {

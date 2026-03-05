@@ -24,16 +24,8 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::MsrIo)
     }
 
-    pub(crate) fn cancel_async_call() -> Self {
-        Self::new().with_func(ServiceFunction::CancelAsyncCall)
-    }
-
     pub(crate) fn set_page_attr() -> Self {
         Self::new().with_func(ServiceFunction::GetSetPageAttribute).with_extended_args_present(true)
-    }
-
-    pub(crate) fn auth() -> Self {
-        Self::new().with_func(ServiceFunction::Authorize)
     }
 
     pub(crate) fn unregister_notify_event() -> Self {
@@ -44,17 +36,11 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::RegisterNotifyEvent)
     }
 
-    pub(crate) fn await_notify_event() -> Self {
-        Self::new().with_func(ServiceFunction::AwaitNotifyEvent)
-    }
 
     pub(crate) fn open_process() -> Self {
         Self::new().with_func(ServiceFunction::OpenProcess)
     }
 
-    pub(crate) fn kill_process() -> Self {
-        Self::new().with_func(ServiceFunction::KillProcess)
-    }
 
     pub(crate) fn close_token() -> Self {
         Self::new().with_func(ServiceFunction::CloseToken)
@@ -88,19 +74,6 @@ impl HypervisorCall {
             .with_extended_args_present(true)
     }
 
-    pub(crate) fn get_set_thread_context() -> Self {
-        Self::new()
-            .with_func(ServiceFunction::GetSetThreadContext)
-            .with_extended_args_present(true)
-    }
-
-    pub(crate) fn kill_thread() -> Self {
-        Self::new().with_func(ServiceFunction::KillThread)
-    }
-
-    pub(crate) fn suspend_resume_thread() -> Self {
-        Self::new().with_func(ServiceFunction::SuspendResumeThread)
-    }
 
     pub(crate) fn close_thread() -> Self {
         Self::new().with_func(ServiceFunction::CloseThread)
@@ -110,9 +83,6 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::OpenThread)
     }
 
-    pub(crate) fn get_process_threads() -> Self {
-        Self::new().with_func(ServiceFunction::GetProcessThreads)
-    }
 
     pub(crate) fn mem_map() -> Self {
         Self::new().with_func(ServiceFunction::MapVaToPa).with_extended_args_present(true)
@@ -126,14 +96,6 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::AllocateMemory)
     }
 
-    pub(crate) fn process_vm_protect() -> Self {
-        Self::new().with_func(ServiceFunction::ProtectProcessMemory)
-    }
-
-    pub(crate) fn process_vm_op() -> Self {
-        Self::new()
-            .with_func(ServiceFunction::ProcessVMOperation)
-    }
 
     pub(crate) fn get_process_field() -> Self {
         Self::new()

@@ -161,7 +161,7 @@ pub fn unmap_va(request: MapVaToPaRequest) -> HypervisorResponse {
     match rmd.find_map(&process, request.map_addr) {
         None => HypervisorResponse::not_found_what(NotFoundReason::Mdl),
         Some(x) => match rmd.unmap(&x) {
-            Ok(_) => EmptyResponse::with_service(ServiceFunction::MapMemory),
+            Ok(_) => EmptyResponse::with_service(ServiceFunction::MapVaToPa),
             Err(_) => HypervisorResponse::not_found(),
         },
     }

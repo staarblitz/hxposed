@@ -23,6 +23,7 @@ pub struct HypervisorRequest {
     pub arg2: u64,
     pub arg3: u64,
 
+    // pub extended_args: [MaybeUninit<u128>; 4]
     pub extended_arg1: u128,
     pub extended_arg2: u128,
     pub extended_arg3: u128,

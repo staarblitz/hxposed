@@ -18,26 +18,6 @@ pub struct CloseThreadRequest {
     pub open_type: ObjectOpenType,
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct SuspendResumeThreadRequest {
-    pub thread: ThreadObject,
-    pub operation: SuspendResumeThreadOperation,
-}
-
-#[derive(Clone, Default, Debug)]
-pub struct KillThreadRequest {
-    pub thread: ThreadObject,
-    pub exit_code: u32,
-}
-
-#[derive(Clone, Default, Debug)]
-pub struct GetSetThreadContextRequest {
-    pub thread: ThreadObject,
-    pub operation: ThreadContextOperation,
-    pub data: usize,
-    pub data_len: usize,
-}
-
 #[derive(Debug, Clone)]
 pub struct GetThreadFieldRequest {
     pub thread: ThreadObject,
@@ -94,74 +74,6 @@ impl VmcallRequest for SetThreadFieldRequest {
     }
 }
 
-impl VmcallRequest for GetSetThreadContextRequest {
-    type Response = EmptyResponse;
-
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::get_set_thread_context(),
-            arg1: self.thread as _,
-            arg2: self.operation.clone().into_bits() as _,
-
-            extended_arg1: self.data as _,
-            extended_arg2: self.data_len as _,
-
-            ..Default::default()
-        }
-    }
-
-    fn from_raw(request: &HypervisorRequest) -> Self {
-        Self {
-            thread: request.arg1 as _,
-            operation: ThreadContextOperation::from_bits(request.arg2 as _),
-            data: request.extended_arg1 as _,
-            data_len: request.extended_arg2 as _,
-        }
-    }
-}
-
-impl VmcallRequest for KillThreadRequest {
-    type Response = EmptyResponse;
-
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::kill_thread(),
-            arg1: self.thread as _,
-            arg2: self.exit_code as _,
-
-            ..Default::default()
-        }
-    }
-
-    fn from_raw(raw: &HypervisorRequest) -> Self {
-        Self {
-            thread: raw.arg1 as _,
-            exit_code: raw.arg2 as _,
-        }
-    }
-}
-
-impl VmcallRequest for SuspendResumeThreadRequest {
-    type Response = SuspendThreadResponse;
-
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::suspend_resume_thread(),
-            arg1: self.thread as _,
-            arg2: self.operation.clone().into_bits() as _,
-
-            ..Default::default()
-        }
-    }
-
-    fn from_raw(request: &HypervisorRequest) -> Self {
-        Self {
-            thread: request.arg1 as _,
-            operation: SuspendResumeThreadOperation::from_bits(request.arg2 as _),
-        }
-    }
-}
-
 impl VmcallRequest for CloseThreadRequest {
     type Response = EmptyResponse;
 
@@ -187,10 +99,7 @@ impl VmcallRequest for OpenThreadRequest {
 
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
-            call: match self.open_type.clone() {
-                ObjectOpenType::Handle => HypervisorCall::open_thread(),
-                ObjectOpenType::Hypervisor => HypervisorCall::open_thread(),
-            },
+            call: HypervisorCall::open_thread(),
             arg1: self.pid as _,
             arg2: self.tid as _,
             arg3: self.open_type.clone().to_bits() as _,

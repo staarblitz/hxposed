@@ -77,26 +77,6 @@ impl VmcallRequest for CloseProcessRequest {
     }
 }
 
-impl VmcallRequest for KillProcessRequest {
-    type Response = EmptyResponse;
-
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::kill_process(),
-            arg1: self.process as _,
-            arg2: self.exit_code as _,
-            ..Default::default()
-        }
-    }
-
-    fn from_raw(request: &HypervisorRequest) -> Self {
-        Self {
-            process: request.arg1 as _,
-            exit_code: request.arg2 as _,
-        }
-    }
-}
-
 impl VmcallRequest for GetProcessFieldRequest {
     type Response = GetProcessFieldResponse;
 

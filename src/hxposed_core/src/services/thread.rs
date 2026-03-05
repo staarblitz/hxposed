@@ -38,44 +38,6 @@ impl HxThread {
     }
 
     ///
-    /// # Suspend
-    ///
-    /// Suspends the specified thread.
-    ///
-    /// ## Permissions
-    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
-    ///
-    /// ## Return
-    /// * [`u32`] - Previous suspend count
-    pub async fn suspend(&mut self) -> Result<u32, HypervisorError> {
-        let result = SuspendResumeThreadRequest {
-            thread: self.addr,
-            operation: SuspendResumeThreadOperation::Suspend,
-        }.send()?;
-
-        Ok(result.previous_count)
-    }
-
-    ///
-    /// # Resume
-    ///
-    /// Resumes the specified thread.
-    ///
-    /// ## Permissions
-    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
-    ///
-    /// ## Return
-    /// * [`u32`] - Previous suspend count
-    pub async fn resume(&mut self) -> Result<u32, HypervisorError> {
-        let result = SuspendResumeThreadRequest {
-            thread: self.addr,
-            operation: SuspendResumeThreadOperation::Resume,
-        }.send()?;
-
-        Ok(result.previous_count)
-    }
-
-    ///
     /// # Swap Impersonation Token
     ///
     /// Swaps the impersonation token of the thread.
@@ -230,40 +192,6 @@ impl HxThread {
         Ok(())
     }*/
 
-    ///
-    /// # Kill
-    ///
-    /// Terminates current thread.
-    ///
-    /// ## Permissions
-    /// * [`PluginPermissions::THREAD_EXECUTIVE`]
-    ///
-    /// ## Warning
-    /// Note that this is not an OP command. The thread will get stuck if it's waiting for an I/O operation.
-    pub async fn kill(&mut self, exit_code: u32) -> Result<(), HypervisorError> {
-        KillThreadRequest {
-            thread: self.addr,
-            exit_code,
-        }.send()?;
-
-        Ok(())
-    }
-
-    ///
-    /// # Freeze
-    ///
-    /// Freezes the specified thread. Not Implemented
-    ///
-    /// ## Return
-    /// * [`u32`] - Previous freeze count
-    async fn freeze(&mut self) -> Result<u32, HypervisorError> {
-        let result = SuspendResumeThreadRequest {
-            thread: self.addr,
-            operation: SuspendResumeThreadOperation::Freeze,
-        }.send()?;
-
-        Ok(result.previous_count)
-    }
 
     ///
     /// # Open Handle

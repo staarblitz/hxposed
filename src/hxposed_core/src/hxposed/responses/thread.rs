@@ -2,11 +2,6 @@ use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
-#[derive(Clone, Debug, Default)]
-pub struct SuspendThreadResponse {
-    pub previous_count: u32,
-}
-
 #[derive(Clone, Debug)]
 #[repr(u16)]
 pub enum GetThreadFieldResponse {
@@ -43,22 +38,6 @@ impl VmcallResponse for GetThreadFieldResponse {
             arg1: args.0,
             arg2: args.1,
             arg3: 0,
-        }
-    }
-}
-
-impl VmcallResponse for SuspendThreadResponse {
-    fn from_raw(raw: HypervisorResponse) -> Self {
-        Self {
-            previous_count: raw.arg1 as _,
-        }
-    }
-
-    fn into_raw(self) -> HypervisorResponse {
-        HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::SuspendResumeThread),
-            arg1: self.previous_count as _,
-            ..Default::default()
         }
     }
 }

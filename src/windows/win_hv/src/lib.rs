@@ -1,5 +1,6 @@
 #![feature(unboxed_closures)]
 #![feature(allocator_api)]
+#![feature(core_intrinsics)]
 #![no_std]
 
 extern crate alloc;

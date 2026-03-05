@@ -158,10 +158,17 @@ impl NtProcess {
                 .byte_offset(8)
         };
 
+        let hash_ptr = unsafe {
+            get_eprocess_field::<u64>(EProcessField::Pad, self.nt_process).byte_offset(16)
+        };
+
         let state = Box::into_raw(state);
 
-        unsafe { (state_ptr as *mut u64).write(state.addr() as _) };
-        unsafe { (tracker_ptr as *mut u64).write(ObjectTracker::alloc_new() as _) };
+        unsafe {
+            (state_ptr as *mut u64).write(state.addr() as _);
+            (tracker_ptr as *mut u64).write(ObjectTracker::alloc_new() as _);
+            hash_ptr.write(Self::get_path_hash(self))
+        };
 
         Ok(())
     }
@@ -223,9 +230,13 @@ impl NtProcess {
         UnicodeString::from_unicode_string(nt_path)
     }
 
-    // not ImagePathHash.
-    // TODO: Cache this
     pub fn get_path_hash(&self) -> u64 {
+        unsafe {
+            *get_eprocess_field::<u64>(EProcessField::Pad, self.nt_process).byte_offset(16)
+        }
+    }
+
+    fn get_path_hashcode(&self) -> u64 {
         let path = self.get_nt_path();
         wyhash::wyhash(
             unsafe { core::slice::from_raw_parts(path.as_ptr() as *const u8, path.len() * 2) },
