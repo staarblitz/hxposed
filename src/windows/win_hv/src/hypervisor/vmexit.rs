@@ -131,7 +131,7 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
     let function_id = info.func().into_bits() as usize;
     let category = function_id >> 4;
     let func = function_id & 0b_1111;
-    if core::intrinsics::unlikely(category > DISPATCH_TABLE_MAX) {
+    if core::intrinsics::unlikely(category > DISPATCH_TABLE_MAX - 1) {
         guest.write_response(HypervisorResponse::not_found_what(
             NotFoundReason::ServiceFunction,
         ));
