@@ -59,6 +59,7 @@ pub enum NotFoundReason {
     Callback = 7,
     HxInfo = 8,
     Event = 9,
+    Field = 10,
 }
 
 impl NotFoundReason {
@@ -77,6 +78,7 @@ impl NotFoundReason {
             7 => Self::Callback,
             8 => Self::HxInfo,
             9 => Self::Event,
+            10 => Self::Field,
             _ => Self::Unknown,
         }
     }

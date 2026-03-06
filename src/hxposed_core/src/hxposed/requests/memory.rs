@@ -17,7 +17,6 @@ pub struct FreeMemoryRequest {
     pub obj: RmdObject
 }
 
-
 #[derive(Debug)]
 pub struct MapVaToPaRequest {
     pub addr_space: ProcessObject,

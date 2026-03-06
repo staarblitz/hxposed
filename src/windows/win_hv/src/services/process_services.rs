@@ -46,17 +46,25 @@ pub(crate) fn set_process_field_sync(request: SetProcessFieldRequest) -> Hypervi
             process.set_mitigations(flags);
             EmptyResponse::with_service(ServiceFunction::SetProcessField)
         }
+        ProcessField::DirectoryTableBase(base) => {
+            process.set_directory_table_base(base);
+            EmptyResponse::with_service(ServiceFunction::SetProcessField)
+        }
+        ProcessField::UserDirectoryTableBase(base) => {
+            process.set_user_directory_table_base(base);
+            EmptyResponse::with_service(ServiceFunction::SetProcessField)
+        }
         ProcessField::Token(token) => {
             let token = match process.get_object_tracker_unchecked().get_open_token(token) {
                 Some(x) => x,
                 None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
             };
-
+            
             process.set_token(token.nt_token);
 
             EmptyResponse::with_service(ServiceFunction::SetProcessField)
         }
-        _ => HypervisorResponse::not_found(),
+        _ => HypervisorResponse::not_found_what(NotFoundReason::Field),
     }
 }
 
@@ -104,6 +112,12 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
             let thread_numbers = process.get_threads();
             let offset = state.write_result(thread_numbers.as_ptr() as _, thread_numbers.len());
             ProcessField::Threads(offset)
+        }
+        ProcessField::DirectoryTableBase(_) => {
+            ProcessField::DirectoryTableBase(process.get_directory_table_base().into())
+        }
+        ProcessField::UserDirectoryTableBase(_) => {
+            ProcessField::DirectoryTableBase(process.get_user_directory_table_base().into())
         }
     };
 

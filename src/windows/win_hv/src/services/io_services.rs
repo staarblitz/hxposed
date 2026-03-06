@@ -5,7 +5,6 @@ use hxposed_core::hxposed::requests::io::{MsrIoRequest, MsrOperation};
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::io::MsrIoResponse;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use x86::msr::{rdmsr, wrmsr};
 
 pub fn rw_msr(request: MsrIoRequest) -> HypervisorResponse {
     match request.operation {

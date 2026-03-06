@@ -1,15 +1,9 @@
-use core::arch::asm;
-use crate::nt::guard::hxguard::HxGuard;
 use crate::nt::process::NtProcess;
 use crate::services::*;
-use crate::utils::benchmark::CpuBenchmark;
-use crate::{hyper_row, services};
-use bit_field::BitField;
+use crate::hyper_row;
 use hv::hypervisor::host::Guest;
-use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotFoundReason;
-use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::io::*;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::requests::notify::*;

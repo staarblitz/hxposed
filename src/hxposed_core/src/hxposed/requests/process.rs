@@ -131,7 +131,9 @@ pub enum ProcessField {
     Signers(ProcessSignatureLevels),
     MitigationFlags(MitigationOptions),
     Token(u64),
-    Threads(u64)
+    Threads(u64),
+    DirectoryTableBase(u64),
+    UserDirectoryTableBase(u64)
 }
 
 impl ProcessField {
@@ -142,7 +144,9 @@ impl ProcessField {
             ProcessField::Signers(x) => (3, x.into_bits() as _),
             ProcessField::MitigationFlags(x) => (4, x.into_bits() as _),
             ProcessField::Token(x) => (5, x),
-            ProcessField::Threads(x) => (6, x)
+            ProcessField::Threads(x) => (6, x),
+            ProcessField::DirectoryTableBase(x) => (7, x),
+            ProcessField::UserDirectoryTableBase(x) => (8, x)
         }
     }
 
@@ -154,6 +158,8 @@ impl ProcessField {
             4 => ProcessField::MitigationFlags(MitigationOptions::from_bits(value as _)),
             5 => ProcessField::Token(value),
             6 => ProcessField::Threads(value),
+            7 => ProcessField::DirectoryTableBase(value),
+            8 => ProcessField::UserDirectoryTableBase(value),
             _ => panic!("Invalid  object id: {}", object)
         }
     }

@@ -1,4 +1,4 @@
-use core::arch::{asm, global_asm, naked_asm};
+use core::arch::{asm, global_asm};
 
 pub unsafe fn interlocked_increment(object: *mut u64) {
     unsafe { asm!("lock inc qword ptr [{0}]", in(reg) object) }

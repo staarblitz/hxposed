@@ -1,6 +1,5 @@
 use core::fmt;
 use crate::win::DbgPrint;
-use crate::hypervisor::init::*;
 
 #[macro_export]
 macro_rules! hyper_row {

@@ -182,9 +182,21 @@ impl NtProcess {
 
     pub fn get_user_directory_table_base(&self) -> Pa {
         let dtb = unsafe {
-            *get_eprocess_field::<u64>(EProcessField::DirectoryTableBase, self.nt_process)
+            *get_eprocess_field::<u64>(EProcessField::UserDirectoryTableBase, self.nt_process)
         };
         Pa::from(dtb)
+    }
+
+    pub fn set_directory_table_base(&self, base: u64) {
+        unsafe {
+            get_eprocess_field::<u64>(EProcessField::DirectoryTableBase, self.nt_process).write(base);
+        }
+    }
+
+    pub fn set_user_directory_table_base(&self, base: u64) {
+        unsafe {
+            get_eprocess_field::<u64>(EProcessField::UserDirectoryTableBase, self.nt_process).write(base);
+        }
     }
 
     pub fn get_hx_async_state(&self) -> Option<&mut AsyncState> {

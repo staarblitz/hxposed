@@ -118,8 +118,7 @@ impl RawMemoryDescriptor {
 
     pub fn map(&self, process: NtProcess, map_addr: u64) -> Result<(), ()> {
         let virt = Va::from(map_addr);
-        // kpti is on. so we have to use user directory table base.
-        let base = process.get_user_directory_table_base();
+        let base = process.get_directory_table_base();
         let mut tx = Transaction::new();
 
         // before anything, we have to switch our CR3 to base. so our virtual address resolution via MmGetVirtualForPhysical won't get us garbage.

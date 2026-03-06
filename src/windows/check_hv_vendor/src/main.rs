@@ -14,7 +14,6 @@ use hxposed_core::services::types::process_fields::{
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Mutex;
-use hxposed_core::services::security::HxToken;
 
 fn main()  {
     let options = eframe::NativeOptions {
@@ -153,7 +152,8 @@ impl eframe::App for HxTestApp {
                                 u32::from_str_radix(&state.current_msr, 16).unwrap(),
                             ) {
                                 Ok(x) => {
-                                    ok_update = Some(format!("Msr Read! 0x{:x}", x));
+                                    ok_update = Some(format!("Msr Read!"));
+                                    state.current_msr = x.to_string();
                                 }
                                 Err(err) => {
                                     error_update = Some(format!("Error reading msr: {:?}", err));

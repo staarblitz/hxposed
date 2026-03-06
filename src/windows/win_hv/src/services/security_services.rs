@@ -1,5 +1,4 @@
 use crate::nt;
-use crate::nt::SYSTEM_TOKEN;
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::nt::token::NtToken;

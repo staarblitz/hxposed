@@ -30,7 +30,7 @@ use x86::{
     },
     vmx::vmcs,
 };
-use crate::hypervisor::host::VmcallInfo;
+use crate::hypervisor::host::{VmcallInfo};
 
 /// Representation of a guest.
 pub(crate) struct VmxGuest {
@@ -284,6 +284,7 @@ impl VmxGuest {
 
         vmwrite(vmcs::guest::FS_BASE, rdmsr(x86::msr::IA32_FS_BASE));
         vmwrite(vmcs::guest::GS_BASE, rdmsr(x86::msr::IA32_GS_BASE));
+
         vmwrite(
             vmcs::guest::TR_BASE,
             SegmentDescriptor::try_from_gdtr(&gdtr, tr())
@@ -374,6 +375,7 @@ impl VmxGuest {
 
         vmwrite(vmcs::host::FS_BASE, rdmsr(x86::msr::IA32_FS_BASE));
         vmwrite(vmcs::host::GS_BASE, rdmsr(x86::msr::IA32_GS_BASE));
+
         vmwrite(vmcs::host::TR_BASE, tss_base);
         vmwrite(vmcs::host::GDTR_BASE, gdt_base);
         vmwrite(vmcs::host::IDTR_BASE, idt_base);

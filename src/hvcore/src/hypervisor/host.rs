@@ -3,11 +3,11 @@
 use core::arch::asm;
 use bit_field::BitField;
 use hxposed_core::hxposed::call::{HypervisorCall};
-use x86::{
-    controlregs::{Cr4, Xcr0},
-    cpuid::cpuid,
-};
+use x86::{controlregs::{Cr4, Xcr0}, cpuid::cpuid, segmentation};
 use x86::bits64::rflags::RFlags;
+use x86::bits64::vmx::vmread;
+use x86::msr::{IA32_GS_BASE, IA32_KERNEL_GSBASE};
+use x86::segmentation::SegmentSelector;
 use hxposed_core::hxposed::responses::HypervisorResponse;
 use super::{amd::Amd, intel::Intel};
 use crate::hypervisor::{
@@ -65,7 +65,9 @@ fn virtualize_core<Arch: Architecture>(registers: &Registers) -> ! {
     loop {
         // Then, run the guest until VM-exit occurs. Some of the events are handled
         // within the architecture specific code and nothing to do here.
-        match guest.run() {
+        let result =  guest.run();
+
+        match result {
             VmExitReason::Cpuid(info) => handle_cpuid(guest, &info),
             VmExitReason::Rdmsr(info) => handle_rdmsr(guest, &info),
             VmExitReason::Wrmsr(info) => handle_wrmsr(guest, &info),
@@ -254,7 +256,6 @@ pub struct VmcallInfo {
     pub r9: u64,
     pub instruction_info: InstructionInfo
 }
-
 pub struct InstructionInfo {
     /// The next RIP of the guest in case the current instruction is emulated.
     pub next_rip: u64,
