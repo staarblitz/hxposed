@@ -128,6 +128,7 @@ Process services:
 - Get threads
 - Get NT path (Not from PEB)
 - Open handle with all access
+- Get user/kernel directory table base
 
 Thread services:
 - Suspend/resume/freeze
@@ -141,6 +142,7 @@ Memory services:
 - Get/set paging type attributes
 - Allocate contiguous physical or from nonpaged pool
 - Map memory to arbitrary process context
+- Translate virtual addresses
 
 Security services:
 - Get system token
@@ -153,6 +155,8 @@ Security services:
 
 Cpu services:
 - Read write arbitrary MSR
+- Disable/enable preemption
+- Send inter-processor interrupt
 
 Callback services:
 - Process creation/termination callbacks
@@ -171,8 +175,6 @@ HxPosed utilizes object reference counting and handle tables just like Windows N
 #### Opening/creating handles:
 ```rust
 impl<T> NtObject<T> {
-    pub const LOW_LEVEL_ENTRIES: u64 = 4096 / 0x80;
-
     pub fn from_ptr(ptr: *mut T) -> Self {
         unsafe {
             Self::increment_ref_count(ptr as _);
