@@ -344,6 +344,10 @@ typedef struct _HXS_ALLOCATE_MEMORY {
     PVOID SystemVA;
 } HXS_ALLOCATE_MEMORY, * PHXS_ALLOCATE_MEMORY;
 
+typedef struct _HXS_TRANSLATE_MEMORY {
+    UINT64 PhysicalAddress;
+} HXS_TRANSLATE_MEMORY, *PHXS_TRANSLATE_MEMORY;
+
 
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
@@ -427,6 +431,11 @@ typedef struct _HXR_GET_SET_PAGE_ATTRIBUTE {
     UINT64 TypeBits;
     HX_PAGING_OPERATION Operation;
 } HXR_GET_SET_PAGE_ATTRIBUTE, *PHXR_GET_SET_PAGE_ATTRIBUTE;
+
+typedef struct _HXR_TRANSLATE_ADDRESS {
+    UINT64 AddressSpace;
+    UINT64 VirtualAddress;
+} HXR_TRANSLATE_ADDRESS, *PHXR_TRANSLATE_ADDRESS;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
@@ -515,74 +524,56 @@ typedef struct _HXR_UNREGISTER_CALLBACK {
 
 ///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
 
-typedef enum _HX_ERROR_SOURCE {
-    HxSourceNt = 0,
-    HxSourceHv = 1,
-    HxSourceHx = 2
-} HX_ERROR_SOURCE;
-
-typedef enum _HX_ERROR_CODE {
-    HxErrUnknown = 0,
-    HxErrOk = 1,
-    HxErrNotAllowed = 2,
-    HxErrNotLoaded = 3,
-    HxErrNotFound = 4,
-    HxErrInvalidParams = 5
-} HX_ERROR_CODE;
-
 typedef enum _HX_SERVICE_FUNCTION {
-    HxSvcUnknown = 0,
-    HxSvcAuthorize = 1,
-    HxSvcGetState = 2,
-    HxSvcOpenProcess = 3,
-    HxSvcCloseProcess = 4,
-    HxSvcKillProcess = 5,
-    HxSvcRegisterNotifyEvent = 6,
-    HxSvcUnregisterNotifyEvent = 7,
-    HxSvcGetProcessField = 8,
-    HxSvcSetProcessField = 9,
-    HxSvcProcessVMOperation = 10,
-    HxSvcProtectProcessMemory = 11,
-    HxSvcAllocateMemory = 12,
-    HxSvcMapMemory = 13,
-    HxSvcFreeMemory = 14,
-    HxSvcGetProcessThreads = 15,
-    HxSvcOpenThread = 16,
-    HxSvcCloseThread = 17,
-    HxSvcSuspendResumeThread = 18,
-    HxSvcKillThread = 19,
-    HxSvcGetSetThreadContext = 20,
-    HxSvcGetThreadField = 21,
-    HxSvcSetThreadField = 22,
-    HxSvcOpenToken = 23,
-    HxSvcGetTokenField = 24,
-    HxSvcCloseToken = 25,
-    HxSvcSetTokenField = 26,
-    HxSvcAwaitNotifyEvent = 27,
-    HxSvcCancelAsyncCall = 28,
-    HxSvcGetSetPageAttribute = 29,
-    HxSvcMapVaToPa = 30
-} HX_SERVICE_FUNCTION;
+    /* General */
+    HxSvcGetState = 0x00,
 
-typedef struct _HX_ERROR {
-    enum _HX_ERROR_SOURCE ErrorSource;
-    UINT16 ErrorCode;
-    UINT16 ErrorReason;
-} HX_ERROR, * PHX_ERROR;
+    /* Process Operations */
+    HxSvcOpenProcess = 0x10,
+    HxSvcCloseProcess = 0x11,
+    HxSvcGetProcessField = 0x12,
+    HxSvcSetProcessField = 0x13,
+
+    /* Events */
+    HxSvcRegisterNotifyEvent = 0x20,
+    HxSvcUnregisterNotifyEvent = 0x21,
+
+    /* Memory Management */
+    HxSvcAllocateMemory = 0x30,
+    HxSvcFreeMemory = 0x31,
+    HxSvcGetSetPageAttribute = 0x32,
+    HxSvcMapVaToPa = 0x33,
+    HxSvcTranslateAddress = 0x34,
+
+    /* Thread Operations */
+    HxSvcOpenThread = 0x40,
+    HxSvcCloseThread = 0x41,
+    HxSvcGetThreadField = 0x42,
+    HxSvcSetThreadField = 0x43,
+
+    /* Token Operations */
+    HxSvcOpenToken = 0x50,
+    HxSvcCloseToken = 0x51,
+    HxSvcGetTokenField = 0x53,
+    HxSvcSetTokenField = 0x54,
+
+    /* Privileged Operations */
+    HxSvcMsrIo = 0x60,
+    HxSvcExecutePrivilegedInstruction = 0x61,
+    HxSvcInterProcessorInterrupt = 0x62
+} HX_SERVICE_FUNCTION;
 
 #pragma pack(push,1)
 typedef struct _HX_RESULT {
-    HX_SERVICE_FUNCTION ServiceFunction : 16;
-    UINT32 ErrorSource : 2;
-    HX_ERROR_CODE ErrorCode : 3;
-    UINT32 Reserved : 11;
+    UINT32 ErrorCode;
+    UINT32 ErrorReason;
 } HX_RESULT, * PHX_RESULT;
 
 typedef struct _HX_CALL {
-    HX_SERVICE_FUNCTION ServiceFunction : 16;
-    BOOL IgnoreResult : 1;
-    BOOL ExtendedArgsPresent : 1;
-    UINT32 Reserved : 14;
+    UINT64 ServiceFunction : 16;
+    UINT64 IgnoreResult : 1;
+    UINT64 ExtendedArgsPresent : 1;
+    UINT64 Reserved : 46;
 } HX_CALL, * PHX_CALL;
 
 typedef struct _HX_REQUEST_RESPONSE {
@@ -593,6 +584,8 @@ typedef struct _HX_REQUEST_RESPONSE {
     UINT64 Arg2;
     UINT64 Arg3;
 
+    UINT64 Padding;
+
     __uint128_t ExtendedArg1;
     __uint128_t ExtendedArg2;
     __uint128_t ExtendedArg3;
@@ -601,12 +594,11 @@ typedef struct _HX_REQUEST_RESPONSE {
 
 #pragma pack(pop)
 
-BOOL HxIsError(PHX_ERROR Error);
-HX_ERROR HxErrorFromResult(PHX_RESULT Result);
+BOOL HxIsError(PHX_RESULT Error);
 
-__declspec(dllexport) VOID HxGetStatus(PHXS_STATUS Response, PHX_ERROR Eror);
+__declspec(dllexport) BOOL HxGetStatus(PHXS_STATUS Response);
 
-__declspec(dllexport) HX_ERROR HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response);
+__declspec(dllexport) BOOL HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response);
 __declspec(dllexport) PHX_REQUEST_RESPONSE HxpRawFromRequest(HX_SERVICE_FUNCTION Function, PVOID Request);
 
 __declspec(dllexport) INT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse);

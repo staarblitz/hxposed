@@ -13,6 +13,12 @@ pub struct AllocateMemoryRequest {
 }
 
 #[derive(Debug)]
+pub struct TranslateAddressRequest {
+    pub addr_space: u64,
+    pub virtual_addr: u64
+}
+
+#[derive(Debug)]
 pub struct FreeMemoryRequest {
     pub obj: RmdObject
 }
@@ -170,6 +176,26 @@ impl VmcallRequest for AllocateMemoryRequest {
         Self {
             size: request.arg1 as _,
             memory_type: request.arg2.into(),
+        }
+    }
+}
+
+impl VmcallRequest for TranslateAddressRequest {
+    type Response = TranslateAddressResponse;
+
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
+            call: HypervisorCall::translate_address(),
+            arg1: self.addr_space,
+            arg2: self.virtual_addr,
+            ..Default::default()
+        }
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self {
+            addr_space: request.arg1,
+            virtual_addr: request.arg2,
         }
     }
 }

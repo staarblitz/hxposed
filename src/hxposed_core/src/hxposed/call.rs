@@ -1,8 +1,8 @@
-use crate::hxposed::error::{ErrorSource, InternalErrorCode};
 use crate::hxposed::func::ServiceFunction;
 use bitfield_struct::bitfield;
+use crate::error::HypervisorError;
 
-#[bitfield(u32)]
+#[bitfield(u64)]
 #[derive(PartialEq, Eq)]
 pub struct HypervisorCall {
     #[bits(16)]
@@ -10,7 +10,7 @@ pub struct HypervisorCall {
     pub ignore_result: bool,
     pub extended_args_present: bool,
 
-    #[bits(14)]
+    #[bits(46)]
     pub reserved: u64,
 }
 
@@ -18,6 +18,14 @@ impl HypervisorCall {
     pub(crate) fn get_status() -> Self {
         // For this call, other fields are ignored.
         Self::new().with_func(ServiceFunction::GetState)
+    }
+
+    pub(crate) fn exec_priv() -> Self {
+        Self::new().with_func(ServiceFunction::ExecutePrivilegedInstruction)
+    }
+
+    pub(crate) fn translate_address() -> Self {
+        Self::new().with_func(ServiceFunction::TranslateAddress)
     }
 
     pub(crate) fn msr_io() -> Self {
@@ -112,76 +120,62 @@ impl HypervisorCall {
     }
 }
 
-#[bitfield(u32)]
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy, Clone, Default, Debug,)]
+#[repr(C)]
 pub struct HypervisorResult {
-    #[bits(16)]
-    pub func: ServiceFunction,
-    #[bits(2)]
-    pub error_source: ErrorSource,
-    #[bits(3)]
-    pub error_code: InternalErrorCode,
-    #[bits(11)]
-    pub reserved: u16,
+    pub error_code: u32,
+    pub error_reason: u32,
 }
 
 impl HypervisorResult {
-    pub fn is_error(&self) -> bool {
-        !(self.error_source() == ErrorSource::Hx && self.error_code() == InternalErrorCode::Ok)
+    pub const fn ok() -> Self {
+        Self {
+            error_code: 0,
+            error_reason: 0,
+        }
     }
 
-    pub fn ok(func: ServiceFunction) -> Self {
-        Self::error(ErrorSource::Hx, InternalErrorCode::Ok).with_func(func)
+    pub fn from_bits(bits: u64) -> Self {
+        unsafe {
+            core::mem::transmute(bits)
+        }
+    }
+    pub fn into_bits(self) -> u64 {
+        unsafe {
+            core::mem::transmute(self)
+        }
     }
 
-    pub fn error(error_source: ErrorSource, error_code: InternalErrorCode) -> Self {
-        Self::error_with_cookie(error_source, error_code)
-    }
-
-    pub fn error_with_cookie(
-        error_source: ErrorSource,
-        error_code: InternalErrorCode,
-    ) -> Self {
-        HypervisorResult::default()
-            .with_error_source(error_source)
-            .with_error_code(error_code)
-    }
-}
-
-#[derive(Clone, Copy, Default, Debug)]
-pub enum ServiceParameter {
-    #[default]
-    None = 0,
-    Function,
-    IsFast,
-    IgnoreResult,
-    BufferByUser,
-    YieldExecution,
-    IsAsync,
-    AsyncCookie,
-    Arg1,
-    Arg2,
-    Arg3,
-}
-
-impl ServiceParameter {
-    pub const fn into_bits(self) -> u32 {
-        self as _
-    }
-
-    pub const fn from_bits(value: u32) -> Self {
-        match value {
-            1 => Self::Function,
-            2 => Self::IsFast,
-            3 => Self::IgnoreResult,
-            4 => Self::BufferByUser,
-            5 => Self::YieldExecution,
-            6 => Self::IsAsync,
-            7 => Self::AsyncCookie,
-            8 => Self::Arg1,
-            9 => Self::Arg2,
-            10 => Self::Arg3,
-            _ => Self::None,
+    pub const fn from_error(error: HypervisorError) -> Self {
+        match error {
+            HypervisorError::Success => Self {
+                error_code: 0,
+                error_reason: 0,
+            },
+            HypervisorError::NotAllowed(x) => Self {
+                error_code: 1,
+                error_reason: x.into_bits(),
+            },
+            HypervisorError::NotFound(x) => Self {
+                error_code: 2,
+                error_reason: x.into_bits()
+            },
+            HypervisorError::InvalidParameters(x) => Self {
+                error_code: 3,
+                error_reason: x
+            },
+            HypervisorError::NtError(x) => Self {
+                error_code: 4,
+                error_reason: x,
+            },
+            HypervisorError::TimedOut => Self {
+                error_code: 5,
+                error_reason: 0,
+            },
+            HypervisorError::HvNotLoaded => Self {
+                error_code: 6,
+                error_reason: 0
+            }
         }
     }
 }

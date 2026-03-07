@@ -1,7 +1,8 @@
-use crate::hxposed::call::{HypervisorResult, ServiceParameter};
-use crate::hxposed::error::{ErrorSource, InternalErrorCode, NotAllowedReason, NotFoundReason};
+use crate::hxposed::call::{HypervisorResult};
+use crate::hxposed::error::{NotAllowedReason, NotFoundReason};
 use alloc::string::String;
 use alloc::vec::Vec;
+use crate::error::HypervisorError;
 
 pub mod empty;
 pub mod memory;
@@ -23,46 +24,30 @@ pub struct HypervisorResponse {
 impl HypervisorResponse {
     pub fn not_allowed(reason: NotAllowedReason) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotAllowed),
+            result: HypervisorResult::from_error(HypervisorError::NotAllowed(reason)),
             arg1: reason.into_bits() as _,
             ..Default::default()
         }
     }
 
-    pub fn invalid_params(param: ServiceParameter) -> Self {
+    pub fn invalid_params(param: u32) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::InvalidParams),
-            arg1: param.into_bits() as _,
-            ..Default::default()
-        }
-    }
-
-    pub fn invalid_param() -> Self {
-        Self {
-            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::InvalidParams),
+            result: HypervisorResult::from_error(HypervisorError::InvalidParameters(param)),
             ..Default::default()
         }
     }
 
     pub fn nt_error(reason: u32) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Nt, InternalErrorCode::Unknown),
+            result: HypervisorResult::from_error(HypervisorError::NtError(reason)),
             arg1: reason as _,
-            ..Default::default()
-        }
-    }
-
-    pub fn not_found() -> Self {
-        Self {
-            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotFound),
             ..Default::default()
         }
     }
 
     pub fn not_found_what(what: NotFoundReason) -> Self {
         Self {
-            result: HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotFound),
-            arg1: what.into_bits() as _,
+            result: HypervisorResult::from_error(HypervisorError::NotFound(what)),
             ..Default::default()
         }
     }

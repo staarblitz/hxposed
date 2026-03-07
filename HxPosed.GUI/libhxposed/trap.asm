@@ -24,21 +24,21 @@ HxpTrap proc
 	mov rdi, rcx
 
 	; extract args from the HX_REQUEST_RESPONSE
-	mov r8, [rdi + 8]
-	mov r9, [rdi + 16]
-	mov r10, [rdi + 24]
+	mov r8, [rdi + 16]
+	mov r9, [rdi + 24]
+	mov r10, [rdi + 32]
 
-	mov esi, [rdi]	; dereference the HX_CALL inside HX_REQUEST_RESPONSE
+	mov rsi, [rdi]	; dereference the HX_CALL inside HX_REQUEST_RESPONSE
 
 	; check if extended args are present
 	bt rsi, 17
 	jnc make_the_call
 
 	; extract extended args too
-	movaps xmm0, [rdi + 32]
-	movaps xmm1, [rdi + 48]
-	movaps xmm2, [rdi + 64]
-	movaps xmm3, [rdi + 80]
+	movaps xmm0, [rdi + 48]
+	movaps xmm1, [rdi + 64]
+	movaps xmm2, [rdi + 80]
+	movaps xmm3, [rdi + 96]
 
 make_the_call:
 
@@ -56,9 +56,9 @@ call_ok:
 									; use esi instead of rsi, because HX_RESPONSE is 4 bytes long
 
 	; fetch regs returned by hypervisor
-	mov qword ptr [rdi + 8], r8
-	mov qword ptr [rdi + 16], r9
-	mov qword ptr [rdi + 24], r10
+	mov qword ptr [rdi + 16], r8
+	mov qword ptr [rdi + 24], r9
+	mov qword ptr [rdi + 32], r10
 	
 	; get non-volatile rsi, r12, and rdi back
 	pextrq rsi, xmm4, 0

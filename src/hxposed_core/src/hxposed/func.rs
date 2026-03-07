@@ -15,6 +15,7 @@ pub enum ServiceFunction {
     FreeMemory = 0b_0011_0001,
     GetSetPageAttribute = 0b_0011_0010,
     MapVaToPa = 0b_0011_0011,
+    TranslateAddress = 0b_0011_0100,
 
     OpenThread = 0b_0100_0000,
     CloseThread = 0b_0100_0001,
@@ -27,6 +28,8 @@ pub enum ServiceFunction {
     SetTokenField = 0b_0101_0100,
 
     MsrIo = 0b_0110_0000,
+    ExecutePrivilegedInstruction = 0b_0110_0001,
+    InterProcessorInterrupt = 0b_0110_0010
 }
 
 impl ServiceFunction {

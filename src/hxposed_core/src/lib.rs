@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "tests"), no_std)]
 extern crate alloc;
 
 pub mod error;

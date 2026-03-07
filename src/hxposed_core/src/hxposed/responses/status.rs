@@ -1,5 +1,4 @@
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::hxposed::status::HypervisorStatus;
 
@@ -20,7 +19,7 @@ impl VmcallResponse for StatusResponse {
 
     fn into_raw(self) -> HypervisorResponse {
         HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::GetState),
+            result: HypervisorResult::ok(),
             arg1: self.state as _,
             arg2: self.version as _,
             ..Default::default()

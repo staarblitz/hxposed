@@ -1,5 +1,4 @@
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 
 #[derive(Clone, Debug)]
@@ -34,7 +33,7 @@ impl VmcallResponse for GetThreadFieldResponse {
     fn into_raw(self) -> HypervisorResponse {
         let args = self.into_raw_enum();
         HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::GetThreadField),
+            result: HypervisorResult::ok(),
             arg1: args.0,
             arg2: args.1,
             arg3: 0,

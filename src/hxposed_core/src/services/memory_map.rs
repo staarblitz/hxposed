@@ -20,6 +20,7 @@ pub struct HxMemoryDescriptor<T> {
     pub rmd: RmdObject,
     pub length: u32,
     phantom: PhantomData<T>,
+    pub owns: bool,
 }
 
 unsafe impl<T> Sync for HxMemoryDescriptor<T> {}
@@ -80,7 +81,9 @@ impl<'a, T> HxMemoryGuard<'a, T> {
 
 impl<T> Drop for HxMemoryDescriptor<T> {
     fn drop(&mut self) {
-        let _ = FreeMemoryRequest { obj: self.rmd }.send();
+        if self.owns {
+            let _ = FreeMemoryRequest { obj: self.rmd }.send();
+        }
     }
 }
 
@@ -106,6 +109,16 @@ impl<T> HxMemoryDescriptor<T> {
         })
     }
 
+    pub fn describe_existing(pa: u64, length: u32) -> Self {
+        Self {
+            memory_type: MemoryType::NonPagedPool,
+            rmd: pa,
+            length,
+            phantom: PhantomData,
+            owns: false,
+        }
+    }
+
     ///
     /// # New
     ///
@@ -122,12 +135,13 @@ impl<T> HxMemoryDescriptor<T> {
     /// * `pool` - Kind of pool to allocate from. See [`MemoryPool`].
     /// * `state` - Current state of the descriptor. <strike>To describe a physical range manually, set this to [`KernelMemoryState::None`]. See [`KernelMemoryState`]</strike>.
     ///
-    pub(crate) fn new(memory_type: MemoryType, system_pa: u64, length: u32) -> Self {
+    pub fn new(memory_type: MemoryType, system_pa: u64, length: u32) -> Self {
         Self {
             memory_type,
             rmd: system_pa,
             length,
             phantom: PhantomData,
+            owns: true
         }
     }
 }

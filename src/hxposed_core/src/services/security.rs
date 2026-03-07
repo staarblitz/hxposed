@@ -230,7 +230,7 @@ impl HxToken {
                 // did I tell this u64 is a char[8]?
                 match String::from_utf8(name.to_le_bytes().to_vec()) {
                     Ok(str) => Ok(str),
-                    Err(_) => Err(HypervisorError::not_found()),
+                    Err(_) => Err(HypervisorError::InvalidParameters(0)),
                 }
             }
             _ => unreachable!(),

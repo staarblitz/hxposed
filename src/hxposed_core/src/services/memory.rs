@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use crate::error::HypervisorError;
-use crate::hxposed::call::ServiceParameter;
 use crate::hxposed::requests::memory::*;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::memory::PageAttributeResponse;
@@ -42,6 +41,18 @@ impl HxMemory {
         .send()
     }
 
+    pub fn translate_addr(
+        cr_context: u64,
+        addr: u64
+    ) -> Result<u64, HypervisorError> {
+        let k = TranslateAddressRequest {
+            virtual_addr: addr,
+            addr_space: cr_context,
+        }.send()?;
+
+        Ok(k.physical_addr)
+    }
+
     ///
     /// # Allocate<T>
     ///
@@ -76,9 +87,7 @@ impl HxMemory {
     /// ```
     pub fn alloc<T>(memory_type: MemoryType) -> Result<HxMemoryDescriptor<T>, HypervisorError> {
         if size_of::<T>() > u32::MAX as usize {
-            return Err(HypervisorError::from_response(
-                HypervisorResponse::invalid_params(ServiceParameter::Arg2),
-            ));
+            return Err(HypervisorError::InvalidParameters(0));
         }
 
         let result = Self::alloc_raw(size_of::<T>() as _, memory_type)?;

@@ -4,6 +4,7 @@ pub mod func;
 pub mod requests;
 pub mod responses;
 pub mod status;
+pub mod utils;
 
 pub type ProcessObject = u64;
 pub type ThreadObject = u64;

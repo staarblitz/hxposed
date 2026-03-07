@@ -45,7 +45,7 @@ where
 {
     fn send(self) -> Result<T::Response, HypervisorError> {
         let response = vmcall(&mut self.into_raw());
-        if response.result.is_error() {
+        if response.result.error_code != 0 {
             Err(HypervisorError::from_response(response))
         } else {
             Ok(T::Response::from_raw(response))

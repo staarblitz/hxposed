@@ -1,37 +1,25 @@
-use alloc::sync::Arc;
 
 use crate::error::HypervisorError;
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::error::{ErrorSource, InternalErrorCode};
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use core::arch::asm;
 use core::arch::x86_64::_mm_load_si128;
 
 #[allow(dead_code)]
-pub fn vmcall_typed<R: VmcallRequest>(
-    req: R,
-) -> Result<R::Response, HypervisorError> {
+pub fn vmcall_typed<R: VmcallRequest>(req: R) -> Result<R::Response, HypervisorError> {
     let raw_resp = vmcall(&mut req.into_raw());
-    if raw_resp.result.is_error() {
+    if raw_resp.result.error_code != 0 {
         Err(HypervisorError::from_response(raw_resp))
     } else {
         Ok(R::Response::from_raw(raw_resp))
     }
 }
 
-pub(crate) fn vmcall(
-    request: &mut HypervisorRequest,
-) -> HypervisorResponse {
+pub(crate) fn vmcall(request: &mut HypervisorRequest) -> HypervisorResponse {
     let mut response = HypervisorResponse::default();
-    let mut result: u32;
+    let mut result: u64;
     let mut leaf = 0x2009u64;
-
-    unsafe {
-        // save rsi and xmm4, since they are considered non-volatile
-        // must be done in seperate because will interfere with "inouts"
-        asm!("pinsrq xmm4, rsi, 0", "pinsrq xmm4, r12, 1")
-    }
 
     if request.call.extended_args_present() {
         unsafe {
@@ -61,14 +49,8 @@ pub(crate) fn vmcall(
         }
     }
 
-    unsafe {
-        // fetch them back from xmm4
-        asm!("pextrq rsi, xmm4, 0", "pextrq r12, xmm4, 1")
-    }
-
-
     if leaf != 0x2009 {
-        response.result = HypervisorResult::error(ErrorSource::Hx, InternalErrorCode::NotLoaded);
+        response.result = HypervisorResult::from_error(HypervisorError::HvNotLoaded);
     } else {
         response.result = HypervisorResult::from_bits(result);
     }

@@ -1,6 +1,61 @@
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use crate::hxposed::responses::io::MsrIoResponse;
+use crate::hxposed::responses::io::*;
+
+#[derive(Debug)]
+pub struct PrivilegedInstructionRequest {
+    pub instruction: PrivilegedInstruction
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum PrivilegedInstruction {
+    Hlt,
+    MovToCr8(u64),
+    MovToCr3(u64),
+    MovFromCr8(u64),
+    MovFromCr3(u64),
+    Lgdt(u64),
+    Lidt(u64),
+    Sgdt(u64),
+    Sidt(u64),
+    Cli,
+    Sti
+}
+
+impl PrivilegedInstruction {
+    pub const fn into_raw(self) -> (u64, u64) {
+        match self {
+            PrivilegedInstruction::Hlt => (0, 0),
+            PrivilegedInstruction::MovToCr8(x) => (1, x),
+            PrivilegedInstruction::MovToCr3(x) => (2, x),
+            PrivilegedInstruction::MovFromCr8(x) => (3, x),
+            PrivilegedInstruction::MovFromCr3(x) => (4, x),
+            PrivilegedInstruction::Lgdt(x) => (5, x),
+            PrivilegedInstruction::Lidt(x) => (6, x),
+            PrivilegedInstruction::Sgdt(x) => (7, x),
+            PrivilegedInstruction::Sidt(x) => (8, x),
+            PrivilegedInstruction::Cli => (9, 0),
+            PrivilegedInstruction::Sti => (10, 0),
+        }
+    }
+
+    pub const fn from_bits(mnemonic: u64, arg: u64) -> Self {
+        match mnemonic {
+            0 => PrivilegedInstruction::Hlt,
+            1 => PrivilegedInstruction::MovToCr8(arg),
+            2 => PrivilegedInstruction::MovToCr3(arg),
+            3 => PrivilegedInstruction::MovFromCr8(arg),
+            4 => PrivilegedInstruction::MovFromCr3(arg),
+            5 => PrivilegedInstruction::Lgdt(arg),
+            6 => PrivilegedInstruction::Lidt(arg),
+            7 => PrivilegedInstruction::Sgdt(arg),
+            8 => PrivilegedInstruction::Sidt(arg),
+            9 => PrivilegedInstruction::Cli,
+            10 => PrivilegedInstruction::Sti,
+            _ => unreachable!(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct MsrIoRequest {
@@ -28,6 +83,26 @@ impl MsrOperation {
             0 => MsrOperation::Read,
             1 => MsrOperation::Write,
             _ => unreachable!()
+        }
+    }
+}
+
+impl VmcallRequest for PrivilegedInstructionRequest {
+    type Response = PrivilegedInstructionResponse;
+
+    fn into_raw(self) -> HypervisorRequest {
+        let args = self.instruction.into_raw();
+        HypervisorRequest{
+            call: HypervisorCall::exec_priv(),
+            arg1: args.0,
+            arg2: args.1,
+            ..Default::default()
+        }
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
+        Self {
+            instruction: PrivilegedInstruction::from_bits(request.arg1, request.arg2)
         }
     }
 }

@@ -1,8 +1,7 @@
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::requests::notify::ObjectState;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use crate::hxposed::{CallbackObject, ObjectType};
+use crate::hxposed::CallbackObject;
 
 pub const CALLBACK_RESPONSE_RESERVED_OFFSET: u64 = 0;
 
@@ -28,7 +27,7 @@ impl VmcallResponse for RegisterNotifyHandlerResponse {
 
     fn into_raw(self) -> HypervisorResponse {
         HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::RegisterNotifyEvent),
+            result: HypervisorResult::ok(),
             arg1: self.callback,
 
             ..Default::default()

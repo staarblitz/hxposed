@@ -1,5 +1,4 @@
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::services::types::security_fields::{ImpersonationLevel, TokenPrivilege, TokenType};
 
@@ -65,7 +64,7 @@ impl VmcallResponse for GetTokenFieldResponse {
         let args = self.into_raw_enum();
 
         HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::GetTokenField),
+            result: HypervisorResult::ok(),
             arg1: args.0,
             arg2: args.1,
             arg3: 0,

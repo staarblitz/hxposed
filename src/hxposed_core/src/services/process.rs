@@ -42,8 +42,8 @@ impl HxProcess {
     /// # Current
     ///
     /// Opens the current process for your use.
-    pub fn current() -> Result<Self, HypervisorError> {
-        Self::open(unsafe { GetCurrentProcessId() })
+    pub fn current() -> Self {
+        Self::open(unsafe { GetCurrentProcessId() }).unwrap()
     }
 
     ///
@@ -121,6 +121,30 @@ impl HxProcess {
             field: ProcessField::Token(token.addr),
         }
         .send()
+    }
+
+    pub fn get_directory_base(&self) -> Result<u64, HypervisorError> {
+        let me = GetProcessFieldRequest {
+            process: self.addr,
+            field: ProcessField::DirectoryTableBase(0)
+        }.send()?;
+
+        Ok(match me.field {
+            ProcessField::DirectoryTableBase(base) => base,
+            _ => unreachable!(),
+        })
+    }
+
+    pub fn get_user_directory_base(&self) -> Result<u64, HypervisorError> {
+        let me = GetProcessFieldRequest {
+            process: self.addr,
+            field: ProcessField::UserDirectoryTableBase(0)
+        }.send()?;
+
+        Ok(match me.field {
+            ProcessField::UserDirectoryTableBase(base) => base,
+            _ => unreachable!(),
+        })
     }
 
     ///

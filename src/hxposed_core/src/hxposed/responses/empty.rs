@@ -1,5 +1,4 @@
 use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::func::ServiceFunction;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use crate::hxposed::ObjectType;
 
@@ -7,6 +6,7 @@ use crate::hxposed::ObjectType;
 #[derive(Clone, Debug)]
 pub struct EmptyResponse;
 
+// why is this here???
 #[derive(Clone, Debug)]
 pub struct OpenObjectResponse {
     pub object: ObjectType,
@@ -23,7 +23,7 @@ impl VmcallResponse for OpenObjectResponse {
         let object = ObjectType::into_raw(self.object);
 
         HypervisorResponse {
-            result: HypervisorResult::ok(ServiceFunction::OpenProcess),
+            result: HypervisorResult::ok(),
             arg1: object.0,
             arg2: object.1,
             ..Default::default()
@@ -32,11 +32,8 @@ impl VmcallResponse for OpenObjectResponse {
 }
 
 impl EmptyResponse {
-    pub fn with_service(service_function: ServiceFunction) -> HypervisorResponse {
-        HypervisorResponse {
-            result: HypervisorResult::ok(service_function),
-            ..Default::default() // this is actually a very cool feature.
-        }
+    pub fn default() -> HypervisorResponse {
+        HypervisorResponse::default()
     }
 }
 

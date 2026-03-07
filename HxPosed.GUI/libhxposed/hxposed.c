@@ -1,30 +1,12 @@
 #include "hxposed.h"
 
-HX_ERROR HxNotLoaded() {
-	HX_ERROR err;
-	err.ErrorCode = HxErrNotLoaded;
-	err.ErrorSource = HxSourceHx;
-	err.ErrorReason = 0;
-	return err;
-}
-
-HX_ERROR HxOk() {
-	HX_ERROR err;
-	err.ErrorCode = HxErrOk;
-	err.ErrorSource = HxSourceHx;
-	err.ErrorReason = 0;
-	return err;
-}
-
-__declspec(dllexport) HX_ERROR HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response) {
-	HX_ERROR error = HxErrorFromResult(&RequestResponse->Result);
-
-	if (HxIsError(&error)) {
+__declspec(dllexport) BOOL HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response) {
+	if (HxIsError(&RequestResponse->Result)) {
 		HeapFree(GetProcessHeap(), 0, RequestResponse);
-		return error;
+		return FALSE;
 	}
 
-	switch (RequestResponse->Result.ServiceFunction) {
+	switch (RequestResponse->Call.ServiceFunction) {
 	case HxSvcGetState: {
 		PHXS_STATUS result = Response;
 		result->Status = RequestResponse->Arg1;
@@ -84,7 +66,7 @@ __declspec(dllexport) HX_ERROR HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestRe
 
 	HeapFree(GetProcessHeap(), 0, RequestResponse);
 
-	return HxOk();
+	return TRUE;
 }
 
 __declspec(dllexport) PHX_REQUEST_RESPONSE HxpRawFromRequest(HX_SERVICE_FUNCTION Function, PVOID Request) {
@@ -229,7 +211,7 @@ __declspec(dllexport) PVOID HxReadAsyncResponseType(UINT64 Offset) {
 	return (PVOID)(HX_ASYNC_BASE + typeOffset);
 }
 
-__declspec(dllexport) VOID HxGetStatus(PHXS_STATUS Response, PHX_ERROR Error) {
+__declspec(dllexport) BOOL HxGetStatus(PHXS_STATUS Response) {
 	// allocating from heap since i dont have memset to initialize the local variable to zero
 	PHX_REQUEST_RESPONSE reqResp = (PHX_REQUEST_RESPONSE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(HX_REQUEST_RESPONSE));
 
@@ -237,12 +219,11 @@ __declspec(dllexport) VOID HxGetStatus(PHXS_STATUS Response, PHX_ERROR Error) {
 
 	if (HxpTrap(reqResp) == -1) {
 		HeapFree(GetProcessHeap(), NULL, reqResp);
-		*Error = HxNotLoaded();
-		return;
+		return FALSE;
 	}
 
 	Response->Status = reqResp->Arg1;
 	Response->Version = reqResp->Arg2;
 
-	*Error = HxErrorFromResult(&reqResp->Result);
+	return TRUE;
 }

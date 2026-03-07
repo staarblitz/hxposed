@@ -19,6 +19,7 @@ panic="abort"
 
 [features]
 usermode = []
+tests = []
 
 [lib]
 crate-type = ["rlib"]

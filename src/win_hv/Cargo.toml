@@ -1,0 +1,37 @@
+[package]
+name = "win_hv"
+description = "HxPosed kernel driver"
+version = "0.9.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+test = false
+bench = false
+
+[profile.dev]
+panic = "abort"
+debug = true
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+hxposed_core = {path = "../hxposed_core", default-features = false}
+hv = { path = "../hvcore", default-features = false }
+bit_field = "0.10.3"
+microseh = {version = "1.1.2", default-features = false}
+log = {version = "0.4.29", default-features = false}
+bitfield-struct = "0.12.1"
+spin = {version = "0.10.0", default-features = false}
+hashbrown = {version = "0.16.1", features = ["core"]}
+wyhash = {version = "0.6.0", default-features = false}
+x86 = "0.52.0"
+
+[build-dependencies]
+wdk-build = "0.5.1"
+
+[package.metadata.wdk.driver-model]
+driver-type = "WDM"

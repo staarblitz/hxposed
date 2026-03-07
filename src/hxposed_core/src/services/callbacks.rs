@@ -1,6 +1,5 @@
 use core::ptr::null_mut;
 use crate::error::HypervisorError;
-use crate::hxposed::call::ServiceParameter;
 use crate::hxposed::requests::Vmcall;
 use crate::hxposed::requests::notify::*;
 use crate::hxposed::responses::{read_response_type, HypervisorResponse};
@@ -55,9 +54,7 @@ impl HxCallback {
             ObjectType::Process(_) => {}
             ObjectType::Thread(_) => {}
             _ => {
-                return Err(HypervisorError::from_response(
-                    HypervisorResponse::invalid_params(ServiceParameter::Arg1),
-                ));
+                return Err(HypervisorError::InvalidParameters(0));
             }
         }
 
@@ -108,7 +105,7 @@ impl HxCallback {
             0 => Ok(unsafe {
                 read_response_type::<CallbackInformation>(CALLBACK_RESPONSE_RESERVED_OFFSET)
             }),
-            _ => Err(HypervisorError::async_time_out())
+            _ => Err(HypervisorError::TimedOut)
         }
     }
 }
