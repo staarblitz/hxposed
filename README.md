@@ -88,18 +88,13 @@ HX_REQUEST_RESPONSE reqResp = {
     },
 };
 
-if (HxpTrap(raw) == -1) {
-    printf("hv not loaded");
-    return 1;
-}
-
 if (HxpTrap(reqResp) != 0) {
     printf("Hypervisor is not loaded");
     return -1;
 }
 
-if (HxIsError(&reqResp->Result)) {
-   printf("Failed: %d, %d\n", reqResp->Result.ErrorCode, reqResp->Result.ErrorReason);
+if (HxIsError(&reqResp.Result)) {
+   printf("Failed: %d, %d\n", reqResp.Result.ErrorCode, reqResp.Result.ErrorReason);
    return 1;
 }
 
