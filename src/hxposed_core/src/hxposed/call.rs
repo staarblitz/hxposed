@@ -9,8 +9,9 @@ pub struct HypervisorCall {
     pub func: ServiceFunction,
     pub ignore_result: bool,
     pub extended_args_present: bool,
+    pub is_slow: bool,
 
-    #[bits(46)]
+    #[bits(45)]
     pub reserved: u64,
 }
 

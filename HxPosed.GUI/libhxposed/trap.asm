@@ -52,7 +52,7 @@ make_the_call:
 	ret
 
 call_ok:
-	mov dword ptr [rdi + 4], esi	; save result to second field of HX_REQUEST_RESPONSE
+	mov qword ptr [rdi + 8], rsi	; save result to second field of HX_REQUEST_RESPONSE
 									; use esi instead of rsi, because HX_RESPONSE is 4 bytes long
 
 	; fetch regs returned by hypervisor

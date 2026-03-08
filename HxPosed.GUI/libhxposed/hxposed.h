@@ -28,51 +28,69 @@ typedef enum _HX_OBJECT_STATE {
     HxObDeleted = 2
 } HX_OBJECT_STATE;
 
+typedef UINT64 HX_OPEN_TYPE;
+enum {
+    HxOpenHandle = 0,
+    HxOpenHypervisor = 1
+};
+
 typedef struct _HX_OBJECT_TYPE {
     HX_OBJECT_TYPES Type;
     PVOID Object;
 } HX_OBJECT_TYPE;
 
+typedef struct _HXR_OPEN_OBJECT {
+    UINT64 AddressOrId;
+    HX_OPEN_TYPE OpenType;
+} HXR_OPEN_OBJECT, *PHXR_OPEN_OBJECT;
+
+typedef struct _HXR_CLOSE_OBJECT {
+    UINT64 Address;
+} HXR_CLOSE_OBJECT, *PHXR_CLOSE_OBJECT;
+
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN SECURITY
 
-typedef struct _HX_TOKEN_PRIVILEGES {
-    UINT64 RESERVED : 2;
-    UINT64 SeCreateTokenPrivilege : 1;
-    UINT64 SeAssignPrimaryTokenPrivilege : 1;
-    UINT64 SeLockMemoryPrivilege : 1;
-    UINT64 SeIncreaseQuotaPrivilege : 1;
-    UINT64 SeMachineAccountPrivilege : 1;
-    UINT64 SeTcbPrivilege : 1;
-    UINT64 SeSecurityPrivilege : 1;
-    UINT64 SeTakeOwnershipPrivilege : 1;
-    UINT64 SeLoadDriverPrivilege : 1;
-    UINT64 SeSystemProfilePrivilege : 1;
-    UINT64 SeSystemtimePrivilege : 1;
-    UINT64 SeProfileSingleProcessPrivilege : 1;
-    UINT64 SeIncreaseBasePriorityPrivilege : 1;
-    UINT64 SeCreatePagefilePrivilege : 1;
-    UINT64 SeCreatePermanentPrivilege : 1;
-    UINT64 SeBackupPrivilege : 1;
-    UINT64 SeRestorePrivilege : 1;
-    UINT64 SeShutdownPrivilege : 1;
-    UINT64 SeDebugPrivilege : 1;
-    UINT64 SeAuditPrivilege : 1;
-    UINT64 SeSystemEnvironmentPrivilege : 1;
-    UINT64 SeChangeNotifyPrivilege : 1;
-    UINT64 SeRemoteShutdownPrivilege : 1;
-    UINT64 SeUndockPrivilege : 1;
-    UINT64 SeSyncAgentPrivilege : 1;
-    UINT64 SeEnableDelegationPrivilege : 1;
-    UINT64 SeManageVolumePrivilege : 1;
-    UINT64 SeImpersonatePrivilege : 1;
-    UINT64 SeCreateGlobalPrivilege : 1;
-    UINT64 SeTrustedCredManAccessPrivilege : 1;
-    UINT64 SeRelabelPrivilege : 1;
-    UINT64 SeIncreaseWorkingSetPrivilege : 1;
-    UINT64 SeTimeZonePrivilege : 1;
-    UINT64 SeCreateSymbolicLinkPrivilege : 1;
-    UINT64 SeDelegateSessionUserImpersonatePrivilege : 1;
-    UINT64 RESERVED2 : 27;
+typedef union _HX_TOKEN_PRIVILEGES {
+    UINT64 All;
+    union {
+        UINT64 RESERVED : 2;
+        UINT64 SeCreateTokenPrivilege : 1;
+        UINT64 SeAssignPrimaryTokenPrivilege : 1;
+        UINT64 SeLockMemoryPrivilege : 1;
+        UINT64 SeIncreaseQuotaPrivilege : 1;
+        UINT64 SeMachineAccountPrivilege : 1;
+        UINT64 SeTcbPrivilege : 1;
+        UINT64 SeSecurityPrivilege : 1;
+        UINT64 SeTakeOwnershipPrivilege : 1;
+        UINT64 SeLoadDriverPrivilege : 1;
+        UINT64 SeSystemProfilePrivilege : 1;
+        UINT64 SeSystemtimePrivilege : 1;
+        UINT64 SeProfileSingleProcessPrivilege : 1;
+        UINT64 SeIncreaseBasePriorityPrivilege : 1;
+        UINT64 SeCreatePagefilePrivilege : 1;
+        UINT64 SeCreatePermanentPrivilege : 1;
+        UINT64 SeBackupPrivilege : 1;
+        UINT64 SeRestorePrivilege : 1;
+        UINT64 SeShutdownPrivilege : 1;
+        UINT64 SeDebugPrivilege : 1;
+        UINT64 SeAuditPrivilege : 1;
+        UINT64 SeSystemEnvironmentPrivilege : 1;
+        UINT64 SeChangeNotifyPrivilege : 1;
+        UINT64 SeRemoteShutdownPrivilege : 1;
+        UINT64 SeUndockPrivilege : 1;
+        UINT64 SeSyncAgentPrivilege : 1;
+        UINT64 SeEnableDelegationPrivilege : 1;
+        UINT64 SeManageVolumePrivilege : 1;
+        UINT64 SeImpersonatePrivilege : 1;
+        UINT64 SeCreateGlobalPrivilege : 1;
+        UINT64 SeTrustedCredManAccessPrivilege : 1;
+        UINT64 SeRelabelPrivilege : 1;
+        UINT64 SeIncreaseWorkingSetPrivilege : 1;
+        UINT64 SeTimeZonePrivilege : 1;
+        UINT64 SeCreateSymbolicLinkPrivilege : 1;
+        UINT64 SeDelegateSessionUserImpersonatePrivilege : 1;
+        UINT64 RESERVED2 : 27;
+    };
 } HX_TOKEN_PRIVILEGES;
 
 
@@ -92,13 +110,14 @@ typedef enum _HX_TOKEN_TYPE {
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
 
-typedef enum _HX_THREAD_FIELD {
-    HxThreadFieldUnknown = 0,
+typedef UINT64 HX_THREAD_FIELD;
+enum {
     HxThreadFieldActiveImpersonationInfo = 1,
     HxThreadFieldAdjustedClientToken = 2,
-} HX_THREAD_FIELD;
+};
 
-typedef enum _HX_TOKEN_FIELD {
+typedef UINT64 HX_TOKEN_FIELD;
+enum {
     HxTokenFieldUnknown = 0,
     HxTokenFieldSourceName = 1,
     HxTokenFieldAccountName = 2,
@@ -109,44 +128,44 @@ typedef enum _HX_TOKEN_FIELD {
     HxTokenFieldPresentPrivileges = 7,
     HxTokenFieldEnabledPrivileges = 8,
     HxTokenFieldEnabledByDefaultPrivileges = 9,
-} HX_TOKEN_FIELD;
+};
 
-typedef enum _HX_PROCESS_FIELD {
+typedef UINT64 HX_PROCESS_FIELD;
+enum {
     HxProcFieldUnknown = 0,
     HxProcFieldNtPath = 1,
     HxProcFieldProtection = 2,
     HxProcFieldSigners = 3,
     HxProcFieldMitigationFlags = 4,
     HxProcFieldToken = 5,
-} HX_PROCESS_FIELD;
+    HxProcFieldThreads = 6,
+    HxProcFieldDirectoryTableBase = 7,
+    HxProcFieldUserDirectoryTableBase = 8,
+};
 
-typedef enum _HX_OPEN_TYPE {
-    HxOpenHandle = 0,
-    HxOpenHypervisor = 1
-} HX_OPEN_TYPE;
 
-typedef enum _HX_MAP_OPERATION {
+
+typedef UINT64 HX_MAP_OPERATION;
+enum {
     HxMemMap = 0,
     HxMemUnMap = 1
-} HX_MAP_OPERATION, * PHX_MAP_OPERATION;
+};
 
-typedef enum _HX_MEMORY_POOL {
+typedef UINT64 HX_MEMORY_POOL;
+enum {
     HxPoolNonPaged = 0,
     HxContiguousPhysical = 1
-} HX_MEMORY_POOL;
+};
 
-typedef enum _HX_VM_OPERATION {
-    HxVmRead = 0,
-    HxVmWrite = 1
-} HX_VM_OPERATION;
 
-typedef enum _HX_PAGING_OBJECT {
+typedef UINT64 HX_PAGING_OBJECT;
+enum {
     HxPml5 = 0,
     HxPml4 = 1,
     HxPdp = 2,
     HxPd = 3,
-    HxPt = 4
-} HX_PAGING_OBJECT;
+    HxPt = 4,
+};
 
 typedef struct _HX_VIRTUAL_ADDRESS_FLAGS {
     UINT64 PhysicalOffset : 12;
@@ -163,17 +182,17 @@ typedef union _HX_VIRTUAL_ADDRESS {
     HX_VIRTUAL_ADDRESS_FLAGS Indices;
 } HX_VIRTUAL_ADDRESS;
 
-#pragma pack(push,1)
 typedef struct _HX_PAGING_TYPE {
     HX_PAGING_OBJECT ObjectType;
+    UINT64 PAD;
     HX_VIRTUAL_ADDRESS Object;
 } HX_PAGING_TYPE;
-#pragma pack(pop)
 
-typedef enum _HX_PAGING_OPERATION {
+typedef UINT64 HX_PAGING_OPERATION;
+enum {
     HxPageOperationSet = 0,
     HxPageOperationGet = 1
-} HX_PAGING_OPERATION;
+};
 
 typedef struct _HX_PROCESS_PROTECTION {
     union
@@ -344,9 +363,9 @@ typedef struct _HXS_ALLOCATE_MEMORY {
     PVOID SystemVA;
 } HXS_ALLOCATE_MEMORY, * PHXS_ALLOCATE_MEMORY;
 
-typedef struct _HXS_TRANSLATE_MEMORY {
+typedef struct _HXS_TRANSLATE_ADDRESS {
     UINT64 PhysicalAddress;
-} HXS_TRANSLATE_MEMORY, *PHXS_TRANSLATE_MEMORY;
+} HXS_TRANSLATE_ADDRESS, *PHXS_TRANSLATE_ADDRESS;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
@@ -361,6 +380,7 @@ typedef struct _HXS_GET_PROCESS_FIELD {
         HX_PROCESS_MITIGATION_FLAGS MitigationFlags;
         UINT64 Token;
         UINT64 ThreadsOffset;
+        UINT64 DirectoryTableBase;
     };
 } HXS_GET_PROCESS_FIELD, * PHXS_GET_PROCESS_FIELD;
 
@@ -384,7 +404,7 @@ typedef struct _HXS_GET_TOKEN_FIELD {
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN THREAD
 
 typedef struct _HXS_GET_THREAD_FIELD {
-    enum _HX_THREAD_FIELD Field;
+    HX_THREAD_FIELD Field;
     union {
         BOOL ImpersonationStatus;
         HX_TOKEN Token;
@@ -404,6 +424,44 @@ typedef struct _HXS_REGISTER_CALLBACK {
 } HXS_REGISTER_CALLBACK, *PHXS_REGISTER_CALLBACK;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
+///////////////////////////////////////////////////////////////////////////////////////// BEGIN CPU/IO
+
+typedef UINT64 HX_MSR_OPERATION;
+enum {
+    HxMsrRead = 0,
+    HxMsrWrite = 1
+};
+
+typedef UINT64 HX_PRIVILEGED_INSTRUCTION;
+enum {
+    Hlt = 0,
+    MovToCr8 = 1,
+    MovToCr3 = 2,
+    MovFromCr8 = 3,
+    MovFromCr3 = 4,
+    Lgdt = 5,
+    Lidt = 6,
+    Sgdt = 7,
+    Sidt = 8,
+    Cli = 9,
+    Sti = 10
+};
+
+typedef struct _HXS_EXECUTE_PRIVILEGED {
+    HX_PRIVILEGED_INSTRUCTION Instruction;
+    union {
+        UINT64 Cr3;
+        UINT64 Cr8;
+        UINT64 Gdt;
+        UINT64 Idt;
+    };
+} HXS_EXECUTE_PRIVILEGED, * PHXS_EXECUTE_PRIVILEGED;
+
+typedef struct _HXS_MSR_OPERATION {
+    UINT64 Msr
+} HXS_MSR_OPERATION, *PHXS_MSR_OPERATION;
+
+///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
 
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN MEMORY
@@ -411,6 +469,7 @@ typedef struct _HXS_REGISTER_CALLBACK {
 
 typedef struct _HXR_ALLOCATE_MEMORY {
     UINT32 Size;
+    UINT32 PAD;
     HX_MEMORY_POOL Pool;
 } HXR_ALLOCATE_MEMORY, * PHXR_ALLOCATE_MEMORY;
 
@@ -419,17 +478,19 @@ typedef struct _HXR_FREE_MEMORY {
 } HXR_FREE_MEMORY, *PHXR_FREE_MEMORY;
 
 typedef struct _HXR_MAP_VA_TO_PA {
-    HX_PROCESS AddressSpace;
     HX_RMD MemoryDescriptor;
+    HX_PROCESS AddressSpace;
     PVOID MapAddress;
+    UINT64 _PAD;
     HX_MAP_OPERATION Operation;
 } HXR_MAP_VA_TO_PA, *PHXR_MAP_VA_TO_PA;
 
 typedef struct _HXR_GET_SET_PAGE_ATTRIBUTE {
     HX_PROCESS AddressSpace;
-    HX_PAGING_TYPE PagingType;
-    UINT64 TypeBits;
     HX_PAGING_OPERATION Operation;
+    UINT64 TypeBits;
+    UINT64 _PAD;
+    HX_PAGING_TYPE PagingType;
 } HXR_GET_SET_PAGE_ATTRIBUTE, *PHXR_GET_SET_PAGE_ATTRIBUTE;
 
 typedef struct _HXR_TRANSLATE_ADDRESS {
@@ -441,19 +502,11 @@ typedef struct _HXR_TRANSLATE_ADDRESS {
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
 
-typedef struct _HXR_OPEN_PROCESS {
-    UINT32 Id;
-    HX_OPEN_TYPE OpenType;
-} HXR_OPEN_PROCESS, * PHXR_OPEN_PROCESS;
-
-typedef struct _HXR_CLOSE_PROCESS {
-    HX_PROCESS Address;
-    HX_OPEN_TYPE OpenType;
-} HXR_CLOSE_PROCESS, * PHXR_CLOSE_PROCESS;
 
 typedef struct _HXR_KILL_PROCESS {
     HX_PROCESS Address;
     UINT32 ExitCode;
+    UINT32 PAD;
 } HXR_KILL_PROCESS, * PHXR_KILL_PROCESS;
 
 typedef struct _HXR_GET_PROCESS_FIELD {
@@ -469,15 +522,6 @@ typedef struct _HXR_SET_PROCESS_FIELD {
 ///////////////////////////////////////////////////////////////////////////////////////// END PROCESS
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN SECURITY
 
-typedef struct _HXR_OPEN_TOKEN {
-    HX_TOKEN Address;
-    HX_OPEN_TYPE OpenType;
-} HXR_OPEN_TOKEN, * PHXR_OPEN_TOKEN;
-
-typedef struct _HXR_CLOSE_TOKEN {
-    HX_TOKEN Address;
-} HXR_CLOSE_TOKEN, * PHXR_CLOSE_TOKEN;
-
 typedef struct _HXR_GET_TOKEN_FIELD {
     HX_TOKEN Address;
     HXS_GET_TOKEN_FIELD Data;
@@ -490,15 +534,6 @@ typedef struct _HXR_SET_TOKEN_FIELD {
 
 ///////////////////////////////////////////////////////////////////////////////////////// END SECURITY
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN THREAD
-
-typedef struct _HXR_OPEN_THREAD {
-    UINT32 Id;
-    HX_OPEN_TYPE OpenType;
-} HXR_OPEN_THREAD, * PHXR_OPEN_THREAD;
-
-typedef struct _HXR_CLOSE_THREAD {
-    HX_THREAD Address;
-} HXR_CLOSE_THREAD, * PHXR_CLOSE_THREAD;
 
 typedef struct _HXR_GET_THREAD_FIELD {
     HX_THREAD Address;
@@ -514,7 +549,7 @@ typedef struct _HXR_SET_THREAD_FIELD {
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN CALLBACKS
 
 typedef struct _HXR_REGISTER_CALLBACK {
-    HX_OBJECT_TYPES ObjectType;
+    HX_OBJECT_TYPE ObjectType;
     HANDLE EventHandle;
 } HXR_REGISTER_CALLBACK, *PHXR_REGISTER_CALLBACK;
 
@@ -523,10 +558,29 @@ typedef struct _HXR_UNREGISTER_CALLBACK {
 } HXR_UNREGISTER_CALLBACK, *PHXR_UNREGISTER_CALLBACK;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
+///////////////////////////////////////////////////////////////////////////////////////// BEGIN CPU/IO
+
+typedef struct _HXR_EXECUTE_PRIVILEGED {
+    HX_PRIVILEGED_INSTRUCTION Instruction;
+    union {
+        UINT64 Cr3;
+        UINT64 Cr8;
+        UINT64 Gdt;
+        UINT64 Idt;
+    };
+} HXR_EXECUTE_PRIVILEGED, *PHXR_EXECUTE_PRIVILEGED;
+
+typedef struct _HXR_MSR_OPERATION {
+    UINT64 Msr;
+    UINT64 Value;
+    HX_MSR_OPERATION Operation;
+} HXR_MSR_OPERATION, *PHXR_MSR_OPERATION;
+ 
+///////////////////////////////////////////////////////////////////////////////////////// END CPU/IO
 
 typedef enum _HX_SERVICE_FUNCTION {
     /* General */
-    HxSvcGetState = 0x00,
+    HxSvcGetState = 0x0,
 
     /* Process Operations */
     HxSvcOpenProcess = 0x10,
@@ -580,16 +634,50 @@ typedef struct _HX_REQUEST_RESPONSE {
     HX_CALL Call;
     HX_RESULT Result;
 
-    UINT64 Arg1;
-    UINT64 Arg2;
-    UINT64 Arg3;
+    union {
+        struct {
+            UINT64 Arg1;
+            UINT64 Arg2;
+            UINT64 Arg3;
 
-    UINT64 Padding;
+            UINT64 Padding;
 
-    __uint128_t ExtendedArg1;
-    __uint128_t ExtendedArg2;
-    __uint128_t ExtendedArg3;
-    __uint128_t ExtendedArg4;
+            __uint128_t ExtendedArg1;
+            __uint128_t ExtendedArg2;
+            __uint128_t ExtendedArg3;
+            __uint128_t ExtendedArg4;
+        };
+
+        HXS_STATUS StatusResponse;
+        HXS_OPEN_OBJECT_RESPONSE OpenObjectResponse;
+        HXS_GET_SET_PAGE_ATTRIBUTE GetSetPageAttributeResponse;
+        HXS_ALLOCATE_MEMORY AllocateMemoryResponse;
+        HXS_REGISTER_CALLBACK RegisterCallbackResponse;
+        HXS_GET_PROCESS_FIELD GetProcessFieldResponse;
+        HXS_GET_TOKEN_FIELD GetTokenFieldResponse;
+        HXS_GET_THREAD_FIELD GetThreadFieldResponse;
+        HXS_TRANSLATE_ADDRESS TranslateAddressResponse;
+        HXS_MSR_OPERATION MsrIoResponse;
+        HXS_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionResponse;
+
+        HXR_OPEN_OBJECT OpenObjectRequest;
+        HXR_CLOSE_OBJECT CloseObjectRequest;
+        HXR_ALLOCATE_MEMORY AllocateMemoryRequest;
+        HXR_FREE_MEMORY FreeMemoryRequest;
+        HXR_MAP_VA_TO_PA MapVaToPaRequest;
+        HXR_TRANSLATE_ADDRESS TranslateAddressRequest;
+        HXR_GET_SET_PAGE_ATTRIBUTE GetSetPageAttributeRequest;
+        HXR_REGISTER_CALLBACK RegisterCallbackRequest;
+        HXR_UNREGISTER_CALLBACK UnregisterCallbackRequest;
+        HXR_GET_PROCESS_FIELD GetProcessFieldRequest;
+        HXR_SET_PROCESS_FIELD SetProcessFieldRequest;
+        HXR_GET_TOKEN_FIELD GetTokenFieldRequest;
+        HXR_SET_TOKEN_FIELD SetTokenFieldRequest;
+        HXR_GET_THREAD_FIELD GetThreadFieldRequest;
+        HXR_SET_THREAD_FIELD SetThreadFieldRequest;
+        HXR_MSR_OPERATION MsrIoRequest;
+        HXR_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionRequest;
+    };
 } HX_REQUEST_RESPONSE, * PHX_REQUEST_RESPONSE;
 
 #pragma pack(pop)
@@ -597,9 +685,6 @@ typedef struct _HX_REQUEST_RESPONSE {
 BOOL HxIsError(PHX_RESULT Error);
 
 __declspec(dllexport) BOOL HxGetStatus(PHXS_STATUS Response);
-
-__declspec(dllexport) BOOL HxpResponseFromRaw(PHX_REQUEST_RESPONSE RequestResponse, PVOID Response);
-__declspec(dllexport) PHX_REQUEST_RESPONSE HxpRawFromRequest(HX_SERVICE_FUNCTION Function, PVOID Request);
 
 __declspec(dllexport) INT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse);
 
