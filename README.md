@@ -80,25 +80,30 @@ It works for C, too.
 - All in one header file.
 - NT-style naming to feel right at home.
 ```c
-HXR_OPEN_PROCESS open = {
-    .Id = 6892,
-    .OpenType = HxOpenHandle,
+HX_REQUEST_RESPONSE reqResp = {
+    .Call.ServiceFunction = HxSvcOpenProcess,
+    .OpenObjectRequest = {
+        .AddressOrId = 4,
+        .OpenType = HxOpenHypervisor
+    },
 };
-
-PHX_REQUEST_RESPONSE raw = HxpRawFromRequest(HxSvcOpenProcess, &open);
 
 if (HxpTrap(raw) == -1) {
     printf("hv not loaded");
     return 1;
 }
 
-HXS_OPEN_OBJECT_RESPONSE process;
-HX_ERROR error = HxpResponseFromRaw(raw, &process);
-if (HxIsError(&error)) {
-    printf("fail");
+if (HxpTrap(reqResp) != 0) {
+    printf("Hypervisor is not loaded");
+    return -1;
 }
 
-TerminateProcess(process.Address, 0); // op access rights
+if (HxIsError(&reqResp->Result)) {
+   printf("Failed: %d, %d\n", reqResp->Result.ErrorCode, reqResp->Result.ErrorReason);
+   return 1;
+}
+
+TerminateProcess(reqResp.OpenObjectResponse.Address, 0); // op access rights
 ```
 
 Hope you got our point. We are trying to make things easier, not harder.
