@@ -51,8 +51,9 @@ static DISPATCH_TABLE: [[VmcallHandler; 16]; DISPATCH_TABLE_MAX] = [
         |x| { memory_services::allocate_memory(AllocateMemoryRequest::from_raw(x)) },
         |x| { memory_services::free_memory(FreeMemoryRequest::from_raw(x)) },
         |x| { memory_services::get_set_page_attribute(PageAttributeRequest::from_raw(x)) },
-        |x| { memory_services::map_va_to_pa(MapVaToPaRequest::from_raw(x)) },
-        |x| { memory_services::translate_address(TranslateAddressRequest::from_raw(x)) }
+        |x| { memory_services::map_va_to_pa(MapRmdRequest::from_raw(x)) },
+        |x| { memory_services::translate_address(TranslateAddressRequest::from_raw(x)) },
+        |x| { memory_services::describe_memory(DescribeMemoryRequest::from_raw(x)) }
     ),
     hyper_row!(
         |x| { thread_services::open_thread_sync(OpenThreadRequest::from_raw(x)) },

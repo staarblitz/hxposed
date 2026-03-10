@@ -1,6 +1,9 @@
 #pragma once
 #include <Windows.h>
 
+// incredible
+#pragma comment(linker, "/EXPORT:HxpTrap")
+
 //  HXR Stands for HxRequest.
 //  HXS Stands for HxResponse.
 
@@ -360,8 +363,12 @@ typedef struct _HXS_GET_SET_PAGE_ATTRIBUTE {
 } HXS_GET_SET_PAGE_ATTRIBUTE, * PHXS_GET_SET_PAGE_ATTRIBUTE;
 
 typedef struct _HXS_ALLOCATE_MEMORY {
-    PVOID SystemVA;
+    HX_RMD RawMemoryDescriptor;
 } HXS_ALLOCATE_MEMORY, * PHXS_ALLOCATE_MEMORY;
+
+typedef struct _HXS_DESCRIBE_MEMORY {
+    HX_RMD RawMemoryDescriptor;
+} HXS_DESCRIBE_MEMORY, * PHXS_DESCRIBE_MEMORY;
 
 typedef struct _HXS_TRANSLATE_ADDRESS {
     UINT64 PhysicalAddress;
@@ -434,17 +441,17 @@ enum {
 
 typedef UINT64 HX_PRIVILEGED_INSTRUCTION;
 enum {
-    Hlt = 0,
-    MovToCr8 = 1,
-    MovToCr3 = 2,
-    MovFromCr8 = 3,
-    MovFromCr3 = 4,
-    Lgdt = 5,
-    Lidt = 6,
-    Sgdt = 7,
-    Sidt = 8,
-    Cli = 9,
-    Sti = 10
+    HxPiHlt = 0,
+    HxPiMovToCr8 = 1,
+    HxPiMovToCr3 = 2,
+    HxPiMovFromCr8 = 3,
+    HxPiMovFromCr3 = 4,
+    HxPiLgdt = 5,
+    HxPiLidt = 6,
+    HxPiSgdt = 7,
+    HxPiSidt = 8,
+    HxPiCli = 9,
+    HxPiSti = 10
 };
 
 typedef struct _HXS_EXECUTE_PRIVILEGED {
@@ -458,7 +465,7 @@ typedef struct _HXS_EXECUTE_PRIVILEGED {
 } HXS_EXECUTE_PRIVILEGED, * PHXS_EXECUTE_PRIVILEGED;
 
 typedef struct _HXS_MSR_OPERATION {
-    UINT64 Msr
+    UINT64 Msr;
 } HXS_MSR_OPERATION, *PHXS_MSR_OPERATION;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
@@ -477,13 +484,13 @@ typedef struct _HXR_FREE_MEMORY {
     HX_RMD Object;
 } HXR_FREE_MEMORY, *PHXR_FREE_MEMORY;
 
-typedef struct _HXR_MAP_VA_TO_PA {
+typedef struct _HXR_MAP_RAW_MEMORY_DESCRIPTOR {
     HX_RMD MemoryDescriptor;
     HX_PROCESS AddressSpace;
     PVOID MapAddress;
     UINT64 _PAD;
     HX_MAP_OPERATION Operation;
-} HXR_MAP_VA_TO_PA, *PHXR_MAP_VA_TO_PA;
+} HXR_MAP_RAW_MEMORY_DESCRIPTOR, *PHXR_MAP_RAW_MEMORY_DESCRIPTOR;
 
 typedef struct _HXR_GET_SET_PAGE_ATTRIBUTE {
     HX_PROCESS AddressSpace;
@@ -494,9 +501,14 @@ typedef struct _HXR_GET_SET_PAGE_ATTRIBUTE {
 } HXR_GET_SET_PAGE_ATTRIBUTE, *PHXR_GET_SET_PAGE_ATTRIBUTE;
 
 typedef struct _HXR_TRANSLATE_ADDRESS {
-    UINT64 AddressSpace;
+    HX_PROCESS AddressSpace;
     UINT64 VirtualAddress;
 } HXR_TRANSLATE_ADDRESS, *PHXR_TRANSLATE_ADDRESS;
+
+typedef struct _HXR_DESCRIBE_MEMORY {
+    UINT64 PhysicalAddress;
+    UINT32 Size;
+} HXR_DESCRIBE_MEMORY, *PHXR_DESCRIBE_MEMORY;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
@@ -579,39 +591,33 @@ typedef struct _HXR_MSR_OPERATION {
 ///////////////////////////////////////////////////////////////////////////////////////// END CPU/IO
 
 typedef enum _HX_SERVICE_FUNCTION {
-    /* General */
     HxSvcGetState = 0x0,
 
-    /* Process Operations */
     HxSvcOpenProcess = 0x10,
     HxSvcCloseProcess = 0x11,
     HxSvcGetProcessField = 0x12,
     HxSvcSetProcessField = 0x13,
 
-    /* Events */
     HxSvcRegisterNotifyEvent = 0x20,
     HxSvcUnregisterNotifyEvent = 0x21,
 
-    /* Memory Management */
     HxSvcAllocateMemory = 0x30,
     HxSvcFreeMemory = 0x31,
     HxSvcGetSetPageAttribute = 0x32,
-    HxSvcMapVaToPa = 0x33,
+    HxSvcMapRawMemoryDescriptor = 0x33,
     HxSvcTranslateAddress = 0x34,
+    HxSvcDescribeMemory = 0x35,
 
-    /* Thread Operations */
     HxSvcOpenThread = 0x40,
     HxSvcCloseThread = 0x41,
     HxSvcGetThreadField = 0x42,
     HxSvcSetThreadField = 0x43,
 
-    /* Token Operations */
     HxSvcOpenToken = 0x50,
     HxSvcCloseToken = 0x51,
     HxSvcGetTokenField = 0x53,
     HxSvcSetTokenField = 0x54,
 
-    /* Privileged Operations */
     HxSvcMsrIo = 0x60,
     HxSvcExecutePrivilegedInstruction = 0x61,
     HxSvcInterProcessorInterrupt = 0x62
@@ -650,31 +656,45 @@ typedef struct _HX_REQUEST_RESPONSE {
 
         HXS_STATUS StatusResponse;
         HXS_OPEN_OBJECT_RESPONSE OpenObjectResponse;
+
         HXS_GET_SET_PAGE_ATTRIBUTE GetSetPageAttributeResponse;
         HXS_ALLOCATE_MEMORY AllocateMemoryResponse;
+        HXS_DESCRIBE_MEMORY DescribeMemoryResponse;
+        HXS_TRANSLATE_ADDRESS TranslateAddressResponse;
+
         HXS_REGISTER_CALLBACK RegisterCallbackResponse;
+
         HXS_GET_PROCESS_FIELD GetProcessFieldResponse;
         HXS_GET_TOKEN_FIELD GetTokenFieldResponse;
         HXS_GET_THREAD_FIELD GetThreadFieldResponse;
-        HXS_TRANSLATE_ADDRESS TranslateAddressResponse;
+
         HXS_MSR_OPERATION MsrIoResponse;
         HXS_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionResponse;
 
+
+
         HXR_OPEN_OBJECT OpenObjectRequest;
         HXR_CLOSE_OBJECT CloseObjectRequest;
+
         HXR_ALLOCATE_MEMORY AllocateMemoryRequest;
         HXR_FREE_MEMORY FreeMemoryRequest;
-        HXR_MAP_VA_TO_PA MapVaToPaRequest;
+        HXR_MAP_RAW_MEMORY_DESCRIPTOR MapRawMemoryDescriptorRequest;
+        HXR_DESCRIBE_MEMORY DescribeMemoryRequest;
         HXR_TRANSLATE_ADDRESS TranslateAddressRequest;
         HXR_GET_SET_PAGE_ATTRIBUTE GetSetPageAttributeRequest;
+
         HXR_REGISTER_CALLBACK RegisterCallbackRequest;
         HXR_UNREGISTER_CALLBACK UnregisterCallbackRequest;
+
         HXR_GET_PROCESS_FIELD GetProcessFieldRequest;
         HXR_SET_PROCESS_FIELD SetProcessFieldRequest;
+
         HXR_GET_TOKEN_FIELD GetTokenFieldRequest;
         HXR_SET_TOKEN_FIELD SetTokenFieldRequest;
+
         HXR_GET_THREAD_FIELD GetThreadFieldRequest;
         HXR_SET_THREAD_FIELD SetThreadFieldRequest;
+
         HXR_MSR_OPERATION MsrIoRequest;
         HXR_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionRequest;
     };

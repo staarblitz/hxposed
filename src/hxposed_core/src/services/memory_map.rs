@@ -16,7 +16,6 @@ use core::ops::{Deref, DerefMut};
 ///
 /// You can access the inner fields, but it's recommended for you to not do that.
 pub struct HxMemoryDescriptor<T> {
-    pub memory_type: MemoryType,
     pub rmd: RmdObject,
     pub length: u32,
     phantom: PhantomData<T>,
@@ -68,7 +67,7 @@ impl<'a, T> Drop for HxMemoryGuard<'a, T> {
 
 impl<'a, T> HxMemoryGuard<'a, T> {
     fn unmap(&mut self) {
-        MapVaToPaRequest {
+        MapRmdRequest {
             object: self.kernel_mem.rmd,
             addr_space: self.process.addr,
             map_addr: self.va.into(),
@@ -93,7 +92,7 @@ impl<T> HxMemoryDescriptor<T> {
         process: &'a HxProcess,
         address: u64,
     ) -> Result<HxMemoryGuard<T>, HypervisorError> {
-        MapVaToPaRequest {
+        MapRmdRequest {
             addr_space: process.addr,
             object: self.rmd,
             map_addr: address,
@@ -109,36 +108,22 @@ impl<T> HxMemoryDescriptor<T> {
         })
     }
 
-    pub fn describe_existing(pa: u64, length: u32) -> Self {
-        Self {
-            memory_type: MemoryType::NonPagedPool,
-            rmd: pa,
-            length,
-            phantom: PhantomData,
-            owns: false,
-        }
-    }
-
     ///
     /// # New
     ///
-    /// This is an abstraction over the kernel `_MDL` structure.
+    /// A new instance of [`HxMemoryDescriptor`]. Abstraction over `_MDL`
+    ///
+    /// ## Arguments
+    /// * `rmd` - Raw Memory Descriptor object.
+    /// * `length` - Length of the described data
     ///
     /// ## Remarks
     /// - Memory is NOT allocated upon return.
     /// - You should use [`HxMemory::alloc`] to allocate physical memory.
     /// - This merely returns an instance of [`HxMemoryDescriptor`]. No kernel involved.
-    ///
-    /// ## Arguments
-    /// * `mdl_addr` - address of MDL object.
-    /// * `length` - Length of the range.
-    /// * `pool` - Kind of pool to allocate from. See [`MemoryPool`].
-    /// * `state` - Current state of the descriptor. <strike>To describe a physical range manually, set this to [`KernelMemoryState::None`]. See [`KernelMemoryState`]</strike>.
-    ///
-    pub fn new(memory_type: MemoryType, system_pa: u64, length: u32) -> Self {
+    pub fn new(rmd: u64, length: u32) -> Self {
         Self {
-            memory_type,
-            rmd: system_pa,
+            rmd,
             length,
             phantom: PhantomData,
             owns: true

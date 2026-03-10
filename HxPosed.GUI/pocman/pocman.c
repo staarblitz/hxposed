@@ -1,8 +1,9 @@
 #include <stdio.h>
+#include <intrin.h>
 #include "hxposed.h"
 
 #define ZERO_BUF() memset(&reqResp, 0, sizeof(HX_REQUEST_RESPONSE))
-#define CHECK_FAIL() if (!CheckFail(&reqResp)) return 1
+#define CHECK_FAIL() if (CheckFail(&reqResp) != 0) return 1
 
 int CheckFail(PHX_REQUEST_RESPONSE reqResp) {
     if (HxpTrap(reqResp) != 0) {
@@ -28,7 +29,7 @@ int main()
     HX_REQUEST_RESPONSE reqResp = {
         .Call.ServiceFunction = HxSvcOpenProcess,
         .OpenObjectRequest = {
-            .AddressOrId = 4,
+            .AddressOrId = GetCurrentProcessId(),
             .OpenType = HxOpenHypervisor
         },
     };
@@ -63,15 +64,6 @@ int main()
         .Level = HxPsSigUnchecked,
         .Type = HxPsProtTypeNone,
     };
-
-    CHECK_FAIL();
-
-
-    printf("Testing HxSvcCloseProcess... ");
-    ZERO_BUF();
-
-    reqResp.Call.ServiceFunction = HxSvcCloseProcess;
-    reqResp.CloseObjectRequest.Address = proc;
 
     CHECK_FAIL();
 
@@ -154,4 +146,86 @@ int main()
     CHECK_FAIL();
 
     printf("=================[CPU/IO TESTS]===================\n");
+    printf("Testing HxSvcMsrIo... ");
+    ZERO_BUF();
+
+    reqResp.Call.ServiceFunction = HxSvcMsrIo;
+    reqResp.MsrIoRequest.Msr = 0x10;
+    reqResp.MsrIoRequest.Operation = HxMsrRead;
+
+    CHECK_FAIL();
+
+    printf("Testing HxSvcExecutePrivilegedInstruction... ");
+    ZERO_BUF();
+
+    reqResp.Call.ServiceFunction = HxSvcExecutePrivilegedInstruction;
+    reqResp.ExecutePrivilegedInstructionRequest.Instruction = HxPiCli;
+
+    CHECK_FAIL();
+
+    UINT64 eflags = __readeflags();
+    if (eflags & (1 << 9) != 1) {
+        printf("Interrupt flag isn't set!");
+        return 1;
+    }
+
+    ZERO_BUF();
+
+    reqResp.Call.ServiceFunction = HxSvcExecutePrivilegedInstruction;
+    reqResp.ExecutePrivilegedInstructionRequest.Instruction = HxPiSti;
+
+    CHECK_FAIL();
+
+    eflags = __readeflags();
+    if (eflags & (1 << 9) != 0) {
+        printf("Interrupt flag is still set!");
+        return 1;
+    }
+
+    printf("=================[MEMORY TESTS]===================\n");
+    printf("Testing HxSvcAllocateMemory... ");
+
+    reqResp.Call.ServiceFunction = HxSvcAllocateMemory;
+    reqResp.AllocateMemoryRequest.Pool = HxPoolNonPaged;
+    reqResp.AllocateMemoryRequest.Size = 4096;
+
+    CHECK_FAIL();
+
+    HX_RMD alloc = reqResp.AllocateMemoryResponse.RawMemoryDescriptor;
+
+    printf("Testing HxSvcMapRawMemoryDescriptor... ");
+    ZERO_BUF();
+
+    reqResp.Call.ServiceFunction = HxSvcMapRawMemoryDescriptor;
+    reqResp.MapRawMemoryDescriptorRequest.AddressSpace = proc;
+    reqResp.MapRawMemoryDescriptorRequest.MapAddress = 0x13370000;
+    reqResp.MapRawMemoryDescriptorRequest.Operation = HxMemMap;
+    reqResp.MapRawMemoryDescriptorRequest.MemoryDescriptor = alloc;
+
+    CHECK_FAIL();
+
+    PUINT64 hey = 0x13370000;
+    *hey = 0x2009;
+
+    printf("Testing HxSvcTranslateAddress... ");
+    ZERO_BUF();
+
+    reqResp.Call.ServiceFunction = HxSvcTranslateAddress;
+    reqResp.TranslateAddressRequest.AddressSpace = proc;
+    reqResp.TranslateAddressRequest.VirtualAddress = 0x13370000;
+
+    CHECK_FAIL();
+
+    printf("Testing HxSvcFreeMemory... ");
+    ZERO_BUF();
+
+    reqResp.Call.ServiceFunction = HxSvcFreeMemory;
+    reqResp.FreeMemoryRequest.Object = alloc;
+
+    CHECK_FAIL();
+
+    printf("=================[TESTS COMPLETED]===================\n");
+    printf("This tool includes only tests thatt are very less integrated with each other. Please use the GUI tool better tests.");
+
+    return 0;
 }

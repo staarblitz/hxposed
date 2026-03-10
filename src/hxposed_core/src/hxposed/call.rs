@@ -92,9 +92,11 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::OpenThread)
     }
 
-
-    pub(crate) fn mem_map() -> Self {
-        Self::new().with_func(ServiceFunction::MapVaToPa).with_extended_args_present(true)
+    pub(crate) fn describe_physical() -> Self {
+        Self::new().with_func(ServiceFunction::DescribePhysicalMemory)
+    }
+    pub(crate) fn rmd_map() -> Self {
+        Self::new().with_func(ServiceFunction::MapRawMemoryDescriptor).with_extended_args_present(true)
     }
 
     pub(crate) fn free_mem() -> Self {

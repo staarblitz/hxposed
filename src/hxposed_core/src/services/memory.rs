@@ -42,12 +42,13 @@ impl HxMemory {
     }
 
     pub fn translate_addr(
-        cr_context: u64,
+        // huh?
+        process: crate::services::process::HxProcess,
         addr: u64
     ) -> Result<u64, HypervisorError> {
         let k = TranslateAddressRequest {
             virtual_addr: addr,
-            addr_space: cr_context,
+            addr_space: process.addr,
         }.send()?;
 
         Ok(k.physical_addr)
@@ -93,7 +94,6 @@ impl HxMemory {
         let result = Self::alloc_raw(size_of::<T>() as _, memory_type)?;
 
         Ok(HxMemoryDescriptor::<T>::new(
-            memory_type,
             result,
             size_of::<T>() as _,
         ))
@@ -120,6 +120,6 @@ impl HxMemory {
     pub fn alloc_raw(size: u32, memory_type: MemoryType) -> Result<u64, HypervisorError> {
         Ok(AllocateMemoryRequest { size, memory_type }
             .send()?
-            .system_pa)
+            .rmd)
     }
 }

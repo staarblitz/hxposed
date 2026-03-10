@@ -14,8 +14,9 @@ pub enum ServiceFunction {
     AllocateMemory = 0b_0011_0000,
     FreeMemory = 0b_0011_0001,
     GetSetPageAttribute = 0b_0011_0010,
-    MapVaToPa = 0b_0011_0011,
+    MapRawMemoryDescriptor = 0b_0011_0011,
     TranslateAddress = 0b_0011_0100,
+    DescribePhysicalMemory = 0b_0011_0101,
 
     OpenThread = 0b_0100_0000,
     CloseThread = 0b_0100_0001,

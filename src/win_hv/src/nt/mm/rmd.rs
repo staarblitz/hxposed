@@ -34,6 +34,16 @@ impl Hash for RawMemoryDescriptor {
 }
 
 impl RawMemoryDescriptor {
+    pub fn describe_physical(pa: Pa, size: u32) -> Self {
+        Self {
+            pa,
+            size,
+            memory_type: MemoryType::NonOwned,
+            system_va: Va::from(0),
+            mapped_addrs: SpinMutex::new(Vec::new()),
+        }
+    }
+
     pub fn new_alloc(size: u32, memory_type: MemoryType) -> Self {
         // we need to be in 4096 byte bound. or we die
 
@@ -46,6 +56,7 @@ impl RawMemoryDescriptor {
             MemoryType::ContiguousPhysical => unsafe {
                 MmAllocateContiguousMemory(size as _, u64::MAX)
             },
+            _ => unreachable!()
         };
 
         Self {
@@ -113,6 +124,7 @@ impl RawMemoryDescriptor {
             MemoryType::ContiguousPhysical => unsafe {
                 MmFreeContiguousMemory(self.system_va.get_addr() as _)
             },
+            _ => {}
         }
     }
 

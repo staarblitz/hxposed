@@ -130,7 +130,16 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
 }
 
 pub fn translate_address(request: TranslateAddressRequest) -> HypervisorResponse {
-    let _ctx = Cr3Context::begin(request.addr_space);
+    let current = NtProcess::current();
+    let process = match current
+        .get_object_tracker_unchecked()
+        .get_open_process(request.addr_space)
+    {
+        Some(x) => x,
+        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+    };
+
+    let _cr3 = Cr3Context::begin(process.get_user_directory_table_base().into());
     let virt = Va::from(request.virtual_addr);
 
     unsafe {
@@ -181,7 +190,7 @@ pub fn translate_address(request: TranslateAddressRequest) -> HypervisorResponse
     }
 }
 
-pub fn map_va_to_pa(request: MapVaToPaRequest) -> HypervisorResponse {
+pub fn map_va_to_pa(request: MapRmdRequest) -> HypervisorResponse {
     // that's lame.
     // should I add a dispatcher?
     match request.operation {
@@ -202,7 +211,7 @@ pub fn map_va_to_pa(request: MapVaToPaRequest) -> HypervisorResponse {
     }
 }
 
-pub fn unmap_va(request: MapVaToPaRequest) -> HypervisorResponse {
+pub fn unmap_va(request: MapRmdRequest) -> HypervisorResponse {
     let process = NtProcess::from_ptr(request.addr_space as _);
     let tracker = process.get_object_tracker_unchecked();
     let rmd = match tracker.get_rmd(request.object) {
@@ -219,15 +228,28 @@ pub fn unmap_va(request: MapVaToPaRequest) -> HypervisorResponse {
     }
 }
 
+pub fn describe_memory(request: DescribeMemoryRequest) -> HypervisorResponse {
+    let process = NtProcess::current();
+    let tracker = process.get_object_tracker_unchecked();
+    tracker.add_rmd(RawMemoryDescriptor::describe_physical(
+        Pa::from(request.pa),
+        request.size
+    ));
+
+    DescribeMemoryResponse {
+        rmd: request.pa
+    }.into_raw()
+}
+
 pub fn allocate_memory(request: AllocateMemoryRequest) -> HypervisorResponse {
     let rmd = RawMemoryDescriptor::new_alloc(request.size, request.memory_type);
-    let ptr = rmd.system_va.get_addr();
+    let ptr: u64 = rmd.pa.into();
     NtProcess::current()
         .get_object_tracker_unchecked()
         .add_rmd(rmd);
 
     AllocateMemoryResponse {
-        system_pa: virt_to_phys(ptr as _),
+        rmd: ptr,
     }
     .into_raw()
 }

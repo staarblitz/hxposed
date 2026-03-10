@@ -1,8 +1,8 @@
-use crate::hxposed::{ProcessObject, RmdObject};
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::memory::*;
+use crate::hxposed::{ProcessObject, RmdObject};
 use bit_field::BitField;
 use core::ops::{BitAnd, Shl};
 
@@ -13,22 +13,28 @@ pub struct AllocateMemoryRequest {
 }
 
 #[derive(Debug)]
+pub struct DescribeMemoryRequest {
+    pub size: u32,
+    pub pa: u64,
+}
+
+#[derive(Debug)]
 pub struct TranslateAddressRequest {
-    pub addr_space: u64,
-    pub virtual_addr: u64
+    pub addr_space: ProcessObject,
+    pub virtual_addr: u64,
 }
 
 #[derive(Debug)]
 pub struct FreeMemoryRequest {
-    pub obj: RmdObject
+    pub obj: RmdObject,
 }
 
 #[derive(Debug)]
-pub struct MapVaToPaRequest {
+pub struct MapRmdRequest {
     pub addr_space: ProcessObject,
     pub object: RmdObject,
     pub map_addr: u64,
-    pub operation: MapOperation
+    pub operation: MapOperation,
 }
 
 #[derive(Debug)]
@@ -43,6 +49,7 @@ pub struct PageAttributeRequest {
 pub enum MemoryType {
     NonPagedPool,
     ContiguousPhysical,
+    NonOwned,
 }
 
 impl Into<u64> for MemoryType {
@@ -50,6 +57,7 @@ impl Into<u64> for MemoryType {
         match self {
             MemoryType::NonPagedPool => 0,
             MemoryType::ContiguousPhysical => 1,
+            MemoryType::NonOwned => 2,
         }
     }
 }
@@ -67,14 +75,14 @@ impl From<u64> for MemoryType {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MapOperation {
     Map,
-    Unmap
+    Unmap,
 }
 
 impl MapOperation {
     pub const fn into_bits(self) -> u64 {
         match self {
             MapOperation::Map => 0,
-            MapOperation::Unmap => 1
+            MapOperation::Unmap => 1,
         }
     }
 
@@ -82,7 +90,7 @@ impl MapOperation {
         match value {
             0 => MapOperation::Map,
             1 => MapOperation::Unmap,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -97,7 +105,7 @@ impl PageAttributeOperation {
     pub const fn into_bits(self) -> u64 {
         match self {
             PageAttributeOperation::Set => 0,
-            PageAttributeOperation::Get => 1
+            PageAttributeOperation::Get => 1,
         }
     }
 
@@ -127,7 +135,7 @@ impl PagingType {
             2 => Self::Pdp(Va::from(value)),
             3 => Self::Pd(Va::from(value)),
             4 => Self::Pt(Va::from(value)),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -137,7 +145,7 @@ impl PagingType {
             PagingType::Pml4(x) => (1, x.into()),
             PagingType::Pdp(x) => (2, x.into()),
             PagingType::Pd(x) => (3, x.into()),
-            PagingType::Pt(x) => (4, x.into())
+            PagingType::Pt(x) => (4, x.into()),
         }
     }
 }
@@ -154,8 +162,26 @@ impl VmcallRequest for FreeMemoryRequest {
     }
 
     fn from_raw(request: &HypervisorRequest) -> Self {
+        Self { obj: request.arg1 }
+    }
+}
+
+impl VmcallRequest for DescribeMemoryRequest {
+    type Response = DescribeMemoryResponse;
+
+    fn into_raw(self) -> HypervisorRequest {
+        HypervisorRequest {
+            call: HypervisorCall::describe_physical(),
+            arg1: self.pa,
+            arg2: self.size as _,
+            ..Default::default()
+        }
+    }
+
+    fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            obj: request.arg1
+            pa: request.arg1,
+            size: request.arg2 as _,
         }
     }
 }
@@ -200,12 +226,12 @@ impl VmcallRequest for TranslateAddressRequest {
     }
 }
 
-impl VmcallRequest for MapVaToPaRequest {
+impl VmcallRequest for MapRmdRequest {
     type Response = EmptyResponse;
 
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
-            call: HypervisorCall::mem_map(),
+            call: HypervisorCall::rmd_map(),
             arg1: self.object,
             arg2: self.addr_space,
             arg3: self.map_addr,
@@ -246,7 +272,10 @@ impl VmcallRequest for PageAttributeRequest {
             addr_space: request.arg1,
             operation: PageAttributeOperation::from_bits(request.arg2),
             type_bits: request.arg3,
-            paging_type: PagingType::from_raw_enum(request.extended_arg1 as _, request.extended_arg2 as _),
+            paging_type: PagingType::from_raw_enum(
+                request.extended_arg1 as _,
+                request.extended_arg2 as _,
+            ),
         }
     }
 }
@@ -326,7 +355,6 @@ impl Va {
     pub fn get_pml5_index(&self) -> u16 {
         self.0.get_bits(48..57) as u16
     }
-
 
     pub const fn get_page_addr(self) -> u64 {
         self.0 >> 12

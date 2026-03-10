@@ -1,5 +1,6 @@
 use crate::hxposed::call::HypervisorResult;
 use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::RmdObject;
 
 #[derive(Clone)]
 pub struct PageAttributeResponse {
@@ -13,8 +14,28 @@ pub struct TranslateAddressResponse {
 
 #[derive(Clone)]
 pub struct AllocateMemoryResponse {
-    /// Also the RmdObject
-    pub system_pa: u64
+    pub rmd: RmdObject
+}
+
+#[derive(Clone)]
+pub struct DescribeMemoryResponse {
+    pub rmd: RmdObject
+}
+
+impl VmcallResponse for DescribeMemoryResponse {
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
+            rmd: raw.arg1
+        }
+    }
+
+    fn into_raw(self) -> HypervisorResponse {
+        HypervisorResponse {
+            result: HypervisorResult::ok(),
+            arg1: self.rmd,
+            ..Default::default()
+        }
+    }
 }
 
 impl VmcallResponse for TranslateAddressResponse {
@@ -36,14 +57,14 @@ impl VmcallResponse for TranslateAddressResponse {
 impl VmcallResponse for AllocateMemoryResponse {
     fn from_raw(raw: HypervisorResponse) -> Self {
         Self {
-            system_pa: raw.arg1
+            rmd: raw.arg1
         }
     }
 
     fn into_raw(self) -> HypervisorResponse {
         HypervisorResponse {
             result: HypervisorResult::ok(),
-            arg1: self.system_pa,
+            arg1: self.rmd,
             ..Default::default()
         }
     }
