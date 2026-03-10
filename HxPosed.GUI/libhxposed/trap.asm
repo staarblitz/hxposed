@@ -17,6 +17,7 @@ HxpTrap proc
 	pinsrq xmm4, rsi, 0
 	pinsrq xmm4, rdi, 1
 	pinsrq xmm5, r12, 0
+	pinsrq xmm5, rbx, 1
 
 	; in our hypervisor calling convention, the args are in this order:
 	; r8, r9, r10
@@ -49,23 +50,26 @@ make_the_call:
 	cmp rcx, 2009h	; the normal cpuid behavior resets the rcx. in this case, it should stay the same.
 	je call_ok	
 	mov rax, -1	; hypervisor did NOT catch our trap
-	ret
+	jmp return
 
 call_ok:
+	xor rax, rax ; good to go!
 	mov qword ptr [rdi + 8], rsi	; save result to second field of HX_REQUEST_RESPONSE
-									; use esi instead of rsi, because HX_RESPONSE is 4 bytes long
 
 	; fetch regs returned by hypervisor
 	mov qword ptr [rdi + 16], r8
 	mov qword ptr [rdi + 24], r9
 	mov qword ptr [rdi + 32], r10
 	
+return:
+
 	; get non-volatile rsi, r12, and rdi back
 	pextrq rsi, xmm4, 0
 	pextrq rdi, xmm4, 1
 	pextrq r12, xmm5, 0
+	pextrq rbx, xmm5, 1
 	
-	xor rax, rax ; good to go!
+
 	ret
 
 
