@@ -13,6 +13,9 @@
   <Project Path="HxPosed.GUI/HxPosed.GUI.csproj">
     <BuildType Solution="StaticDbg|*" Project="Release" />
   </Project>
+  <Project Path="HxPosed.Tests/HxPosed.Tests.csproj" Id="a6577536-5c89-485a-b772-949d9a269464">
+    <BuildType Solution="StaticDbg|*" Project="Release" />
+  </Project>
   <Project Path="libhxposed/libhxposed.vcxproj" Id="cf554df4-2e49-4c91-814a-1058abf4e44a" />
   <Project Path="pocman/pocman.vcxproj" Id="a4d59fef-2808-468d-b06e-01dc6ad6fdc6">
     <BuildType Solution="StaticDbg|*" Project="Release" />

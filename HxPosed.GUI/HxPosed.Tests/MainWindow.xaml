@@ -1,0 +1,52 @@
+﻿<Window x:Class="HxPosed.Tests.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HxPosed.Tests"
+        mc:Ignorable="d"
+        Title="HxPosed.Tests" Height="450" Width="800">
+    <Grid>
+        <TabControl>
+            <TabItem Header="Processes">
+                <ListView d:ItemsSource="{d:SampleData ItemCount=5}">
+                    <ListView.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Kill"></MenuItem>
+                            <MenuItem Header="View Protection"></MenuItem>
+                            <MenuItem Header="View Mitigation"></MenuItem>
+                            <MenuItem Header="View Token"></MenuItem>
+                            <MenuItem Header="View Signature Levels"></MenuItem>
+                        </ContextMenu>
+                    </ListView.ContextMenu>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Image Source="{Binding Icon}" Width="16" Height="16"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Name" Width="160" DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="PID" Width="60" DisplayMemberBinding="{Binding Id}"/>
+                            <GridViewColumn Header="Threads" Width="80" DisplayMemberBinding="{Binding Threads.Count}"/>
+                            <GridViewColumn Header="Protection" Width="200" DisplayMemberBinding="{Binding Protection}"/>
+                            <GridViewColumn Header="Mitigations" Width="200" DisplayMemberBinding="{Binding Mitigations}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </TabItem>
+            <TabItem Header="Threads">
+
+            </TabItem>
+            <TabItem Header="Memory">
+
+            </TabItem>
+            <TabItem Header="CPU">
+
+            </TabItem>
+        </TabControl>
+
+    </Grid>
+</Window>

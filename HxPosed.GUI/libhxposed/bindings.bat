@@ -1,0 +1,1 @@
+ClangSharpPInvokeGenerator -f hxposed.h -n HxPosed.PInvoke -o HxPosed.cs
