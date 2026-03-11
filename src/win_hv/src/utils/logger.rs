@@ -2,10 +2,11 @@ use crate::print;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{format, vec};
+use com_logger::Serial;
 use core::cell::OnceCell;
 use core::fmt::Write;
 use log::{Metadata, Record};
-use spin::Mutex;
+use spin::{Lazy, Mutex};
 
 struct LogBuffer {
     buffer: Vec<u8>,
@@ -47,6 +48,7 @@ impl Write for LogBuffer {
 pub struct NtLogger {
     log_buffer: Mutex<OnceCell<LogBuffer>>,
     pub is_init: bool,
+    com: Lazy<Mutex<Serial>>,
 }
 
 unsafe impl Send for NtLogger {}
@@ -57,6 +59,7 @@ impl NtLogger {
         Self {
             log_buffer: Mutex::new(OnceCell::new()),
             is_init: false,
+            com: Lazy::new(|| Mutex::new(Serial::new(0x3F8))),
         }
     }
 
@@ -104,6 +107,7 @@ impl log::Log for NtLogger {
         {
             let mut lock = self.log_buffer.lock();
             let _ = lock.get_mut().unwrap().write_str(args.as_str());
+            let _ = self.com.lock().write_str(args.as_str());
         }
 
         print!("{}", args);
