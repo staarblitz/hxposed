@@ -2,6 +2,7 @@ use crate::hyper_row;
 use crate::nt::process::NtProcess;
 use crate::services::*;
 use hv::hypervisor::host::Guest;
+use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::requests::io::*;
@@ -117,11 +118,27 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         ..Default::default()
     };
 
+    log::info!(
+        "Hypercall:\n Call: {:?}\nArg1: {:x}\nArg2: {:x}\nArg3: {:x}",
+        request.call,
+        request.arg1,
+        request.arg2,
+        request.arg3
+    );
+
     if request.call.extended_args_present() {
         request.extended_arg1 = guest.regs().xmm0.into();
         request.extended_arg2 = guest.regs().xmm1.into();
         request.extended_arg3 = guest.regs().xmm2.into();
         request.extended_arg4 = guest.regs().xmm3.into();
+
+        log::info!(
+            "Hypercall has extended arguments.\nEArg1: {:x}, EArg2: {:x}\nEArg3: {:x}\nEArg4: {:x}",
+            request.extended_arg1,
+            request.extended_arg2,
+            request.extended_arg3,
+            request.extended_arg4
+        );
     }
 
     let function = info.func().into_bits() as usize;
@@ -134,7 +151,20 @@ pub(crate) fn vmcall_handler(guest: &mut dyn Guest, info: HypervisorCall) -> boo
         return true;
     }
 
+    log::info!("Dispatching call category: {}, id: {}", category, func);
+
     let result = DISPATCH_TABLE[category][func](&request);
+
+    log::info!(
+        "Error of call: {}",
+        HypervisorError::from_response(result.clone())
+    );
+    log::info!(
+        "Result of\nArg1: {:x}\nArg2: {:x}\nArg3: {:x}",
+        result.arg1,
+        result.arg2,
+        result.arg3
+    );
 
     guest.write_response(result);
     true

@@ -14,10 +14,10 @@ option casemap:none
 ; 0 if hypervisor catched the trap
 HxpTrap proc
 	; first, let's respect to ms x64 abi.
-	pinsrq xmm4, rsi, 0
-	pinsrq xmm4, rdi, 1
-	pinsrq xmm5, r12, 0
-	pinsrq xmm5, rbx, 1
+	push rsi
+	push rdi
+	push rbx
+	push r10
 
 	; in our hypervisor calling convention, the args are in this order:
 	; r8, r9, r10
@@ -29,7 +29,7 @@ HxpTrap proc
 	mov r9, [rdi + 24]
 	mov r10, [rdi + 32]
 
-	mov rsi, [rdi]	; dereference the HX_CALL inside HX_REQUEST_RESPONSE
+	mov rsi, qword ptr [rdi]	; dereference the HX_CALL inside HX_REQUEST_RESPONSE
 
 	; check if extended args are present
 	bt rsi, 17
@@ -64,10 +64,10 @@ call_ok:
 return:
 
 	; get non-volatile rsi, r12, and rdi back
-	pextrq rsi, xmm4, 0
-	pextrq rdi, xmm4, 1
-	pextrq r12, xmm5, 0
-	pextrq rbx, xmm5, 1
+	pop r10
+	pop rbx
+	pop rdi
+	pop rsi
 	
 
 	ret

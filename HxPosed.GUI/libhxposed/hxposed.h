@@ -344,7 +344,7 @@ typedef enum _HXS_HYPERVISOR_STATUS {
 } HXS_HYPERVISOR_STATUS;
 
 typedef struct _HXS_OPEN_OBJECT_RESPONSE {
-    PVOID Address;
+    HX_OBJECT_TYPE Object;
 } HXS_OPEN_OBJECT_RESPONSE, * PHXS_OPEN_OBJECT_RESPONSE;
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN STATUS
@@ -637,22 +637,22 @@ typedef struct _HX_CALL {
 } HX_CALL, * PHX_CALL;
 
 typedef struct _HX_REQUEST_RESPONSE {
-    HX_CALL Call;
-    HX_RESULT Result;
+    HX_CALL Call;                       // 0
+    HX_RESULT Result;                   // 8
 
     union {
         struct {
-            UINT64 Arg1;
-            UINT64 Arg2;
-            UINT64 Arg3;
+            UINT64 Arg1;                // 16
+            UINT64 Arg2;                // 24
+            UINT64 Arg3;                // 32
 
-            UINT64 Padding;
+            UINT64 Padding;             // 40
 
-            __uint128_t ExtendedArg1;
-            __uint128_t ExtendedArg2;
-            __uint128_t ExtendedArg3;
-            __uint128_t ExtendedArg4;
-        };
+            __uint128_t ExtendedArg1;   // 48
+            __uint128_t ExtendedArg2;   // 64
+            __uint128_t ExtendedArg3;   // 80
+            __uint128_t ExtendedArg4;   // 96
+        };                              // total 112
 
         HXS_STATUS StatusResponse;
         HXS_OPEN_OBJECT_RESPONSE OpenObjectResponse;

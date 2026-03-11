@@ -1,6 +1,7 @@
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.Runtime.InteropServices;
+using System.Security.Policy;
 
 namespace HxPosed.PInvoke
 {
@@ -1212,6 +1213,8 @@ namespace HxPosed.PInvoke
 
     public partial struct _HX_PROCESS_PROTECTION
     {
+        public override string ToString() => $"{(_HX_PROCESS_PROTECTION_TYPE)Type} - {(_HX_PROCESS_PROTECTION_SIGNER)Signer}";
+
         [NativeTypeName("__AnonymousRecord_hxposed_L198_C5")]
         public _Anonymous_e__Union Anonymous;
 
@@ -1335,6 +1338,7 @@ namespace HxPosed.PInvoke
 
         public partial struct MitigationFlags2Values
         {
+
             public uint _bitfield;
 
             [NativeTypeName("ULONG : 1")]
@@ -2319,8 +2323,8 @@ namespace HxPosed.PInvoke
 
     public unsafe partial struct _HXS_OPEN_OBJECT_RESPONSE
     {
-        [NativeTypeName("PVOID")]
-        public void* Address;
+        [NativeTypeName("_HX_OBJECT_TYPE")]
+        public _HX_OBJECT_TYPE Object;
     }
 
     public partial struct _HXS_STATUS
@@ -3546,10 +3550,90 @@ namespace HxPosed.PInvoke
 
         [DllImport("libhxposed.dll")]
         [return: NativeTypeName("PVOID")]
-        public static extern void* HxReadAsyncResponseSlice([NativeTypeName("UINT64")] ulong Offset, [NativeTypeName("PUINT32")] uint* Length);
+        public static extern void* HxReadAsyncResponseSlice([NativeTypeName("UINT64")] ulong Offset, [NativeTypeName("PUINT32")] uint* Count);
 
         [DllImport("libhxposed.dll")]
         [return: NativeTypeName("PVOID")]
         public static extern void* HxReadAsyncResponseType([NativeTypeName("UINT64")] ulong Offset);
+
+        [DllImport("ntdll.dll")]
+        public static extern uint NtQuerySystemInformation(
+    int SystemInformationClass,
+    IntPtr SystemInformation,
+    int SystemInformationLength,
+    out int ReturnLength);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct UNICODE_STRING
+        {
+            public ushort Length;
+            public ushort MaximumLength;
+            public IntPtr Buffer;
+        }
+
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SYSTEM_PROCESS_INFORMATION
+        {
+            public uint NextEntryOffset;
+            public uint NumberOfThreads;
+            public long WorkingSetPrivateSize;
+            public uint HardFaultCount;
+            public uint NumberOfThreadsHighWatermark;
+            public ulong CycleTime;
+            public long CreateTime;
+            public long UserTime;
+            public long KernelTime;
+            public UNICODE_STRING ImageName;
+            public int BasePriority;
+            public IntPtr UniqueProcessId;
+            public IntPtr InheritedFromUniqueProcessId;
+            public uint HandleCount;
+            public uint SessionId;
+            public UIntPtr UniqueProcessKey;
+            public UIntPtr PeakVirtualSize;
+            public UIntPtr VirtualSize;
+            public uint PageFaultCount;
+            public UIntPtr PeakWorkingSetSize;
+            public UIntPtr WorkingSetSize;
+            public UIntPtr QuotaPeakPagedPoolUsage;
+            public UIntPtr QuotaPagedPoolUsage;
+            public UIntPtr QuotaPeakNonPagedPoolUsage;
+            public UIntPtr QuotaNonPagedPoolUsage;
+            public UIntPtr PagefileUsage;
+            public UIntPtr PeakPagefileUsage;
+            public UIntPtr PrivatePageCount;
+            public long ReadOperationCount;
+            public long WriteOperationCount;
+            public long OtherOperationCount;
+            public long ReadTransferCount;
+            public long WriteTransferCount;
+            public long OtherTransferCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SYSTEM_THREAD_INFORMATION
+        {
+            public long KernelTime;
+            public long UserTime;
+            public long CreateTime;
+            public uint WaitTime;
+            public IntPtr StartAddress;
+            public CLIENT_ID ClientId;
+            public int Priority;
+            public int BasePriority;
+            public uint ContextSwitches;
+            public uint ThreadState;
+            public uint WaitReason;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CLIENT_ID
+        {
+            public IntPtr UniqueProcess;
+            public IntPtr UniqueThread;
+        }
+
+        public const int SystemProcessInformation = 5;
     }
 }

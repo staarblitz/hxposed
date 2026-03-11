@@ -9,7 +9,7 @@
     <Grid>
         <TabControl>
             <TabItem Header="Processes">
-                <ListView d:ItemsSource="{d:SampleData ItemCount=5}">
+                <ListView ItemsSource="{Binding Processes}">
                     <ListView.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Kill"></MenuItem>
@@ -28,11 +28,10 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Header="Name" Width="160" DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="Name" Width="160" DisplayMemberBinding="{Binding ExeName}"/>
                             <GridViewColumn Header="PID" Width="60" DisplayMemberBinding="{Binding Id}"/>
                             <GridViewColumn Header="Threads" Width="80" DisplayMemberBinding="{Binding Threads.Count}"/>
                             <GridViewColumn Header="Protection" Width="200" DisplayMemberBinding="{Binding Protection}"/>
-                            <GridViewColumn Header="Mitigations" Width="200" DisplayMemberBinding="{Binding Mitigations}"/>
                         </GridView>
                     </ListView.View>
                 </ListView>
@@ -44,6 +43,9 @@
 
             </TabItem>
             <TabItem Header="CPU">
+
+            </TabItem>
+            <TabItem Header="Logs">
 
             </TabItem>
         </TabControl>

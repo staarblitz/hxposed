@@ -6,8 +6,8 @@ __declspec(dllexport) UINT32 HxReadAsyncResponseLength(UINT64 Offset) {
 	return *(PUINT32)(HX_ASYNC_BASE + Offset);
 }
 
-__declspec(dllexport) PVOID HxReadAsyncResponseSlice(UINT64 Offset, PUINT32 Length) {
-	*Length = HxReadAsyncResponseLength(Offset);
+__declspec(dllexport) PVOID HxReadAsyncResponseSlice(UINT64 Offset, PUINT32 Count) {
+	*Count = HxReadAsyncResponseLength(Offset);
 	return (PVOID)(HX_ASYNC_BASE + Offset + 4);
 }
 

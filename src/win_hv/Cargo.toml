@@ -29,6 +29,7 @@ spin = {version = "0.10.0", default-features = false}
 hashbrown = {version = "0.16.1", features = ["core"]}
 wyhash = {version = "0.6.0", default-features = false}
 x86 = "0.52.0"
+com_logger = "0.1.2"
 
 [build-dependencies]
 wdk-build = "0.5.1"
