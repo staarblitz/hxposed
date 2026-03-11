@@ -96,28 +96,25 @@ impl AsyncState {
         }
     }
 
-    pub fn write_result<T>(&mut self, src: *const T, count: usize) -> u64 {
+    pub fn write_result<T>(&mut self, src: *const T, count: u32) -> u64 {
         self.write_lock.lock();
 
-        // make sure we won't overrun the buffer
-        let calc = self.data_index + count * size_of::<T>() + 4;
-        if calc >= self.data_system_address.result_entries.len() {
+        let size_needed = (count as usize) * size_of::<T>() + 4;
+
+        if self.data_index + size_needed > self.data_system_address.result_entries.len() {
             self.data_index = 0;
         }
 
-        let old_index = self.data_index as _;
+        let current_offset = self.data_index;
+        let base_ptr = self.data_system_address.result_entries.as_mut_ptr();
 
-        let index = unsafe {
-            self.data_system_address
-                .result_entries
-                .as_mut_ptr()
-                .byte_offset(self.data_index as _)
-        };
-        unsafe { core::ptr::write(index as *mut u32, (count / size_of::<T>()) as _) }
-        unsafe { core::ptr::copy_nonoverlapping(src, (index as *mut T).byte_offset(4), count) }
+        unsafe {
+            let target_ptr = base_ptr.add(current_offset);
+            core::ptr::write(target_ptr as *mut u32, count); // write the length
+            core::ptr::copy_nonoverlapping(src, target_ptr.add(4) as *mut T, count as usize); // write the data
+        }
 
-        self.data_index = calc;
-
-        old_index
+        self.data_index += size_needed;
+        current_offset as u64
     }
 }
