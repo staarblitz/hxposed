@@ -17,7 +17,6 @@ HxpTrap proc
 	push rsi
 	push rdi
 	push rbx
-	push r10
 
 	; in our hypervisor calling convention, the args are in this order:
 	; r8, r9, r10
@@ -63,8 +62,7 @@ call_ok:
 	
 return:
 
-	; get non-volatile rsi, r12, and rdi back
-	pop r10
+	; get em back
 	pop rbx
 	pop rdi
 	pop rsi
