@@ -19,7 +19,6 @@ handle_fail:
 # rax is returned msr value
 # rdx defines if msr exists. -1 if not, 0 if exists.
 rdmsr_failsafe_naked:
-    push r9             # save
     mov r9, 0x2009     # put our beloved
     rdmsr
     cmp r9, 0          # check if this triggered a #GP
@@ -31,7 +30,6 @@ rdmsr_failsafe_naked:
 fail:
     mov rdx, -1         # no such msr
 end:
-    pop r9              # get back
     ret
 
 .align 16
@@ -41,7 +39,6 @@ end:
 # rdx is msr value
 # rax defines if msr exists. -1 if not, 0 if exists
 wrmsr_failsafe_naked:
-    push r9
     mov rax, rdx
     shr rdx, 32
 
@@ -53,5 +50,4 @@ wrmsr_failsafe_naked:
     cmp r9, 0          # check if it resulted in a #GP
     cmove rax, rcx      # branchless!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    pop r9
     ret
