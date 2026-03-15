@@ -8,7 +8,7 @@ Demo: [YouTube](https://www.youtube.com/watch?v=EzxZ9oxnZNE)
 HxPosed grants you hypervisor and kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
 
 And yes, we mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
-- A safe API written in Rust (available for C too),
+- A safe API written in Rust (available for C/C# too),
 - A beautifully documented hypervisor interface,
 - A no-nonsense "it just works" functionality.
 
@@ -84,7 +84,7 @@ HX_REQUEST_RESPONSE reqResp = {
     .Call.ServiceFunction = HxSvcOpenProcess,
     .OpenObjectRequest = {
         .AddressOrId = 4,
-        .OpenType = HxOpenHypervisor
+        .OpenType = HxOpenHandle // to get an op handle
     },
 };
 
@@ -110,11 +110,6 @@ From now on, you'll never worry about:
 
 It *just works*. Because we know how frustrating it is when it *just doesn't*.
 
-Easy. Powerful. No-nonsense.
-
-> [!IMPORTANT]
-> Bindings for C# won't be made manually.
-
 ## Features
 ### Core features
 These all come out of the box.
@@ -131,11 +126,9 @@ Process services:
 - Get user/kernel directory table base
 
 Thread services:
-- Suspend/resume/freeze
 - Get impersonation token
 - Swap impersonation token
 - Check if thread is impersonating
-- Kill
 - Open handle with all access
 
 Memory services:
@@ -143,6 +136,7 @@ Memory services:
 - Allocate contiguous physical or from nonpaged pool
 - Map memory to arbitrary process context
 - Translate virtual addresses
+- Descrihe arbitrary physical memory
 
 Security services:
 - Get system token
@@ -170,7 +164,7 @@ Callback services:
 - NtGuard (Soon to be made) to harden the system
 
 ### Kernel features
-HxPosed utilizes object reference counting and handle tables just like Windows NT does to keep stability sith system. Here are a few examples.
+HxPosed utilizes object reference counting just like Windows NT does to keep stability with system. HxPosed uses its own abstractions on top of NT to utilize Rust's safety and convenience. Here are a few examples.
 
 #### Opening/creating handles:
 ```rust
@@ -473,16 +467,18 @@ end:
     ret
 ```
 
+HxPosed is not just a framework. It's a knowledge base you can learn Windows internals and x86 from.
+
 ## Repo structure
 `src` contains the code written in Rust.
-- `hvcore` the hypervisor core.
 - `hxloader` a "bootkit" that patches the Windows boot process so you can load HxPosed.
 - `hxposed_core` core API providing access to hypervisor.
-- `windows` Windows driver of HxPosed. All the deal happens here.
+- `hxposed` the kernel driver and hypervisor
 
 `HxPosed.GUI` contains the code written in C#.
 - `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
+- `HxPosed.Tests` a process manager demonstrating all features of HxPosed
 - `libhxposed` native library providing access to hypervisor. Written in C and asm.
 - `pocman` simple piece of code demonstrating usage of `libhxposed`.
 
@@ -503,7 +499,7 @@ Build instructions are given in the wiki.
 - [x] All services implemented and tested.
 - [x] Hyper-V enlightment support.
 - [x] Cool fluent UI that fits Windows 11 design.
-- [x] Support for AMD and Intel.
+- [x] Support for Intel.
 - [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
 - [x] HxGuard to prevent abuse.
 - [x] Automated installer for ease.
