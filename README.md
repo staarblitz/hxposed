@@ -164,7 +164,7 @@ Callback services:
 - NtGuard (Soon to be made) to harden the system
 
 ### Kernel features
-HxPosed utilizes object reference counting just like Windows NT does to keep stability sith system. HxPosed uses its own abstractions on top of NT to utilize Rust's safety and conveniencr. Here are a few examples.
+HxPosed utilizes object reference counting just like Windows NT does to keep stability with system. HxPosed uses its own abstractions on top of NT to utilize Rust's safety and convenience. Here are a few examples.
 
 #### Opening/creating handles:
 ```rust
