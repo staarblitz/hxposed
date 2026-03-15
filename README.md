@@ -1,10 +1,8 @@
 # HxPosed - Hypervisor eXposed.
 A hypervisor based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
-Based on [barevisor](https://github.com/tandasat/barevisor)
 
 Demo: [YouTube](https://www.youtube.com/watch?v=EzxZ9oxnZNE)
 
-## What does HxPosed do?
 HxPosed grants you hypervisor and kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
 
 And yes, we mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
@@ -473,9 +471,9 @@ HxPosed is not just a framework. It's a knowledge base you can learn Windows int
 `src` contains the code written in Rust.
 - `hxloader` a "bootkit" that patches the Windows boot process so you can load HxPosed.
 - `hxposed_core` core API providing access to hypervisor.
-- `hxposed` the kernel driver and hypervisor
+- `hxposed` the kernel driver and hypervisor.
 
-`HxPosed.GUI` contains the code written in C#.
+`HxPosed.GUI` contains the code written in C# (and C).
 - `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
 - `HxPosed.Tests` a process manager demonstrating all features of HxPosed
