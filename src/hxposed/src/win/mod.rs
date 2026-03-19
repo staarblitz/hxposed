@@ -16,7 +16,7 @@ use bitfield_struct::bitfield;
 use core::arch::{asm, naked_asm};
 use core::ffi::{c_char, c_void};
 use core::fmt::{Display, Formatter, LowerHex, Write};
-use core::mem;
+use core::{mem, ptr};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::services::types::security_fields::TokenPrivilege;
@@ -287,6 +287,18 @@ pub unsafe extern "C" fn KeGetCurrentThread() -> PETHREAD {
     naked_asm!("mov rax, gs:[0x188]", "ret")
 }
 
+#[unsafe(naked)]
+pub unsafe extern "C" fn KeGetCurrentProcessorNumber() -> u32 {
+    naked_asm!("mov rax, gs:[0x184]", "ret")
+}
+
+pub unsafe fn KeQuerySystemTime() -> u64 {
+    const KI_USER_SHARED_DATA: u64 = 0xFFFFF78000000000;
+    const SHARED_SYSTEM_TIME: u64 = 0x14;
+
+    ptr::read_unaligned((KI_USER_SHARED_DATA + SHARED_SYSTEM_TIME) as *mut u64)
+}
+
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
     pub static PsLoadedModuleList: *mut LDR_DATA_TABLE_ENTRY;
@@ -318,8 +330,6 @@ unsafe extern "C" {
         StartRoutine: PVOID,
         Parameter: PVOID,
     ) -> NtStatus;
-
-    pub fn KeDelayExecutionThread(WaitMode: ProcessorMode, Alertable: Boolean, interval: *mut i64);
 
     pub fn ExAllocatePool2(Flags: PoolFlags, Bytes: usize, Tag: u32) -> PVOID;
     pub fn ExFreePool(Pool: PVOID);
@@ -365,6 +375,7 @@ unsafe extern "C" {
     pub fn MmGetVirtualForPhysical(Pa: u64) -> PVOID;
 
 
+    pub fn KeDelayExecutionThread(WaitMode: ProcessorMode, Alertable: Boolean, interval: *mut i64);
     pub fn KeRegisterBugCheckCallback(CallbackRecord: &mut KBUGCHECK_CALLBACK_RECORD, CallbackRoutine: PVOID, Buffer: PVOID, Length: PVOID, Component: PUCHAR) ->Boolean;
     pub fn KeBugCheckEx(Code: u64, Param1: u64, Param2: u64, Param3: u64, Param4: u64) -> !;
     pub fn KeStackAttachProcess(Process: PEPROCESS, ApcState: *mut KAPC_STATE);
