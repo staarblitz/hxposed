@@ -22,13 +22,11 @@ panic = "abort"
 hxposed_core = {path = "../hxposed_core", default-features = false}
 bit_field = "0.10.3"
 microseh = {version = "1.1.2", default-features = false}
-log = {version = "0.4.29", default-features = false}
 bitfield-struct = "0.12.1"
 spin = {version = "0.10.0"}
 hashbrown = {version = "0.16.1", features = ["core"]}
 wyhash = {version = "0.6.0", default-features = false}
 x86 = "0.52.0"
-com_logger = "0.1.2"
 
 [build-dependencies]
 wdk-build = "0.5.1"
