@@ -3,8 +3,8 @@ use crate::hypervisor::vcpu::Vmcs;
 use crate::hypervisor::vmfs::HvFs;
 use crate::nt::process::NtProcess;
 use crate::services::*;
+use crate::utils::logger::LogEvent;
 use bit_field::BitField;
-use hxposed_core::error::HypervisorError;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::requests::io::*;
@@ -36,9 +36,8 @@ pub extern "C" fn vmexit_handler() -> u64 {
     let rip = Vmcs::vmread(vmcs::guest::RIP);
     let next_rip = rip + Vmcs::vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN);
 
-    log::info!("VmExit reason: {exit_reason:x}");
-    log::info!("RIP: {rip:x}, NRIP: {next_rip:x}");
-    log::info!("VCPU: {:x}", vcpu as *mut _ as u64);
+/*    vcpu.logger.trace(LogEvent::VmxExitReason(exit_reason));
+    vcpu.logger.trace(LogEvent::RIP(rip, next_rip));*/
 
     match exit_reason {
         VMX_EXIT_REASON_CPUID => {
@@ -46,14 +45,8 @@ pub extern "C" fn vmexit_handler() -> u64 {
             let leaf = vcpu.registers.rax as u32;
             let sub_leaf = vcpu.registers.rcx as u32;
 
-            if vcpu.registers.rcx == 0x2009 {
-                match vmcall_handler(vcpu) {
-                    true => {
-                        vcpu.registers.rcx = 0x2009;
-                        return next_rip;
-                    }
-                    false => {}
-                }
+            if vcpu.registers.rcx == 0x2009 && vmcall_handler(vcpu) {
+                return next_rip;
             }
 
             let mut cpuid_result = cpuid!(leaf, sub_leaf);
@@ -94,7 +87,9 @@ pub extern "C" fn vmexit_handler() -> u64 {
                 xcr0_write(value);
             }
         }
-        _ => unreachable!(),
+        _ => {
+            vcpu.logger.warn(LogEvent::UnknownExitReason(exit_reason));
+        }
     }
 
     next_rip
@@ -152,7 +147,10 @@ static DISPATCH_TABLE: [[VmcallHandler; 16]; DISPATCH_TABLE_MAX] = [
         |x| { security_services::get_token_field_sync(GetTokenFieldRequest::from_raw(x)) },
         |x| { security_services::set_token_field_sync(SetTokenFieldRequest::from_raw(x)) }
     ),
-    hyper_row!(|x| { io_services::rw_msr(MsrIoRequest::from_raw(x)) }),
+    hyper_row!(
+        |x| { io_services::rw_msr(MsrIoRequest::from_raw(x)) },
+        |x| { io_services::exec_privileged(PrivilegedInstructionRequest::from_raw(x)) }
+    ),
 ];
 
 ///
@@ -187,7 +185,7 @@ pub(crate) fn vmcall_handler(guest: &mut HvFs) -> bool {
     match process.is_hx_info_present() {
         true => {}
         false => {
-            log::warn!("Caller does not have HxInfo on its EPROCESS structure.");
+            guest.logger.warn(LogEvent::NoHxInfo);
             guest.write_response(HypervisorResponse::not_found_what(
                 NotFoundReason::HxInfo as _,
             ));
@@ -204,27 +202,18 @@ pub(crate) fn vmcall_handler(guest: &mut HvFs) -> bool {
         ..Default::default()
     };
 
-    log::info!(
-        "Hypercall:\n Call: {:?}\nArg1: {:x}\nArg2: {:x}\nArg3: {:x}",
-        request.call,
+    guest.logger.trace(LogEvent::HyperCall(
+        request.call.into_bits(),
         request.arg1,
         request.arg2,
-        request.arg3
-    );
+        request.arg3,
+    ));
 
     if request.call.extended_args_present() {
         request.extended_arg1 = guest.registers.xmm0.into();
         request.extended_arg2 = guest.registers.xmm1.into();
         request.extended_arg3 = guest.registers.xmm2.into();
         request.extended_arg4 = guest.registers.xmm3.into();
-
-        log::info!(
-            "Hypercall has extended arguments.\nEArg1: {:x}, EArg2: {:x}\nEArg3: {:x}\nEArg4: {:x}",
-            request.extended_arg1,
-            request.extended_arg2,
-            request.extended_arg3,
-            request.extended_arg4
-        );
     }
 
     let function = info.func().into_bits() as usize;
@@ -237,20 +226,13 @@ pub(crate) fn vmcall_handler(guest: &mut HvFs) -> bool {
         return true;
     }
 
-    log::info!("Dispatching call category: {}, id: {}", category, func);
-
     let result = DISPATCH_TABLE[category][func](&request);
 
-    log::info!(
-        "Error of call: {}",
-        HypervisorError::from_response(result.clone())
-    );
-    log::info!(
-        "Result of\nArg1: {:x}\nArg2: {:x}\nArg3: {:x}",
+    guest.logger.trace(LogEvent::HyperResult(
         result.arg1,
         result.arg2,
-        result.arg3
-    );
+        result.arg3,
+    ));
 
     guest.write_response(result);
     true
