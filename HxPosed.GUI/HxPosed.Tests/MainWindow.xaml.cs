@@ -225,7 +225,7 @@ namespace HxPosed.Tests
                         MessageBox.Show($"Error sending gtReq: {gtReq.Result.ErrorCode} {gtReq.Result.ErrorReason}");
                     }
 
-                    var threads = (uint*)HxReadAsyncResponseSlice(gnReq.GetProcessFieldResponse.ThreadsOffset, &count);
+                    var threads = (uint*)HxReadAsyncResponseSlice(gtReq.GetProcessFieldResponse.ThreadsOffset, &count);
                     for (var i = 0; i < count; i++)
                     {
                         process.Threads.Add(new ThreadModel
