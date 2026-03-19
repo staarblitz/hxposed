@@ -9,6 +9,9 @@ hv_vm_run:
 
 .align 16
 .global hv_vm_exit
+
+# we should handle dr7
+
 hv_vm_exit:
     push r15                # save r15
     rdfsbase r15            # set r15 to our HvCpu
