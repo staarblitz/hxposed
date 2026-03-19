@@ -25,3 +25,4 @@
 
 .set rsp_offset, 224
 .set rip_offset, 232
+.set dr7_offset, 240
