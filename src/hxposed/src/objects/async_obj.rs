@@ -1,5 +1,7 @@
+use crate::hypervisor::vmfs::HvFs;
 use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
+use crate::utils::logger::LogEvent;
 use crate::win::{NtStatus, PagePriority, ProcessorMode};
 use alloc::boxed::Box;
 use core::hash::{Hash, Hasher};
@@ -47,10 +49,10 @@ impl AsyncState {
             ((PagePriority::HighPagePriority as u32) | PagePriority::NoWrite as u32) as _,
         ) {
             Ok(_) => {}
-            Err(err) => {
-                log::error!("Failed to map async result into 0x20090000: {}", err);
+            Err(err) => unsafe {
+                (*HvFs::get_current()).logger.error(LogEvent::FailedToMap);
                 return Err(err);
-            }
+            },
         };
 
         Ok(Box::new(me))
@@ -96,22 +98,40 @@ impl AsyncState {
         }
     }
 
-    pub fn write_result<T>(&mut self, src: *const T, count: u32) -> u64 {
-        self.write_lock.lock();
+    pub fn write_result<T>(&mut self, src: &[T]) -> u64
+    where
+        T: Copy,
+    {
+        // if not assigned, dropped instantly. so here you go _lock.
+        let _lock = self.write_lock.lock();
 
-        let size_needed = (count as usize) * size_of::<T>() + 4;
+        let size_needed = src.len() * size_of::<T>() + 4;
 
         if self.data_index + size_needed > self.data_system_address.result_entries.len() {
             self.data_index = 0;
         }
 
         let current_offset = self.data_index;
-        let base_ptr = self.data_system_address.result_entries.as_mut_ptr();
+
+        let base_ptr = unsafe {
+            self.data_system_address
+                .result_entries
+                .as_mut_ptr()
+                .add(current_offset)
+        };
 
         unsafe {
-            let target_ptr = base_ptr.add(current_offset);
-            core::ptr::write(target_ptr as *mut u32, count); // write the length
-            core::ptr::copy_nonoverlapping(src, target_ptr.add(4) as *mut T, count as usize); // write the data
+            core::ptr::write_unaligned(base_ptr as *mut u32, src.len() as u32);
+
+            let data_start_ptr = base_ptr.add(4);
+
+            for (i, item) in src.iter().enumerate() {
+                let element_ptr = data_start_ptr.add(i * size_of::<T>()) as *mut T;
+
+                core::ptr::write_unaligned(element_ptr, *item);
+            }
+
+            //(*HvFs::get_current()).logger.trace(LogEvent::WrittenAsyncBuffer(target_ptr as _, target_ptr.add(i) as _));
         }
 
         self.data_index += size_needed;
