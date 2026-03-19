@@ -1,15 +1,18 @@
+use crate::hypervisor::idt::InterruptDescriptorTableRaw;
 use crate::hypervisor::segments::SegmentDescriptor;
-use crate::hypervisor::vmexit::{vmcall_handler, vmexit_handler};
 use crate::hypervisor::vmfs::{HvFs, Registers};
 use crate::utils::alloc::PoolAlloc;
 use crate::utils::intrin::{lar, ldtr, lsl, sgdt, sidt, tr};
+use crate::utils::logger::{HvLogger, LogEvent};
 use crate::win::MmGetPhysicalAddress;
+use crate::{GLOBAL_LOGGER, scoped_log};
 use alloc::boxed::Box;
-use core::arch::global_asm;
-use core::ptr::addr_of;
+use alloc::format;
+use alloc::string::String;
 use bit_field::BitField;
-use x86::bits64::vmx::{vmclear, vmlaunch, vmptrld, vmread, vmwrite, vmxon};
-use x86::controlregs::{Cr0, Cr4, cr0, cr3, cr4, cr0_write, cr4_write};
+use core::ptr::addr_of;
+use x86::bits64::vmx::{vmclear, vmptrld, vmread, vmwrite, vmxon};
+use x86::controlregs::{Cr0, Cr4, cr0, cr0_write, cr3, cr4, cr4_write};
 use x86::msr::{IA32_FEATURE_CONTROL, IA32_VMX_BASIC, rdmsr, wrmsr};
 use x86::segmentation::{cs, ds, es, fs, gs, ss};
 use x86::vmx::{VmFail, vmcs};
@@ -35,46 +38,31 @@ impl VmxOn {
     }
 
     pub fn on(&self) -> Result<(), VmFail> {
-        let phys = unsafe{MmGetPhysicalAddress(self as *const _ as _)};
-        log::info!("VmxOn Region: Phys: {phys}, Virt: {}", self as *const _ as u64);
+        let phys = unsafe { MmGetPhysicalAddress(self as *const _ as _) };
+        scoped_log!(LogEvent::Vmxon(self as *const _ as _, phys));
         unsafe { vmxon(phys) }
     }
 
     pub fn enable_vmx(&self) -> Result<(), VmFail> {
-        log::info!("Enabling VMX");
         let mut msr = unsafe { rdmsr(IA32_FEATURE_CONTROL) };
-        log::trace!("IA32_FEATURE_CONTROL: 0{msr:x}");
 
         // check if VMX is enabled
         if !msr.get_bit(2) {
-            log::info!("VMX bit is not enabled");
             // check if msr is locked
             if msr.get_bit(0) {
-                log::error!("VMX is not enabled and locked");
                 return Err(VmFail::VmFailInvalid);
             }
 
-            log::info!("Enabling VMX bit");
             msr.set_bit(2, true);
-        }
-
-        // check if msr is locked
-        if !msr.get_bit(0) {
-            // lock msr
-            log::info!("Locking IA32_FEATURE_CONTROL");
             msr.set_bit(0, true);
 
-            log::trace!("Last IA32_FEATURE_CONTROL: 0{msr:x}");
             unsafe { wrmsr(IA32_FEATURE_CONTROL, msr) };
         }
 
-        log::info!("Writing adjusted CR0 and CR4s...");
         unsafe {
             cr0_write(Self::get_adjusted_cr0(cr0()));
             cr4_write(Self::get_adjusted_cr4(cr4()));
         }
-
-        log::info!("Ready");
 
         Ok(())
     }
@@ -91,13 +79,21 @@ impl VmxOn {
     }
 }
 
-
 unsafe extern "C" {
     unsafe fn hv_vm_run(regs: &mut Registers);
     unsafe fn hv_vm_exit();
 }
 
 impl Vmcs {
+    pub fn dump() -> String {
+        let me = Self {
+            abort: 0,
+            revision: 0,
+        };
+
+        format!("{:?}", &me)
+    }
+
     pub fn new() -> Box<Vmcs> {
         let vmx_basic = unsafe { rdmsr(IA32_VMX_BASIC) }.get_bits(0..30);
         let mut me = Vmcs::alloc_sized(4096);
@@ -108,34 +104,32 @@ impl Vmcs {
     }
 
     pub fn launch(&self, registers: &mut Registers) {
-        unsafe {
-            hv_vm_run(registers)
-        }
+        unsafe { hv_vm_run(registers) }
     }
 
     pub fn load(&self) -> Result<(), VmFail> {
-        let phys = unsafe{MmGetPhysicalAddress(self as *const _ as _)};
-        log::info!("Loading VMCS Region: Phys: {phys}, Virt: {}", self as *const _ as u64);
+        let phys = unsafe { MmGetPhysicalAddress(self as *const _ as _) };
+        scoped_log!(LogEvent::Vmptrld(self as *const _ as _, phys));
         unsafe { vmptrld(phys) }
     }
 
     pub fn clear(&self) -> Result<(), VmFail> {
-        let phys = unsafe{MmGetPhysicalAddress(self as *const _ as _)};
-        log::info!("Clearing VMCS Region: Phys: {phys}, Virt: {}", self as *const _ as u64);
+        let phys = unsafe { MmGetPhysicalAddress(self as *const _ as _) };
+        scoped_log!(LogEvent::Vmclear(self as *const _ as _, phys));
         unsafe { vmclear(phys) }
     }
 
     pub fn vmwrite<T>(field: u32, value: T)
-    where u64: From<T> {
+    where
+        u64: From<T>,
+    {
         unsafe {
             vmwrite(field, u64::from(value)).unwrap() // yes
         }
     }
 
     pub fn vmread(field: u32) -> u64 {
-        unsafe {
-            vmread(field).unwrap()
-        }
+        unsafe { vmread(field).unwrap() }
     }
 }
 
@@ -144,6 +138,7 @@ pub struct HvCpu {
     pub vmxon: Box<VmxOn>,
     pub hvfs: Box<HvFs>,
     pub stack: Box<[u8; 1024 * 64]>,
+    pub idt: Box<InterruptDescriptorTableRaw>,
 }
 
 impl HvCpu {
@@ -151,36 +146,39 @@ impl HvCpu {
         Self {
             vmcs: Vmcs::new(),
             vmxon: VmxOn::new(),
-            hvfs: Box::new(HvFs { registers }),
+            hvfs: Box::new(HvFs {
+                registers,
+                logger: HvLogger::new(),
+            }),
             // why box::new doesnt place it on heap by default? insane
-            stack: unsafe{Box::new_zeroed().assume_init()},
+            stack: unsafe { Box::new_zeroed().assume_init() },
+            idt: InterruptDescriptorTableRaw::new(),
         }
     }
 
-    pub fn prepare(&self) -> Result<(), VmFail> {
-        log::info!("Preparing CPU for virtualization");
+    pub fn prepare(&self, index: u32) -> Result<(), VmFail> {
         self.vmxon.enable_vmx()?;
         self.vmxon.on()?;
 
         self.vmcs.clear()?;
         self.vmcs.load()?;
 
-        log::info!("Processor is ready");
+        scoped_log!(LogEvent::ProcessorReady(
+            index,
+            self.hvfs.as_ref() as *const _ as _
+        ));
 
         Ok(())
     }
 
     pub fn virtualize(&mut self) -> Result<(), VmFail> {
-        log::info!("Virtualizing processor...");
         self.initialize_controls();
         self.initialize_guest();
         self.initialize_host();
 
-        log::trace!("VMCS Last state: {:x?}", &self.vmcs);
-
-        log::trace!("Registers: {:x?}", &self.hvfs.registers);
-        log::info!("Launching processor...");
         self.vmcs.launch(&mut self.hvfs.registers);
+
+        scoped_log!(LogEvent::LaunchingProcessor);
 
         Ok(())
     }
@@ -188,7 +186,6 @@ impl HvCpu {
     fn initialize_host(&self) {
         let gdtr = sgdt();
         let gdt_base = gdtr.base;
-        let idt_base = sidt().base;
         let tr = tr();
         let tss_base = SegmentDescriptor::try_from_gdtr(&gdtr, tr).unwrap().base();
 
@@ -211,7 +208,7 @@ impl HvCpu {
 
         Vmcs::vmwrite(vmcs::host::TR_BASE, tss_base);
         Vmcs::vmwrite(vmcs::host::GDTR_BASE, gdt_base as u64);
-        Vmcs::vmwrite(vmcs::host::IDTR_BASE, idt_base as u64);
+        Vmcs::vmwrite(vmcs::host::IDTR_BASE, self.idt.as_ref() as *const _ as u64);
 
         Vmcs::vmwrite(vmcs::host::RIP, hv_vm_exit as *const u64 as u64);
         Vmcs::vmwrite(
@@ -365,7 +362,6 @@ impl HvCpu {
 
         (access_rights >> 8) & 0b1111_0000_1111_1111
     }
-
 
     fn adjust_vmx_control(control: VmxControl, requested_value: u64) -> u64 {
         const IA32_VMX_BASIC_VMX_CONTROLS_FLAG: u64 = 1 << 55;

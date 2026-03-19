@@ -13,13 +13,11 @@ impl SegmentDescriptor {
         selector: SegmentSelector,
     ) -> Result<Self, ()> {
         if selector.contains(SegmentSelector::TI_LDT) {
-            log::error!("Error getting segment from GDT: LDT access!");
             return Err(());
         }
 
         let index = selector.index() as usize;
         if index == 0 {
-            log::error!("Error getting segment from GDT: Null descriptor!");
             return Err(());
         }
 
@@ -30,7 +28,6 @@ impl SegmentDescriptor {
         let raw = match gdt.get(index) {
             Some(raw) => raw,
             None => {
-                log::error!("Error getting segment from GDT: Out of GDT!");
                 return Err(());
             }
         };
@@ -42,13 +39,11 @@ impl SegmentDescriptor {
             let raw = match gdt.get(index) {
                 Some(raw) => raw,
                 None => {
-                    log::error!("Error getting segment from GDT: Out of GDT!");
                     return Err(());
                 }
             };
 
             let Ok(upper_base) = u32::try_from(*raw) else {
-                log::error!("Error getting segment from GDT: Invalid GDT entry!");
                 return Err(());
             };
 
