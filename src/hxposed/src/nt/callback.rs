@@ -43,7 +43,6 @@ impl NtCallback {
     }
 
     pub fn init() -> Result<(), NtStatus> {
-        log::info!("Initializing callbacks...");
         unsafe {
             PsSetCreateProcessNotifyRoutineEx(Self::process_callback as _, Boolean::False)
                 .into_result()?;
@@ -53,7 +52,6 @@ impl NtCallback {
             )
             .into_result()?;
         }
-        log::info!("Successfully initialized callbacks");
         Ok(())
     }
 
@@ -91,8 +89,6 @@ impl NtCallback {
                     continue;
                 }
 
-                log::info!("Firing callback for: {}", callback.callback);
-
                 let obj = ObjectType::Process(id as _).into_raw();
                 let callback_info = CallbackInformation {
                     object_type: obj.0,
@@ -103,14 +99,10 @@ impl NtCallback {
                     },
                 };
 
-                log::info!("Callback information: {:?}", callback_info);
-
                 let offset = async_state.write_type(callback_info);
                 async_state.write_type_no_ring(0, offset as u32);
 
-                log::info!("Signaling event...");
                 callback.event.signal();
-                log::info!("Callback fired");
             }
         })
     }
@@ -125,8 +117,6 @@ impl NtCallback {
                     continue;
                 }
 
-                log::info!("Firing callback for: {}", callback.callback);
-
                 let obj = ObjectType::Thread(thread_id as _).into_raw();
                 let callback_info = CallbackInformation {
                     object_type: obj.0,
@@ -137,14 +127,10 @@ impl NtCallback {
                     },
                 };
 
-                log::info!("Callback information: {:?}", callback_info);
-
                 let offset = async_state.write_type(callback_info);
                 async_state.write_type_no_ring(0, offset as u32);
 
-                log::info!("Signaling event...");
                 callback.event.signal();
-                log::info!("Callback fired");
             }
         })
     }

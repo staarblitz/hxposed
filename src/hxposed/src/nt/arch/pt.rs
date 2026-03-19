@@ -2,6 +2,8 @@ use crate::nt::arch::phys_to_virt;
 use crate::win::{Boolean, MmIsAddressValid};
 use bitfield_struct::bitfield;
 use hxposed_core::hxposed::requests::memory::{Pa, Pfn};
+use crate::GLOBAL_LOGGER;
+use crate::utils::logger::LogEvent;
 
 pub trait PagingEntry {
     type DownType;
@@ -14,7 +16,8 @@ pub trait PagingEntry {
             let ptr = phys_to_virt(addr + (index as u64 * 8)) as *mut Self::DownType;
             match MmIsAddressValid(ptr as _) {
                 Boolean::False => {
-                    log::warn!("MmGetVirtualForPhysical failed!");
+                    let mut logger = GLOBAL_LOGGER.lock();
+                    logger.error(LogEvent::FailedToMap);
                     Err(())
                 }
                 Boolean::True => Ok(ptr),
@@ -72,7 +75,8 @@ impl PageMapLevel5 {
             let ptr = phys_to_virt(addr.add(index as _).addr() as _) as *mut Self;
             match MmIsAddressValid(ptr as _) {
                 Boolean::False => {
-                    log::warn!("MmGetVirtualForPhysical failed!");
+                    let mut logger = GLOBAL_LOGGER.lock();
+                    logger.error(LogEvent::FailedToMap);
                     Err(())
                 }
                 Boolean::True => Ok(ptr),
@@ -109,7 +113,8 @@ impl PageMapLevel4 {
             let ptr = phys_to_virt(addr.add(index as _).addr() as _) as *mut Self;
             match MmIsAddressValid(ptr as _) {
                 Boolean::False => {
-                    log::warn!("MmGetVirtualForPhysical failed!");
+                    let mut logger = GLOBAL_LOGGER.lock();
+                    logger.error(LogEvent::FailedToMap);
                     Err(())
                 }
                 Boolean::True => Ok(ptr),

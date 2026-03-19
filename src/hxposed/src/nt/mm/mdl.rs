@@ -7,6 +7,8 @@ use crate::win::{
 };
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
+use crate::GLOBAL_LOGGER;
+use crate::utils::logger::LogEvent;
 
 /// Abstraction over MDL with Rust safety.
 #[derive(Debug)]
@@ -186,13 +188,15 @@ impl MemoryDescriptor {
         }) {
             Ok(ptr) => match ptr as usize {
                 0 => {
-                    log::error!("Error mapping pages: MmMapLockedPagesSpecifyCache returned 0");
+                    let mut logger = GLOBAL_LOGGER.lock();
+                    logger.error(LogEvent::FailedToAllocate);
                     return Err(NtStatus::NotAllocated);
                 }
                 x => x,
             },
             Err(err) => {
-                log::error!("Error mapping pages: {:?}", err);
+                let mut logger = GLOBAL_LOGGER.lock();
+                logger.error(LogEvent::Exception(err.code() as _));
                 return Err(NtStatus::AccessViolation);
             }
         };

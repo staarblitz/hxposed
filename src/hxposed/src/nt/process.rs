@@ -18,6 +18,9 @@ use hxposed_core::hxposed::requests::memory::Pa;
 use hxposed_core::services::types::process_fields::{
     MitigationOptions, ProcessProtection, ProcessSignatureLevels,
 };
+use crate::GLOBAL_LOGGER;
+use crate::utils::logger::LogEvent;
+
 ///
 /// # Kernel Process
 ///
@@ -145,7 +148,8 @@ impl NtProcess {
         let state = match AsyncState::alloc_new(NtProcess::from_ptr_owning(self.nt_process)) {
             Ok(x) => x,
             Err(err) => {
-                log::error!("Failed to allocate state for process.");
+                let mut logger = GLOBAL_LOGGER.lock();
+                logger.error(LogEvent::FailedToAllocate);
                 return Err(err);
             }
         };
@@ -341,9 +345,7 @@ impl NtProcess {
     }
 
     pub fn get_threads(&self) -> Vec<u32> {
-        // actually, we have to lock ThreadListLock.
-
-        self.lock.acquire_shared();
+        //self.lock.acquire_shared();
 
         let threads = DangerPtr {
             ptr: self.thread_list_head,

@@ -24,29 +24,38 @@ static _fltused: u32 = 0;
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::boot::HX_LOADER_PARAMETER_BLOCK;
+use crate::hypervisor::vcpu::Vmcs;
+use crate::nt::NT_BUILD;
 use crate::nt::guard::hxguard::HxGuard;
 use crate::nt::thread::NtThread;
-use crate::utils::logger::NtLogger;
+use crate::utils::logger::{HvLogger, LogEvent};
 use crate::win::winalloc::WdkAllocator;
-use crate::win::{Boolean, KeBugCheckEx, KeDelayExecutionThread, NtStatus, PVOID, ProcessorMode};
+use crate::win::{
+    Boolean, KeBugCheckEx, KeDelayExecutionThread, KeGetCurrentProcessorNumber, NtStatus, PVOID,
+    ProcessorMode,
+};
+use alloc::format;
+use core::ops::DerefMut;
 use core::ptr;
 use core::ptr::null_mut;
 use core::sync::atomic::Ordering;
+use spin::{Lazy, Mutex};
 
 static mut HX_GUARD: HxGuard = HxGuard::new();
-
-static mut LOGGER: NtLogger = NtLogger::default();
+static GLOBAL_LOGGER: Lazy<Mutex<HvLogger>> = Lazy::new(|| Mutex::new(HvLogger::new()));
+#[unsafe(no_mangle)]
+static mut GLOBAL_LOGGER_PTR: u64 = 0;
 
 extern "C" fn delayed_start(_arg: PVOID) {
     // im very sorry
 
-    log::trace!("delayed_start");
+    let mut logger = GLOBAL_LOGGER.lock();
+
+    logger.info(LogEvent::DelayedStart);
 
     let mut time = utils::timing::relative(utils::timing::seconds(20));
 
     let _ = unsafe { KeDelayExecutionThread(ProcessorMode::KernelMode, Boolean::False, &mut time) };
-
-    log::info!("Delayed! Executing real entry!");
 
     driver_entry(null_mut(), null_mut());
 }
@@ -65,9 +74,6 @@ extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
      && !_driver.is_null() && !_registry_path.is_null() /* Make sure we are called from delayed_start */
      {
         true => {
-            log::info!("Loaded from HxLoader!");
-            log::info!("Delaying startup....");
-
             match NtThread::create(delayed_start, None) {
                 Ok(_) => {}
                 Err(err) => {
@@ -80,45 +86,26 @@ extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
         false => {}
     }
 
+    unsafe {
+        let mut locked = GLOBAL_LOGGER.lock();
+        GLOBAL_LOGGER_PTR = locked.deref_mut() as *mut _ as u64;
+    }
+
     match nt::get_nt_info() {
         Err(_) => return NtStatus::TooLate,
         Ok(_) => {}
     }
 
-    // SAFETY: we know there is no other accessor currently
-    unsafe {
-        if !LOGGER.is_init {
-            LOGGER.init();
-
-            //log::set_logger_force(|| &LOGGER);
-            let _ = log::set_logger(&LOGGER);
-            log::set_max_level(log::LevelFilter::Trace);
-        }
+    {
+        let mut logger = GLOBAL_LOGGER.lock();
+        logger.info(LogEvent::HxPosedInit(cfg.base_address, cfg.pe_size));
+        logger.info(LogEvent::NtVersion(NT_BUILD.load(Ordering::Relaxed)));
     }
-
-    log::trace!("driver_entry");
-    log::info!("Welcome to HxPosed!");
-
-    log::info!(
-        "HxPosed base {:x}, size {:x}",
-        cfg.base_address,
-        cfg.pe_size
-    );
-
-    log::info!("NT Version: {:x}", nt::NT_BUILD.load(Ordering::Relaxed));
-    log::info!(
-        "SYSTEM Token: {:x}",
-        nt::SYSTEM_TOKEN.load(Ordering::Relaxed) as u64
-    );
-
-    log::info!("Initializing HxPosed");
 
     // SAFETY: this is the only mutable access in entire lifecycle.
     unsafe {
         HX_GUARD.init();
     }
-
-    log::info!("Initializing hypervisor...");
 
     hypervisor::init::init_hypervisor();
 
@@ -133,17 +120,23 @@ extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
 }
 
 #[panic_handler]
-#[allow(static_mut_refs)]
 pub fn panic(info: &core::panic::PanicInfo) -> ! {
-    log::error!("Panic occurred: {:?}", info);
+    let dump = Vmcs::dump();
+    let msg = format!("{:?}", info);
+
+    unsafe {
+        GLOBAL_LOGGER.force_unlock();
+        let mut logger = GLOBAL_LOGGER.lock();
+        logger.error(LogEvent::Panic(dump.as_ptr() as _, msg.as_ptr() as _));
+    }
 
     unsafe {
         KeBugCheckEx(
             0x2009,
-            info.message().as_str().unwrap_or("Lol").as_ptr() as _,
-            LOGGER.force_get_memory_buffer().as_ptr() as _,
-            0,
-            0,
+            msg.as_ptr() as _,
+            dump.as_ptr() as _,
+            KeGetCurrentProcessorNumber() as _,
+            &HX_LOADER_PARAMETER_BLOCK as *const _ as _,
         );
     };
 }

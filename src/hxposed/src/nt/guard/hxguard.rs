@@ -61,11 +61,9 @@ impl HxGuard {
 
     #[allow(static_mut_refs)]
     pub fn init(&mut self) {
-        log::info!("Initializing HxGuard");
         let key = match NtKey::open("\\Registry\\Machine\\SOFTWARE\\HxPosed\\HxGuard") {
             Ok(x) => x,
             Err(err) => {
-                log::error!("Failed to open HxPosed key: {}", err);
                 return;
             }
         };
@@ -73,10 +71,6 @@ impl HxGuard {
         self.caller_verification = match key.get_value::<Boolean>("CallerVerification") {
             Ok(x) => *x == Boolean::True,
             Err(err) => {
-                log::warn!(
-                    "Failed to read CallerVerification. Reverting to default (TRUE): {}",
-                    err
-                );
                 true
             }
         };
@@ -87,17 +81,11 @@ impl HxGuard {
                 Boolean::False => RegistryProtection::Disabled,
             },
             Err(err) => {
-                log::warn!(
-                    "Failed to read RegistryProtection. Reverting to default (TRUE): {}",
-                    err
-                );
                 RegistryProtection::Enabled
             }
         };
 
         if self.caller_verification {
-            log::info!("Caller verification is enabled.");
-
             let key = match NtKey::open(
                 "\\Registry\\Machine\\SOFTWARE\\HxPosed\\HxGuard\\CallerVerification",
             ) {
@@ -111,10 +99,6 @@ impl HxGuard {
             let values = match key.get_value::<[u64; 256]>("VerifiedCallers") {
                 Ok(x) => x,
                 Err(err) => {
-                    log::error!(
-                        "Failed to read VerifiedCallers key! No caller is allowed. {}",
-                        err
-                    );
                     &mut default
                 }
             };
@@ -127,12 +111,9 @@ impl HxGuard {
                     values.len(),
                 );
             }
-
-            log::info!("Caller verification is active");
         }
         match self.registry_protection {
             RegistryProtection::Enabled => {
-                log::warn!("Registry protection is not implemented!")
             }
             RegistryProtection::Disabled => {}
             _ => unreachable!(),

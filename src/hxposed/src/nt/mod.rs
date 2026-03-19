@@ -21,6 +21,8 @@ use core::ffi::c_void;
 use core::ptr::null_mut;
 use core::str::FromStr;
 use core::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use crate::GLOBAL_LOGGER;
+use crate::utils::logger::LogEvent;
 
 pub(crate) static NT_BUILD: AtomicU64 = AtomicU64::new(0);
 pub(crate) static NT_UBR: AtomicU64 = AtomicU64::new(0);
@@ -66,13 +68,11 @@ pub(crate) fn get_nt_info() -> Result<(), ()> {
 
     match (build_number, ubr_ver) {
         (26100, 6584) => {
-            log::info!("Running on 25H2")
+
         }
         _ => {
-            log::error!(
-                "HxPosed does not support your Windows version: {}",
-                build_number
-            );
+            let mut logger = GLOBAL_LOGGER.lock();
+            logger.error(LogEvent::WindowsVersion(build_number, ubr_ver));
             return Err(());
         }
     }
