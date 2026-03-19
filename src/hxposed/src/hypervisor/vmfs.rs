@@ -3,6 +3,7 @@
 use core::arch::global_asm;
 use x86::msr::{IA32_FS_BASE, rdmsr};
 use hxposed_core::hxposed::responses::HypervisorResponse;
+use crate::utils::logger::HvLogger;
 
 #[repr(C, align(16))]
 #[derive(Default, Debug)]
@@ -43,11 +44,12 @@ unsafe extern "C" {
 #[repr(C)]
 pub struct HvFs {
     pub registers: Registers,
+    pub logger: HvLogger
 }
 
 impl HvFs {
     pub fn get_current() -> *mut HvFs {
-        unsafe { (rdmsr(IA32_FS_BASE) as *mut HvFs) }
+        unsafe { rdmsr(IA32_FS_BASE) as *mut HvFs }
     }
 
     pub fn write_response(&mut self, response: HypervisorResponse) {
