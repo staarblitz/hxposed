@@ -125,6 +125,7 @@ pub enum TokenField {
     EnabledPrivileges(TokenPrivilege),
     PresentPrivileges(TokenPrivilege),
     EnabledByDefaultPrivileges(TokenPrivilege),
+    Unknown
 }
 
 impl TokenField {
@@ -139,6 +140,7 @@ impl TokenField {
             TokenField::EnabledPrivileges(x) => (7, x.bits() as _),
             TokenField::PresentPrivileges(x) => (8, x.bits() as _),
             TokenField::EnabledByDefaultPrivileges(x) => (9, x.bits() as _),
+            TokenField::Unknown => (0, 0),
         }
     }
 
@@ -155,7 +157,7 @@ impl TokenField {
             9 => TokenField::EnabledByDefaultPrivileges(TokenPrivilege::from_bits_truncate(
                 value as _,
             )),
-            _ => panic!(),
+            _ => TokenField::Unknown
         }
     }
 }

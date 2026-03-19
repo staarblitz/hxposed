@@ -15,7 +15,7 @@ pub struct MsrIoResponse {
 impl VmcallResponse for PrivilegedInstructionResponse {
     fn from_raw(raw: HypervisorResponse) -> Self {
         Self {
-            instruction: PrivilegedInstruction::from_bits(raw.arg1, raw.arg2)
+            instruction: PrivilegedInstruction::from_bits(raw.arg1, raw.arg2, raw.arg3 as _)
         }
     }
 
@@ -25,6 +25,7 @@ impl VmcallResponse for PrivilegedInstructionResponse {
             result: HypervisorResult::ok(),
             arg1: args.0,
             arg2: args.1,
+            arg3: args.2 as _,
             ..Default::default()
         }
     }

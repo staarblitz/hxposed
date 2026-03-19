@@ -121,6 +121,7 @@ impl VmcallRequest for OpenThreadRequest {
 pub enum ThreadField {
     ActiveImpersonationInfo(bool),
     AdjustedClientToken(u64),
+    Unknown
 }
 
 impl ThreadField {
@@ -128,6 +129,7 @@ impl ThreadField {
         match self {
             ThreadField::ActiveImpersonationInfo(x) => (1, x as _),
             ThreadField::AdjustedClientToken(x) => (2, x as _),
+            ThreadField::Unknown => (0, 0),
         }
     }
 
@@ -135,7 +137,7 @@ impl ThreadField {
         match object {
             1 => ThreadField::ActiveImpersonationInfo(value == 1),
             2 => ThreadField::AdjustedClientToken(value as _),
-            _ => panic!()
+            _ => ThreadField::Unknown
         }
     }
 }

@@ -10,7 +10,7 @@ use core::arch::x86_64::_mm_load_si128;
 pub fn vmcall_typed<R: VmcallRequest>(req: R) -> Result<R::Response, HypervisorError> {
     let raw_resp = vmcall(&mut req.into_raw());
     if raw_resp.result.error_code != 0 {
-        Err(HypervisorError::from_response(raw_resp))
+        Err(HypervisorError::from_response(&raw_resp))
     } else {
         Ok(R::Response::from_raw(raw_resp))
     }

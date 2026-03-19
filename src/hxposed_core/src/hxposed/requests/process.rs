@@ -133,7 +133,8 @@ pub enum ProcessField {
     Token(u64),
     Threads(u64),
     DirectoryTableBase(u64),
-    UserDirectoryTableBase(u64)
+    UserDirectoryTableBase(u64),
+    Unknown
 }
 
 impl ProcessField {
@@ -146,7 +147,8 @@ impl ProcessField {
             ProcessField::Token(x) => (5, x),
             ProcessField::Threads(x) => (6, x),
             ProcessField::DirectoryTableBase(x) => (7, x),
-            ProcessField::UserDirectoryTableBase(x) => (8, x)
+            ProcessField::UserDirectoryTableBase(x) => (8, x),
+            ProcessField::Unknown => (0, 0),
         }
     }
 
@@ -160,7 +162,7 @@ impl ProcessField {
             6 => ProcessField::Threads(value),
             7 => ProcessField::DirectoryTableBase(value),
             8 => ProcessField::UserDirectoryTableBase(value),
-            _ => panic!("Invalid  object id: {}", object)
+            _ => ProcessField::Unknown
         }
     }
 }

@@ -50,6 +50,7 @@ pub enum MemoryType {
     NonPagedPool,
     ContiguousPhysical,
     NonOwned,
+    Unknown
 }
 
 impl Into<u64> for MemoryType {
@@ -58,6 +59,7 @@ impl Into<u64> for MemoryType {
             MemoryType::NonPagedPool => 0,
             MemoryType::ContiguousPhysical => 1,
             MemoryType::NonOwned => 2,
+            MemoryType::Unknown => u64::MAX
         }
     }
 }
@@ -67,7 +69,7 @@ impl From<u64> for MemoryType {
         match value {
             0 => MemoryType::NonPagedPool,
             1 => MemoryType::ContiguousPhysical,
-            _ => unreachable!(),
+            _ =>MemoryType::Unknown,
         }
     }
 }
@@ -125,6 +127,7 @@ pub enum PagingType {
     Pdp(Va),
     Pd(Va),
     Pt(Va),
+    Unknown
 }
 
 impl PagingType {
@@ -135,7 +138,7 @@ impl PagingType {
             2 => Self::Pdp(Va::from(value)),
             3 => Self::Pd(Va::from(value)),
             4 => Self::Pt(Va::from(value)),
-            _ => unreachable!(),
+            _ => PagingType::Unknown,
         }
     }
 
@@ -146,6 +149,7 @@ impl PagingType {
             PagingType::Pdp(x) => (2, x.into()),
             PagingType::Pd(x) => (3, x.into()),
             PagingType::Pt(x) => (4, x.into()),
+            PagingType::Unknown => (u64::MAX, u64::MAX),
         }
     }
 }
