@@ -1,18 +1,4 @@
 .align 16
-.global hx_gp_handler
-hx_gp_handler:
-    cmp r9, 0x2009          # check if called by us
-    je handle_fail
-
-    hlt                     # access violation in hypervisor! bug!
-
-handle_fail:
-    xor r9, r9              # signal that it failed
-    add rsp, 8              # ignore the error code
-    add qword ptr [rsp], 2  # wrmsr/rdmsr is 2 bytes long. since this is a fault, we need to increment rip manually.
-    iretq                   # where we were?
-
-.align 16
 .global rdmsr_failsafe_naked
 # ms x64 calling convention
 # rcx is msr id
