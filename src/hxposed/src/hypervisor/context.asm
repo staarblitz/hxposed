@@ -19,12 +19,12 @@ restore_context:
     mov rbp, [rcx + rbp_offset]
     mov rcx, [rcx + rcx_offset]
 
-    movdqa xmm0, [rcx + xmm0_offset]
-    movdqa xmm1, [rcx + xmm1_offset]
-    movdqa xmm2, [rcx + xmm2_offset]
-    movdqa xmm3, [rcx + xmm3_offset]
-    movdqa xmm4, [rcx + xmm4_offset]
-    movdqa xmm5, [rcx + xmm5_offset]
+    movdqu xmm0, [rcx + xmm0_offset]
+    movdqu xmm1, [rcx + xmm1_offset]
+    movdqu xmm2, [rcx + xmm2_offset]
+    movdqu xmm3, [rcx + xmm3_offset]
+    movdqu xmm4, [rcx + xmm4_offset]
+    movdqu xmm5, [rcx + xmm5_offset]
     ret
 
 .align 16
@@ -52,12 +52,12 @@ capture_context:
     pop rax
     mov [rcx + rflags_offset], rax
 
-    movdqa [rcx + xmm0_offset], xmm0
-    movdqa [rcx + xmm1_offset], xmm1
-    movdqa [rcx + xmm2_offset], xmm2
-    movdqa [rcx + xmm3_offset], xmm3
-    movdqa [rcx + xmm4_offset], xmm4
-    movdqa [rcx + xmm5_offset], xmm5
+    movdqu [rcx + xmm0_offset], xmm0
+    movdqu [rcx + xmm1_offset], xmm1
+    movdqu [rcx + xmm2_offset], xmm2
+    movdqu [rcx + xmm3_offset], xmm3
+    movdqu [rcx + xmm4_offset], xmm4
+    movdqu [rcx + xmm5_offset], xmm5
 
     lea rax, [rsp + 8]
     mov [rcx + rsp_offset], rax
