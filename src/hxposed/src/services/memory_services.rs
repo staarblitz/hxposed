@@ -1,17 +1,14 @@
-use crate::nt::arch::cr3::{Cr3, Cr3Context};
+use crate::nt::arch::cr3::Cr3Context;
 use crate::nt::arch::pt::{
     PageDirectoryEntry, PageDirectoryPointerEntry, PageMapLevel4, PageTableEntry, PagingEntry,
 };
-use crate::nt::arch::virt_to_phys;
 use crate::nt::mm::rmd::RawMemoryDescriptor;
 use crate::nt::process::NtProcess;
 use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
-use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::memory::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use x86::bits64::paging::PML4Entry;
 
 // I hate this so much
 pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorResponse {
@@ -19,6 +16,7 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
     let _ctx = Cr3Context::begin(cr.into());
 
     let resp = match request.paging_type {
+        PagingType::Unknown => return HypervisorResponse::invalid_params(0),
         PagingType::Pml5(_) => unreachable!("No elegant way to choose between pml5 and 4 yet"),
         PagingType::Pml4(va) => unsafe {
             let field = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
@@ -233,12 +231,10 @@ pub fn describe_memory(request: DescribeMemoryRequest) -> HypervisorResponse {
     let tracker = process.get_object_tracker_unchecked();
     tracker.add_rmd(RawMemoryDescriptor::describe_physical(
         Pa::from(request.pa),
-        request.size
+        request.size,
     ));
 
-    DescribeMemoryResponse {
-        rmd: request.pa
-    }.into_raw()
+    DescribeMemoryResponse { rmd: request.pa }.into_raw()
 }
 
 pub fn allocate_memory(request: AllocateMemoryRequest) -> HypervisorResponse {
@@ -248,10 +244,7 @@ pub fn allocate_memory(request: AllocateMemoryRequest) -> HypervisorResponse {
         .get_object_tracker_unchecked()
         .add_rmd(rmd);
 
-    AllocateMemoryResponse {
-        rmd: ptr,
-    }
-    .into_raw()
+    AllocateMemoryResponse { rmd: ptr }.into_raw()
 }
 
 pub fn free_memory(request: FreeMemoryRequest) -> HypervisorResponse {

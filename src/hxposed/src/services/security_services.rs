@@ -48,11 +48,12 @@ pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HypervisorR
     };
 
     match request.field {
+        TokenField::Unknown => return HypervisorResponse::invalid_params(0),
         TokenField::SourceName(_) => GetTokenFieldResponse::SourceName(token.get_source_name()),
         TokenField::AccountName(_) => {
             let field = token.get_account_name();
             let raw_string = field.get_raw_bytes();
-            let offset = state.write_result(raw_string.as_ptr(), raw_string.len() as _);
+            let offset = state.write_result(raw_string);
             GetTokenFieldResponse::AccountName(offset)
         }
         TokenField::Type(_) => GetTokenFieldResponse::Type(token.get_type()),

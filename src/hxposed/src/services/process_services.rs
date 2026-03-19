@@ -99,7 +99,7 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
         ProcessField::NtPath(_) => {
             let field = process.get_nt_path();
             let raw_string = field.get_raw_bytes();
-            let offset = state.write_result(raw_string.as_ptr(), raw_string.len() as u32);
+            let offset = state.write_result(raw_string);
             ProcessField::NtPath(offset)
         }
         ProcessField::Protection(_) => ProcessField::Protection(process.get_protection()),
@@ -110,7 +110,7 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
         ProcessField::Token(_) => ProcessField::Token(process.get_token() as _),
         ProcessField::Threads(_) => {
             let thread_numbers = process.get_threads();
-            let offset = state.write_result(thread_numbers.as_ptr() as _, thread_numbers.len() as u32);
+            let offset = state.write_result(thread_numbers.as_slice());
             ProcessField::Threads(offset)
         }
         ProcessField::DirectoryTableBase(_) => {
@@ -118,7 +118,8 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
         }
         ProcessField::UserDirectoryTableBase(_) => {
             ProcessField::DirectoryTableBase(process.get_user_directory_table_base().into())
-        }
+        },
+        ProcessField::Unknown => ProcessField::Unknown,
     };
 
     GetProcessFieldResponse { field }.into_raw()
