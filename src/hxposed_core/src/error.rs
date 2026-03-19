@@ -48,7 +48,7 @@ impl fmt::Display for HypervisorError {
 impl core::error::Error for HypervisorError {}
 
 impl HypervisorError {
-    pub fn from_response(response: HypervisorResponse) -> HypervisorError {
+    pub fn from_response(response: &HypervisorResponse) -> HypervisorError {
         match response.result.error_code {
             0 => HypervisorError::Success,
             1 => HypervisorError::NotAllowed(NotAllowedReason::from_bits(response.result.error_reason as _)),

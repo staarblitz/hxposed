@@ -2,6 +2,16 @@ use crate::win::DbgPrint;
 use core::fmt;
 
 #[macro_export]
+macro_rules! scoped_log {
+    ($event:expr) => {
+        {
+            let mut logger = GLOBAL_LOGGER.lock();
+            logger.info($event);
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! hyper_row {
     ($($func:expr),*) => {
         {
