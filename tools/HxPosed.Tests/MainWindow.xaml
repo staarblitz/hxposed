@@ -9,11 +9,11 @@
     <Grid>
         <TabControl>
             <TabItem Header="Processes">
-                <ListView ItemsSource="{Binding Processes}">
+                <ListView x:Name="processesList" ItemsSource="{Binding Processes}">
                     <ListView.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="Kill"></MenuItem>
-                            <MenuItem Header="View Protection"></MenuItem>
+                            <MenuItem Header="Kill" Click="MenuItem_Click"></MenuItem>
+                            <MenuItem Header="View Protection" Click="MenuItem_Click_1"></MenuItem>
                             <MenuItem Header="View Mitigation"></MenuItem>
                             <MenuItem Header="View Token"></MenuItem>
                             <MenuItem Header="View Signature Levels"></MenuItem>
@@ -39,13 +39,13 @@
             <TabItem Header="Threads">
 
             </TabItem>
+            <TabItem Header="Security">
+
+            </TabItem>
             <TabItem Header="Memory">
 
             </TabItem>
             <TabItem Header="CPU">
-
-            </TabItem>
-            <TabItem Header="Logs">
 
             </TabItem>
         </TabControl>

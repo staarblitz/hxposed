@@ -34,7 +34,7 @@ namespace HxPosed.PInvoke
         public _HX_OBJECT_TYPES Type;
 
         [NativeTypeName("PVOID")]
-        public void* Object;
+        public ulong Object;
     }
 
     public partial struct _HXR_OPEN_OBJECT
@@ -2760,7 +2760,7 @@ namespace HxPosed.PInvoke
     public unsafe partial struct _HXR_GET_PROCESS_FIELD
     {
         [NativeTypeName("HX_PROCESS")]
-        public void* Address;
+        public ulong Address;
 
         [NativeTypeName("HXS_GET_PROCESS_FIELD")]
         public _HXS_GET_PROCESS_FIELD Data;
@@ -2769,7 +2769,7 @@ namespace HxPosed.PInvoke
     public unsafe partial struct _HXR_SET_PROCESS_FIELD
     {
         [NativeTypeName("HX_PROCESS")]
-        public void* Address;
+        public ulong Address;
 
         [NativeTypeName("HXS_GET_PROCESS_FIELD")]
         public _HXS_GET_PROCESS_FIELD Data;
@@ -3473,13 +3473,6 @@ namespace HxPosed.PInvoke
 
     public static unsafe partial class Methods
     {
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        public static extern nint CreateEvent(
-    IntPtr lpEventAttributes,
-    bool bManualReset,
-    bool bInitialState,
-    string lpName);
-
         public const int HxOpenHandle = 0;
         public const int HxOpenHypervisor = 1;
 
@@ -3556,84 +3549,42 @@ namespace HxPosed.PInvoke
         [return: NativeTypeName("PVOID")]
         public static extern void* HxReadAsyncResponseType([NativeTypeName("UINT64")] ulong Offset);
 
-        [DllImport("ntdll.dll")]
-        public static extern uint NtQuerySystemInformation(
-    int SystemInformationClass,
-    IntPtr SystemInformation,
-    int SystemInformationLength,
-    out int ReturnLength);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct UNICODE_STRING
+        public static _HX_REQUEST_RESPONSE HxCall(_HX_SERVICE_FUNCTION function, bool extendedArgsPresent = false)
         {
-            public ushort Length;
-            public ushort MaximumLength;
-            public IntPtr Buffer;
+            return new _HX_REQUEST_RESPONSE
+            {
+                Call = new _HX_CALL
+                {
+                    ServiceFunction = (ulong)function,
+                    ExtendedArgsPresent = (ulong)(extendedArgsPresent ? 1 : 0)
+                }
+            };
         }
 
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct SYSTEM_PROCESS_INFORMATION
+        public static void HxClose(_HX_SERVICE_FUNCTION function, ulong addr)
         {
-            public uint NextEntryOffset;
-            public uint NumberOfThreads;
-            public long WorkingSetPrivateSize;
-            public uint HardFaultCount;
-            public uint NumberOfThreadsHighWatermark;
-            public ulong CycleTime;
-            public long CreateTime;
-            public long UserTime;
-            public long KernelTime;
-            public UNICODE_STRING ImageName;
-            public int BasePriority;
-            public IntPtr UniqueProcessId;
-            public IntPtr InheritedFromUniqueProcessId;
-            public uint HandleCount;
-            public uint SessionId;
-            public UIntPtr UniqueProcessKey;
-            public UIntPtr PeakVirtualSize;
-            public UIntPtr VirtualSize;
-            public uint PageFaultCount;
-            public UIntPtr PeakWorkingSetSize;
-            public UIntPtr WorkingSetSize;
-            public UIntPtr QuotaPeakPagedPoolUsage;
-            public UIntPtr QuotaPagedPoolUsage;
-            public UIntPtr QuotaPeakNonPagedPoolUsage;
-            public UIntPtr QuotaNonPagedPoolUsage;
-            public UIntPtr PagefileUsage;
-            public UIntPtr PeakPagefileUsage;
-            public UIntPtr PrivatePageCount;
-            public long ReadOperationCount;
-            public long WriteOperationCount;
-            public long OtherOperationCount;
-            public long ReadTransferCount;
-            public long WriteTransferCount;
-            public long OtherTransferCount;
+            var call = HxCall(function);
+            call.CloseObjectRequest.Address = addr;
+            unsafe
+            {
+                HxpTrap(&call);
+            }
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        public struct SYSTEM_THREAD_INFORMATION
+        public static ulong? HxOpen(_HX_SERVICE_FUNCTION function, ulong addrOrId, ulong openType)
         {
-            public long KernelTime;
-            public long UserTime;
-            public long CreateTime;
-            public uint WaitTime;
-            public IntPtr StartAddress;
-            public CLIENT_ID ClientId;
-            public int Priority;
-            public int BasePriority;
-            public uint ContextSwitches;
-            public uint ThreadState;
-            public uint WaitReason;
-        }
+            var call = HxCall(function);
+            call.OpenObjectRequest.AddressOrId = addrOrId;
+            call.OpenObjectRequest.OpenType = openType;
 
-        [StructLayout(LayoutKind.Sequential)]
-        public struct CLIENT_ID
-        {
-            public IntPtr UniqueProcess;
-            public IntPtr UniqueThread;
-        }
+            unsafe
+            {
+                HxpTrap(&call);
+            }
 
-        public const int SystemProcessInformation = 5;
+            if (call.Result.ErrorCode != 0) return null;
+
+            return call.OpenObjectResponse.Object.Object;
+        }
     }
 }

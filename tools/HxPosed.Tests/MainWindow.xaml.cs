@@ -1,0 +1,152 @@
+﻿using HxPosed.PInvoke;
+using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+
+namespace HxPosed.Tests
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        public ObservableCollection<ProcessModel> Processes { get; } = [];
+
+
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            DataContext = this; // 200 iq
+            unsafe
+            {
+                var reqResp = new _HX_REQUEST_RESPONSE
+                {
+                    Call = new _HX_CALL
+                    {
+                        ServiceFunction = (ulong)_HX_SERVICE_FUNCTION.HxSvcRegisterNotifyEvent,
+                    },
+                    RegisterCallbackRequest = new _HXR_REGISTER_CALLBACK
+                    {
+                        EventHandle = (void*)Win32.CreateEvent(nint.Zero, true, false, null),
+                        ObjectType = new _HX_OBJECT_TYPE
+                        {
+                            Object = (ulong)_HX_OBJECT_TYPES.HxObProcess
+                        }
+                    },
+                };
+
+                if (Methods.HxpTrap(&reqResp) != 0)
+                {
+                    MessageBox.Show("Hypervisor is not loaded!");
+                    //return;
+                    //Application.Current.Shutdown();
+                }
+
+                if (reqResp.Result.ErrorCode != 0)
+                {
+                    MessageBox.Show($"Error registering callbacks opReq: {reqResp.Result.ErrorCode} {reqResp.Result.ErrorReason}");
+                }
+            }
+
+            ReloadProcesses();
+        }
+
+        private void ReloadProcesses()
+        {
+            foreach (var process in Processes)
+            {
+                //bruh
+                process.Dispose();
+            }
+
+            Processes.Clear();
+
+            var status = Win32.NtQuerySystemInformation(Win32.SystemProcessInformation, nint.Zero, 0, out var returnlen);
+
+            if (status != 0xC0000004)
+            {
+                MessageBox.Show($"Failed to fetch processes length! {status:x}");
+                return;
+            }
+
+            var ptr = Marshal.AllocHGlobal(returnlen);
+
+            status = Win32.NtQuerySystemInformation(Win32.SystemProcessInformation, ptr, returnlen, out var returnLength2);
+            if (status != 0)
+            {
+                MessageBox.Show($"Failed to fetch processes length! {status:x}");
+                return;
+            }
+
+            // this is worst c# code i have ever written tbh
+            unsafe
+            {
+                var spi = (Win32.SYSTEM_PROCESS_INFORMATION*)ptr;
+                do
+                {
+                    var process = ProcessModel.FromId((int)spi->UniqueProcessId);
+                    if (process is not null)
+                    {
+                        Processes.Add(process);
+                    }
+
+                    spi = (Win32.SYSTEM_PROCESS_INFORMATION*)nint.Add((nint)spi, (int)spi->NextEntryOffset);
+                } while (spi->NextEntryOffset != 0);
+            }
+
+            Marshal.FreeHGlobal(ptr);
+        }
+
+        private void MenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedItem = (ProcessModel)processesList.SelectedItem;
+
+            if (Win32.TerminateProcess((nint)selectedItem.Handle, 0))
+            {
+                MessageBox.Show("Process killed");
+
+            }
+            else
+            {
+                MessageBox.Show($"Failed to kill process {Marshal.GetLastWin32Error()}");
+            }
+
+            ReloadProcesses();
+        }
+
+        private void MenuItem_Click_1(object sender, RoutedEventArgs e)
+        {
+            var selectedItem = (ProcessModel)processesList.SelectedItem;
+
+            var dlg = new ProtectionView
+            {
+                ProtectionSigner = (_HX_PROCESS_PROTECTION_SIGNER)selectedItem.Protection.Signer,
+                ProtectionType = (_HX_PROCESS_PROTECTION_TYPE)selectedItem.Protection.Signer,
+                Audit = selectedItem.Protection.Audit == 1
+            };
+
+            if (dlg.ShowDialog() == true)
+            {
+                // pattern matching
+                selectedItem.Protection = new _HX_PROCESS_PROTECTION
+                {
+                    Audit = (byte)(dlg.Audit ? 1 : 0),
+                    Signer = (byte)dlg.ProtectionSigner,
+                    Type = (byte)dlg.ProtectionType
+                };
+                ReloadProcesses();
+            }
+        }
+    }
+}

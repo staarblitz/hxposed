@@ -65,6 +65,8 @@ namespace HxPosed.LogViewer
         Vmxon = 24,
         Panic = 25,
         WritingAsyncBuffer = 26,
-        WrittenAsyncBuffer = 27
+        WrittenAsyncBuffer = 27,
+        NtInfo = 28,
+        BuildOffset = 29
     }
 }

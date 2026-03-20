@@ -7,7 +7,7 @@ namespace HxPosed.LogViewer
 {
     public partial class Form1 : Form
     {
-        LogEntry[] logs = null;
+        LogEntry[] _logs = null;
 
         public Form1()
         {
@@ -17,17 +17,17 @@ namespace HxPosed.LogViewer
         private void LoadLogs()
         {
             var bytes = File.ReadAllBytes(textBox1.Text);
-            logs = MemoryMarshal.Cast<byte, LogEntry>(bytes).ToArray();
+            _logs = MemoryMarshal.Cast<byte, LogEntry>(bytes).ToArray();
             listView1.BeginUpdate();
             listView1.Items.Clear();
 
-            toolStripStatusLabel2.Text = logs.Length.ToString();
-            toolStripStatusLabel4.Text = logs.Count(x => x.LogType == LogType.Error).ToString();
-            toolStripStatusLabel6.Text = logs.Count(x => x.LogType == LogType.Warn).ToString();
-            toolStripStatusLabel8.Text = logs.Count(x => x.LogType == LogType.Info).ToString();
-            toolStripStatusLabel10.Text = logs.Count(x => x.LogType == LogType.Trace).ToString();
+            toolStripStatusLabel2.Text = _logs.Length.ToString();
+            toolStripStatusLabel4.Text = _logs.Count(x => x.LogType == LogType.Error).ToString();
+            toolStripStatusLabel6.Text = _logs.Count(x => x.LogType == LogType.Warn).ToString();
+            toolStripStatusLabel8.Text = _logs.Count(x => x.LogType == LogType.Info).ToString();
+            toolStripStatusLabel10.Text = _logs.Count(x => x.LogType == LogType.Trace).ToString();
 
-            foreach (var log in logs)
+            foreach (var log in _logs)
             {
                 if (log.LogType == LogType.Error && !checkBox5.Checked) continue;
                 if (log.LogType == LogType.Warn && !checkBox4.Checked) continue;
@@ -126,11 +126,6 @@ namespace HxPosed.LogViewer
                                 eventString = $"HxPosed base: 0x{log.Arg1:x}, size: 0x{log.Arg2:x}";
                                 break;
                             }
-                        case LogEventTag.NtVersion:
-                            {
-                                eventString = $"NT version: {log.Arg1}";
-                                break;
-                            }
                         case LogEventTag.WindowsVersion:
                             {
                                 eventString = $"NT build: {log.Arg1}, UBR: {log.Arg2}";
@@ -191,6 +186,24 @@ namespace HxPosed.LogViewer
                                 eventString = $"Written async buffer to 0x{log.Arg1:x}, ended at 0x{log.Arg2:x}";
                                 break;
                             }
+                        case LogEventTag.NtInfo:
+                            {
+                                eventString = $"NT build: {log.Arg1}, UBR: {log.Arg2}, base: 0x{log.Arg3:x}";
+                                break;
+                            }
+                        case LogEventTag.BuildOffset:
+                            {
+                                var name = log.Arg1 switch
+                                {
+                                    0 => "PsTerminateProcess",
+                                    1 => "ExCreateHandle",
+                                    2 => "PsTerminateThread",
+                                    3 => "ExpLookupHandleTableEntry",
+                                    _ => "Unknown"
+                                };
+                                eventString = $"Absolute address for {name}: 0x{log.Arg2:x}";
+                                break;
+                            }
                         default:
                             {
                                 eventString = "Unknown event";
@@ -238,24 +251,24 @@ namespace HxPosed.LogViewer
         }
 
         // insane
-        private int selectedSubItemIndex;
-        private ListViewItem selectedItem;
+        private int _selectedSubItemIndex;
+        private ListViewItem _selectedItem;
 
         private void copyCellToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (selectedItem != null && selectedSubItemIndex >= 0)
+            if (_selectedItem != null && _selectedSubItemIndex >= 0)
             {
-                Clipboard.SetText(selectedItem.SubItems[selectedSubItemIndex].Text);
+                Clipboard.SetText(_selectedItem.SubItems[_selectedSubItemIndex].Text);
             }
         }
 
         private void copyRowToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (selectedItem == null) return;
+            if (_selectedItem == null) return;
 
             var builder = new StringBuilder();
-            builder.Append(selectedItem.Text);
-            foreach (ListViewItem.ListViewSubItem subitem in selectedItem.SubItems)
+            builder.Append(_selectedItem.Text);
+            foreach (ListViewItem.ListViewSubItem subitem in _selectedItem.SubItems)
             {
                 builder.Append(" - " + subitem.Text);
             }
@@ -271,7 +284,7 @@ namespace HxPosed.LogViewer
                 e.Cancel = true;
                 return;
             }
-            selectedItem = item;
+            _selectedItem = item;
             var subItemIndex = -1;
             var x = 0;
             for (var i = 0; i < item.SubItems.Count; i++)
@@ -283,7 +296,7 @@ namespace HxPosed.LogViewer
                     break;
                 }
             }
-            selectedSubItemIndex = subItemIndex;
+            _selectedSubItemIndex = subItemIndex;
 
             copyCellToolStripMenuItem.Enabled = true;
         }

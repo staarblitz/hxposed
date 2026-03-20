@@ -1,0 +1,34 @@
+﻿<Window x:Class="HxPosed.Tests.ProtectionView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HxPosed.Tests"
+        mc:Ignorable="d"
+        Title="ProtectionView" Height="450" Width="300" ResizeMode="CanMinimize">
+    <Grid Margin="20">
+        <StackPanel Orientation="Vertical">
+            <StackPanel.Resources>
+                <Style TargetType="{x:Type StackPanel}">
+                    <Setter Property="Margin" Value="0,0,0,5"/>
+                </Style>
+            </StackPanel.Resources>
+            <StackPanel>
+                <Label>Type</Label>
+                <ComboBox x:Name="typeBox"/>
+            </StackPanel>
+            <StackPanel>
+                <Label>Audit</Label>
+                <CheckBox x:Name="auditBox"/>
+            </StackPanel>
+            <StackPanel>
+                <Label>Signer</Label>
+                <ComboBox x:Name="signBox"/>
+            </StackPanel>
+        </StackPanel>
+        <Button Content="OK" Click="Button_Click"
+            HorizontalAlignment="Right" 
+            VerticalAlignment="Bottom" 
+            Padding="10,5" />
+    </Grid>
+</Window>
