@@ -10,9 +10,6 @@
   <Project Path="HxPosed.Core/HxPosed.Core.csproj">
     <BuildType Solution="StaticDbg|*" Project="Release" />
   </Project>
-  <Project Path="HxPosed.GUI/HxPosed.GUI.csproj">
-    <BuildType Solution="StaticDbg|*" Project="Release" />
-  </Project>
   <Project Path="HxPosed.LogViewer/HxPosed.LogViewer.csproj" Id="45cc5e2e-e1d3-47eb-b558-00b3c13104f1">
     <BuildType Solution="StaticDbg|*" Project="Release" />
   </Project>
