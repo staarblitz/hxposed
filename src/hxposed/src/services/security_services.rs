@@ -36,6 +36,8 @@ pub(crate) fn set_token_field_sync(request: SetTokenFieldRequest) -> HypervisorR
         _ => HypervisorResponse::invalid_params(0),
     }
 }
+
+#[allow(static_mut_refs)]
 pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
     let state = process.get_hx_async_state_unchecked();
@@ -99,7 +101,7 @@ pub(crate) fn open_token_sync(request: OpenTokenRequest) -> HypervisorResponse {
         ObjectOpenType::Hypervisor => {
             // if token is 0, use the system token
             let token = match request.token == 0 {
-                true => nt::SYSTEM_TOKEN.load(Ordering::Relaxed) as TokenObject,
+                true => unsafe { nt::SYSTEM_TOKEN as TokenObject },
                 false => request.token,
             };
             process
