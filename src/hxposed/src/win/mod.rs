@@ -523,14 +523,13 @@ pub struct UNICODE_STRING {
 #[derive(Default, Clone)]
 pub struct LDR_DATA_TABLE_ENTRY {
     pub InLoadOrderLinks: *mut LIST_ENTRY,
-    pub InMemoryOrderLinks: *mut LIST_ENTRY,
-    pub InInitOrderLinks: *mut LIST_ENTRY,
-    pub DllBase: PVOID,
-    pub EntryPoint: PVOID,
-    pub SizeOfImage: usize,
-    pub FullDllName: UNICODE_STRING,
-    pub BaseDllName: UNICODE_STRING,
-    // rest is unneeded.
+    pub ExceptionTable: *mut c_void,
+    pub ExceptionTableSize: u64,
+    pub GpValue: *mut c_void,
+    pub NonPagedDebugInfo: *mut c_void,
+    pub DllBase: *mut c_void,
+    pub EntryPoint: *mut c_void,
+    pub SizeOfImage: u32
 }
 
 #[repr(u32)]
