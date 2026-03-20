@@ -113,8 +113,6 @@ pub enum LogEvent {
     FailedToMap = 12,
     DelayedStart = 13,
     HxPosedInit(u64, u64) = 14,
-    NtVersion(u64) = 15,
-    WindowsVersion(u32, u32) = 16,
     FailedToAllocate = 17,
     Exception(u32) = 18,
     Catastrophic(u64, u32, u32) = 19,
@@ -126,6 +124,8 @@ pub enum LogEvent {
     Panic(u64, u64) = 25,
     WritingAsyncBuffer(u64, u64) = 26,
     WrittenAsyncBuffer(u64, u64) = 27,
+    NtInfo(u64, u64, u64) = 28,
+    BuildOffset(u32, u64) = 29
 }
 
 impl LogEvent {
@@ -147,8 +147,6 @@ impl LogEvent {
             LogEvent::FailedToMap => (12, 0, 0, 0, 0),
             LogEvent::DelayedStart => (13, 0, 0, 0, 0),
             LogEvent::HxPosedInit(x, y) => (14, x, y, 0, 0),
-            LogEvent::NtVersion(x) => (15, x, 0, 0, 0),
-            LogEvent::WindowsVersion(x, y) => (16, x as _, y as _, 0, 0),
             LogEvent::FailedToAllocate => (17, 0, 0, 0, 0),
             LogEvent::Exception(x) => (18, x as _, 0, 0, 0),
             LogEvent::Catastrophic(x, y, z) => (19, x, y as _, z as _, 0),
@@ -160,6 +158,8 @@ impl LogEvent {
             LogEvent::Panic(x, y) => (25, x, y, 0, 0),
             LogEvent::WritingAsyncBuffer(x, y) => (26, x, y, 0, 0),
             LogEvent::WrittenAsyncBuffer(x, y) => (27, x, y, 0, 0),
+            LogEvent::NtInfo(x, y, z) => (28, x, y, z, 0),
+            LogEvent::BuildOffset(x,y) => (29, x as _, y, 0, 0),
         }
     }
 }
