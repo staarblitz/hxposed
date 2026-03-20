@@ -39,7 +39,7 @@ impl VmxOn {
 
     pub fn on(&self) -> Result<(), VmFail> {
         let phys = unsafe { MmGetPhysicalAddress(self as *const _ as _) };
-        scoped_log!(LogEvent::Vmxon(self as *const _ as _, phys));
+        scoped_log!(info, LogEvent::Vmxon(self as *const _ as _, phys));
         unsafe { vmxon(phys) }
     }
 
@@ -109,13 +109,13 @@ impl Vmcs {
 
     pub fn load(&self) -> Result<(), VmFail> {
         let phys = unsafe { MmGetPhysicalAddress(self as *const _ as _) };
-        scoped_log!(LogEvent::Vmptrld(self as *const _ as _, phys));
+        scoped_log!(info, LogEvent::Vmptrld(self as *const _ as _, phys));
         unsafe { vmptrld(phys) }
     }
 
     pub fn clear(&self) -> Result<(), VmFail> {
         let phys = unsafe { MmGetPhysicalAddress(self as *const _ as _) };
-        scoped_log!(LogEvent::Vmclear(self as *const _ as _, phys));
+        scoped_log!(info, LogEvent::Vmclear(self as *const _ as _, phys));
         unsafe { vmclear(phys) }
     }
 
@@ -163,7 +163,7 @@ impl HvCpu {
         self.vmcs.clear()?;
         self.vmcs.load()?;
 
-        scoped_log!(LogEvent::ProcessorReady(
+        scoped_log!(info, LogEvent::ProcessorReady(
             index,
             self.hvfs.as_ref() as *const _ as _
         ));
@@ -178,7 +178,7 @@ impl HvCpu {
 
         self.vmcs.launch(&mut self.hvfs.registers);
 
-        scoped_log!(LogEvent::LaunchingProcessor);
+        scoped_log!(info, LogEvent::LaunchingProcessor);
 
         Ok(())
     }

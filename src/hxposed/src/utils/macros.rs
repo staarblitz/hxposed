@@ -3,10 +3,10 @@ use core::fmt;
 
 #[macro_export]
 macro_rules! scoped_log {
-    ($event:expr) => {
+    ($level:ident, $event:expr) => {
         {
             let mut logger = GLOBAL_LOGGER.lock();
-            logger.info($event);
+            logger.$level($event);
         }
     };
 }

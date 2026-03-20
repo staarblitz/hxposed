@@ -96,11 +96,7 @@ extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
         Ok(_) => {}
     }
 
-    {
-        let mut logger = GLOBAL_LOGGER.lock();
-        logger.info(LogEvent::HxPosedInit(cfg.base_address, cfg.pe_size));
-        logger.info(LogEvent::NtVersion(NT_BUILD.load(Ordering::Relaxed)));
-    }
+    scoped_log!(info, LogEvent::HxPosedInit(cfg.base_address, cfg.pe_size));
 
     // SAFETY: this is the only mutable access in entire lifecycle.
     unsafe {
