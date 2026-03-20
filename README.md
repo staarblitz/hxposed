@@ -473,8 +473,7 @@ HxPosed is not just a framework. It's a knowledge base you can learn Windows int
 - `hxposed_core` core API providing access to hypervisor.
 - `hxposed` the kernel driver and hypervisor.
 
-`HxPosed.GUI` contains the code written in C# (and C).
-- `HxPosed.GUI` GUI manager for HxPosed. Written in WPF.
+`tools` contains the tools for using HxPosed.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
 - `HxPosed.Tests` a process manager demonstrating all features of HxPosed
 - `libhxposed` native library providing access to hypervisor. Written in C and asm.
