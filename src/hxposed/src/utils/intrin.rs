@@ -99,7 +99,7 @@ global_asm!(include_str!("intrin.asm"));
 
 #[allow(dead_code)]
 unsafe extern "C" {
-    fn hw_bp();
+    pub fn hw_bp();
     fn rdmsr_failsafe_naked(msr: u32) -> u64;
     fn wrmsr_failsafe_naked(msr: u32, value: u64) -> u8;
 }
