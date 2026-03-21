@@ -12,38 +12,38 @@ pub type TokenObject = u64;
 pub type RmdObject = u64;
 pub type CallbackObject = u64;
 pub type AsyncCookie = u64;
+pub type Handle = u64;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum ObjectType {
-    Handle(u64),
     Process(ProcessObject),
     Thread(ThreadObject),
     Token(TokenObject),
     Rmd(RmdObject),
     Registry(u64),
+    Unknown
 }
 
 impl ObjectType {
     pub fn into_raw(self) -> (u64, u64) {
         match self {
-            ObjectType::Handle(h) => (0, h),
             ObjectType::Process(p) => (1, p),
             ObjectType::Thread(t) => (2, t),
             ObjectType::Token(t) => (3, t),
             ObjectType::Rmd(m) => (4, m),
             ObjectType::Registry(r) => (5, r),
+            ObjectType::Unknown => (0, 0),
         }
     }
 
     pub fn from_raw(object: u64, value: u64) -> ObjectType {
         match object {
-            0 => ObjectType::Handle(value),
             1 => ObjectType::Process(value),
             2 => ObjectType::Thread(value),
             3 => ObjectType::Token(value),
             4 => ObjectType::Rmd(value),
             5 => ObjectType::Registry(value),
-            _ => panic!("Invalid object id: {}", object),
+            _ => ObjectType::Unknown,
         }
     }
 }
@@ -51,12 +51,12 @@ impl ObjectType {
 impl Into<u64> for ObjectType {
     fn into(self) -> u64 {
         match self {
-            ObjectType::Handle(x) => x,
             ObjectType::Process(x) => x,
             ObjectType::Thread(x) => x,
             ObjectType::Token(x) => x,
             ObjectType::Rmd(x) => x,
             ObjectType::Registry(x) => x,
+            ObjectType::Unknown => 0,
         }
     }
 }
