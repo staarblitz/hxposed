@@ -1,12 +1,14 @@
 // does not mean Vm FileSystem
 
+use alloc::boxed::Box;
 use core::arch::global_asm;
 use x86::msr::{IA32_FS_BASE, rdmsr};
 use hxposed_core::hxposed::responses::HypervisorResponse;
+use crate::size_assert;
 use crate::utils::logger::HvLogger;
 
 #[repr(C, align(16))]
-#[derive(Default, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct Registers {
     pub rax: u64, // 0
     pub rbx: u64, // 8
@@ -36,6 +38,7 @@ pub struct Registers {
     pub rsp: u64, // 224
     pub rip: u64, // 232
 }
+size_assert!(Registers, 240);
 
 unsafe extern "C" {
     pub unsafe fn capture_context(regs: &mut Registers);
@@ -43,11 +46,21 @@ unsafe extern "C" {
 
 #[repr(C)]
 pub struct HvFs {
-    pub registers: Registers,
-    pub logger: HvLogger
+    pub registers: Box<Registers>,
+    pub exception_registers: Box<Registers>,
+    pub logger: Box<HvLogger>
 }
 
 impl HvFs {
+    pub fn new(registers: Registers) -> Self {
+        Self {
+            registers: Box::new(registers),
+            // this started to get ridiculous
+            exception_registers: unsafe { Box::new_zeroed().assume_init() },
+            logger: Box::new(HvLogger::new()),
+        }
+    }
+
     pub fn get_current() -> *mut HvFs {
         unsafe { rdmsr(IA32_FS_BASE) as *mut HvFs }
     }

@@ -1,5 +1,5 @@
-use crate::hypervisor::idt::InterruptDescriptorTableRaw;
 use crate::hypervisor::segments::SegmentDescriptor;
+use crate::hypervisor::tables::{InterruptDescriptorTableRaw, InterruptStackTableRaw};
 use crate::hypervisor::vmfs::{HvFs, Registers};
 use crate::utils::alloc::PoolAlloc;
 use crate::utils::intrin::{lar, ldtr, lsl, sgdt, sidt, tr};
@@ -139,6 +139,7 @@ pub struct HvCpu {
     pub hvfs: Box<HvFs>,
     pub stack: Box<[u8; 1024 * 64]>,
     pub idt: Box<InterruptDescriptorTableRaw>,
+    pub ist: Box<InterruptStackTableRaw>,
 }
 
 impl HvCpu {
@@ -146,13 +147,11 @@ impl HvCpu {
         Self {
             vmcs: Vmcs::new(),
             vmxon: VmxOn::new(),
-            hvfs: Box::new(HvFs {
-                registers,
-                logger: HvLogger::new(),
-            }),
-            // why box::new doesnt place it on heap by default? insane
+            hvfs: Box::new(HvFs::new(registers)),
+            // why box::new doesn't place it on heap by default? insane
             stack: unsafe { Box::new_zeroed().assume_init() },
             idt: InterruptDescriptorTableRaw::new(),
+            ist: InterruptStackTableRaw::new(),
         }
     }
 
@@ -163,10 +162,10 @@ impl HvCpu {
         self.vmcs.clear()?;
         self.vmcs.load()?;
 
-        scoped_log!(info, LogEvent::ProcessorReady(
-            index,
-            self.hvfs.as_ref() as *const _ as _
-        ));
+        scoped_log!(
+            info,
+            LogEvent::ProcessorReady(index, self.hvfs.as_ref() as *const _ as _)
+        );
 
         Ok(())
     }
@@ -184,18 +183,13 @@ impl HvCpu {
     }
 
     fn initialize_host(&self) {
-        let gdtr = sgdt();
-        let gdt_base = gdtr.base;
-        let tr = tr();
-        let tss_base = SegmentDescriptor::try_from_gdtr(&gdtr, tr).unwrap().base();
-
         Vmcs::vmwrite(vmcs::host::ES_SELECTOR, es().bits() & !0b111);
         Vmcs::vmwrite(vmcs::host::CS_SELECTOR, cs().bits() & !0b111);
         Vmcs::vmwrite(vmcs::host::SS_SELECTOR, ss().bits() & !0b111);
         Vmcs::vmwrite(vmcs::host::DS_SELECTOR, ds().bits() & !0b111);
         Vmcs::vmwrite(vmcs::host::FS_SELECTOR, fs().bits() & !0b111);
         Vmcs::vmwrite(vmcs::host::GS_SELECTOR, gs().bits() & !0b111);
-        Vmcs::vmwrite(vmcs::host::TR_SELECTOR, tr.bits() & !0b111);
+        Vmcs::vmwrite(vmcs::host::TR_SELECTOR, tr().bits() & !0b111);
 
         Vmcs::vmwrite(vmcs::host::CR0, unsafe { cr0() }.bits() as u64);
         Vmcs::vmwrite(vmcs::host::CR3, unsafe { cr3() });
@@ -206,8 +200,8 @@ impl HvCpu {
             rdmsr(x86::msr::IA32_GS_BASE)
         });
 
-        Vmcs::vmwrite(vmcs::host::TR_BASE, tss_base);
-        Vmcs::vmwrite(vmcs::host::GDTR_BASE, gdt_base as u64);
+        Vmcs::vmwrite(vmcs::host::TR_BASE, self.ist.as_ref() as *const _ as u64);
+        Vmcs::vmwrite(vmcs::host::GDTR_BASE, sgdt().base as u64);
         Vmcs::vmwrite(vmcs::host::IDTR_BASE, self.idt.as_ref() as *const _ as u64);
 
         Vmcs::vmwrite(vmcs::host::RIP, hv_vm_exit as *const u64 as u64);
