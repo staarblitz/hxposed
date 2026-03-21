@@ -24,98 +24,46 @@ namespace HxPosed.Tests
         {
             var me = new ProcessModel();
 
-            var call = HxCall(_HX_SERVICE_FUNCTION.HxSvcOpenProcess);
-            call.OpenObjectRequest.AddressOrId = (ulong)id;
-            call.OpenObjectRequest.OpenType = HxOpenHypervisor;
-
+            var process = 0UL;
             unsafe
             {
-                HxpTrap(&call);
-            }
-
-            if (call.Result.ErrorCode != 0) return null;
-            me.Object = call.OpenObjectResponse.Object.Object;
-
-            call.OpenObjectRequest.AddressOrId = (ulong)id;
-            call.OpenObjectRequest.OpenType = HxOpenHandle;
-            unsafe
-            {
-                HxpTrap(&call);
-            }
-
-            if (call.Result.ErrorCode != 0)
-            {
-                HxClose(_HX_SERVICE_FUNCTION.HxSvcCloseProcess, me.Object);
-                return null;
-            }
-
-            me.Handle = call.OpenObjectResponse.Object.Object;
-
-            var pathCall = HxCall(_HX_SERVICE_FUNCTION.HxSvcGetProcessField);
-            pathCall.GetProcessFieldRequest.Address = me.Object;
-            pathCall.GetProcessFieldRequest.Data.Field = HxProcFieldNtPath;
-
-            unsafe
-            {
-                HxpTrap(&call);
-            }
-
-            if (call.Result.ErrorCode != 0) goto cleanup;
-
-            var length = HxReadAsyncResponseLength(pathCall.GetProcessFieldResponse.NtPathOffset);
-            // i want to use as much c# as possible i guess
-            me.ExeName = Marshal.PtrToStringUni((nint)(0x2009000 + pathCall.GetProcessFieldResponse.NtPathOffset + 4), (int)length);
-
-            pathCall.GetProcessFieldRequest.Address = me.Object;
-            pathCall.GetProcessFieldRequest.Data.Field = HxProcFieldThreads;
-
-            unsafe
-            {
-                HxpTrap(&call);
-            }
-
-            if (call.Result.ErrorCode != 0) goto cleanup;
-
-            length = HxReadAsyncResponseLength(call.GetProcessFieldRequest.Data.ThreadsOffset);
-            Span<int> threads;
-            // lets do come c#ry eh?
-            unsafe
-            {
-                threads = new Span<int>((void*)(0x2009000 + pathCall.GetProcessFieldResponse.NtPathOffset + 4), (int)length);
-            }
-
-            foreach (var thread in threads)
-            {
-                me.Threads.Add(new ThreadModel
+                var result = HxOpenObject(_HX_SERVICE_FUNCTION.HxSvcOpenProcess, (void*)id, &process);
+                if (result.ErrorCode != 0)
                 {
-                    Id = thread,
-                    ProcessId = me.Id,
-                });
+                    return null;
+                }
+
+                me.Object = process;
+
+                var tempMe = Win32.OpenProcess(Win32.PROCESS_QUERY_INFORMATION, false, (int)Win32.GetCurrentProcessId());
+                result = HxSwapHandleObject((ulong)tempMe, 0, process);
+                if (result.ErrorCode != 0) goto cleanup;
+                result = HxUpgradeHandle((ulong)tempMe, 0, Win32.HANDLE_ALL_ACCESS);
+                if (result.ErrorCode != 0) goto cleanup;
+
+                me.Handle = tempMe;
+
+                ushort* name = (ushort*)0;
+                HxGetProcessNtPath(process, &name);
+
+                me.ExeName = Marshal.PtrToStringUni((nint)name)!;
+
+                uint* threadsptr = (uint*)0;
+                var count = 0u;
+                HxGetProcessThreads(process, &threadsptr, &count);
+
+                var threads = new Span<uint>(threadsptr, (int)count);
+                // lets do come c#ry eh?
+
+                foreach (var thread in threads)
+                {
+                    me.Threads.Add(new ThreadModel
+                    {
+                        Id = (int)thread,
+                        ProcessId = me.Id,
+                    });
+                }
             }
-
-            pathCall.GetProcessFieldRequest.Address = me.Object;
-            pathCall.GetProcessFieldRequest.Data.Field = HxProcFieldMitigationFlags;
-            unsafe
-            {
-                HxpTrap(&call);
-            }
-
-            if (call.Result.ErrorCode != 0) goto cleanup;
-
-            me.Protection = pathCall.GetProcessFieldResponse.Protection;
-
-            pathCall.GetProcessFieldRequest.Address = me.Object;
-            pathCall.GetProcessFieldRequest.Data.Field = HxProcFieldProtection;
-            unsafe
-            {
-                HxpTrap(&call);
-            }
-
-            me.Mitigation = pathCall.GetProcessFieldResponse.MitigationFlags;
-
-            if (call.Result.ErrorCode != 0) goto cleanup;
-
-            return me;
 
         cleanup:
             me.Dispose();
@@ -125,8 +73,13 @@ namespace HxPosed.Tests
         public void Dispose()
         {
             _disposed = true;
-            Win32.CloseHandle((nint)Handle);
-            HxClose(_HX_SERVICE_FUNCTION.HxSvcCloseProcess, Object);
+
+            // possible in early init
+            if (Handle != 0)
+            {
+                Win32.CloseHandle((nint)Handle);
+            }
+            HxCloseObject(_HX_SERVICE_FUNCTION.HxSvcCloseProcess, Object);
 
             // c# best practices
             // best practices are boilerplate in this language
@@ -143,25 +96,20 @@ namespace HxPosed.Tests
 
         private void SetProtection(_HX_PROCESS_PROTECTION value)
         {
-            var call = HxCall(_HX_SERVICE_FUNCTION.HxSvcSetProcessField);
-            call.SetProcessFieldRequest.Address = Object;
-            call.SetProcessFieldRequest.Data.Protection = value;
             unsafe
             {
-                HxpTrap(&call);
+                HxSetProcessProtection(Object, &value);
             }
         }
 
         private _HX_PROCESS_PROTECTION GetProtection()
         {
-            var call = HxCall(_HX_SERVICE_FUNCTION.HxSvcGetProcessField);
-            call.SetProcessFieldRequest.Address = Object;
             unsafe
             {
-                HxpTrap(&call);
+                var protection = new _HX_PROCESS_PROTECTION();
+                HxGetProcessProtection(Object, &protection);
+                return protection;
             }
-
-            return call.GetProcessFieldResponse.Protection;
         }
 
         public int Id { get; private set; }
@@ -181,6 +129,6 @@ namespace HxPosed.Tests
         public ObservableCollection<ThreadModel> Threads { get; set; } = [];
 
         public ulong Object { get; private set; }
-        public ulong Handle { get; private set; }
+        public nint Handle { get; private set; }
     }
 }
