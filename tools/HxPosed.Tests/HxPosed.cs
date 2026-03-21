@@ -1,11 +1,8 @@
-using Microsoft.Win32.SafeHandles;
 using System;
 using System.Runtime.InteropServices;
-using System.Security.Policy;
 
 namespace HxPosed.PInvoke
 {
-
     public class NativeTypeName(string a) : Attribute
     {
 
@@ -28,12 +25,12 @@ namespace HxPosed.PInvoke
         HxObDeleted = 2,
     }
 
-    public unsafe partial struct _HX_OBJECT_TYPE
+    public partial struct _HX_OBJECT_TYPE
     {
         [NativeTypeName("HX_OBJECT_TYPES")]
         public _HX_OBJECT_TYPES Type;
 
-        [NativeTypeName("PVOID")]
+        [NativeTypeName("HX_OBJECT")]
         public ulong Object;
     }
 
@@ -41,14 +38,11 @@ namespace HxPosed.PInvoke
     {
         [NativeTypeName("UINT64")]
         public ulong AddressOrId;
-
-        [NativeTypeName("HX_OPEN_TYPE")]
-        public ulong OpenType;
     }
 
     public partial struct _HXR_CLOSE_OBJECT
     {
-        [NativeTypeName("UINT64")]
+        [NativeTypeName("HX_OBJECT")]
         public ulong Address;
     }
 
@@ -60,7 +54,7 @@ namespace HxPosed.PInvoke
         public ulong All;
 
         [FieldOffset(0)]
-        [NativeTypeName("__AnonymousRecord_hxposed_L55_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L61_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public ulong RESERVED
@@ -1080,8 +1074,62 @@ namespace HxPosed.PInvoke
 
     public enum _HX_TOKEN_TYPE
     {
-        HxTokenPrimary,
-        HxTokenImpersonation,
+        HxTokenPrimary = 0,
+        HxTokenImpersonation = 1,
+    }
+
+    public enum _HX_THREAD_FIELD
+    {
+        HxThreadFieldActiveImpersonationInfo = 1,
+        HxThreadFieldAdjustedClientToken = 2,
+    }
+
+    public enum _HX_TOKEN_FIELD
+    {
+        HxTokenFieldUnknown = 0,
+        HxTokenFieldSourceName = 1,
+        HxTokenFieldAccountName = 2,
+        HxTokenFieldType = 3,
+        HxTokenFieldIntegrityLevelIndex = 4,
+        HxTokenFieldMandatoryPolicy = 5,
+        HxTokenFieldImpersonationLevel = 6,
+        HxTokenFieldPresentPrivileges = 7,
+        HxTokenFieldEnabledPrivileges = 8,
+        HxTokenFieldEnabledByDefaultPrivileges = 9,
+    }
+
+    public enum _HX_PROCESS_FIELD
+    {
+        HxProcessFieldUnknown = 0,
+        HxProcessFieldNtPath = 1,
+        HxProcessFieldProtection = 2,
+        HxProcessFieldSigners = 3,
+        HxProcessFieldMitigation = 4,
+        HxProcessFieldToken = 5,
+        HxProcessFieldThreads = 6,
+        HxProcessFieldDirectoryTableBase = 7,
+        HxProcessFieldUserDirectoryTableBase = 8,
+    }
+
+    public enum _HX_MAP_OPERATION
+    {
+        HxMemMap = 0,
+        HxMemUnMap = 1,
+    }
+
+    public enum _HX_MEMORY_POOL
+    {
+        HxPoolNonPaged = 0,
+        HxContiguousPhysical = 1,
+    }
+
+    public enum _HX_PAGING_OBJECT
+    {
+        HxPml5 = 0,
+        HxPml4 = 1,
+        HxPdp = 2,
+        HxPd = 3,
+        HxPt = 4,
     }
 
     public partial struct _HX_VIRTUAL_ADDRESS_FLAGS
@@ -1204,18 +1252,19 @@ namespace HxPosed.PInvoke
         [NativeTypeName("HX_PAGING_OBJECT")]
         public ulong ObjectType;
 
-        [NativeTypeName("UINT64")]
-        public ulong PAD;
-
         [NativeTypeName("HX_VIRTUAL_ADDRESS")]
         public _HX_VIRTUAL_ADDRESS Object;
     }
 
+    public enum _HX_PAGING_OPERATION
+    {
+        HxPageOperationSet = 0,
+        HxPageOperationGet = 1,
+    }
+
     public partial struct _HX_PROCESS_PROTECTION
     {
-        public override string ToString() => $"{(_HX_PROCESS_PROTECTION_TYPE)Type} - {(_HX_PROCESS_PROTECTION_SIGNER)Signer}";
-
-        [NativeTypeName("__AnonymousRecord_hxposed_L198_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L201_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public ref byte Level
@@ -1230,12 +1279,12 @@ namespace HxPosed.PInvoke
         {
             readonly get
             {
-                return Anonymous.Anonymous_1.Type;
+                return Anonymous.Anonymous.Type;
             }
 
             set
             {
-                Anonymous.Anonymous_1.Type = value;
+                Anonymous.Anonymous.Type = value;
             }
         }
 
@@ -1243,12 +1292,12 @@ namespace HxPosed.PInvoke
         {
             readonly get
             {
-                return Anonymous.Anonymous_1.Audit;
+                return Anonymous.Anonymous.Audit;
             }
 
             set
             {
-                Anonymous.Anonymous_1.Audit = value;
+                Anonymous.Anonymous.Audit = value;
             }
         }
 
@@ -1256,12 +1305,12 @@ namespace HxPosed.PInvoke
         {
             readonly get
             {
-                return Anonymous.Anonymous_1.Signer;
+                return Anonymous.Anonymous.Signer;
             }
 
             set
             {
-                Anonymous.Anonymous_1.Signer = value;
+                Anonymous.Anonymous.Signer = value;
             }
         }
 
@@ -1273,8 +1322,8 @@ namespace HxPosed.PInvoke
             public byte Level;
 
             [FieldOffset(0)]
-            [NativeTypeName("__AnonymousRecord_hxposed_L201_C9")]
-            public _Anonymous_1_e__Struct Anonymous_1;
+            [NativeTypeName("__AnonymousRecord_hxposed_L204_C9")]
+            public _Anonymous_1_e__Struct Anonymous;
 
             public partial struct _Anonymous_1_e__Struct
             {
@@ -1338,7 +1387,6 @@ namespace HxPosed.PInvoke
 
         public partial struct MitigationFlags2Values
         {
-
             public uint _bitfield;
 
             [NativeTypeName("ULONG : 1")]
@@ -2321,9 +2369,9 @@ namespace HxPosed.PInvoke
         SystemDeVirtualized = 2,
     }
 
-    public unsafe partial struct _HXS_OPEN_OBJECT_RESPONSE
+    public partial struct _HXS_OPEN_OBJECT_RESPONSE
     {
-        [NativeTypeName("_HX_OBJECT_TYPE")]
+        [NativeTypeName("HX_OBJECT_TYPE")]
         public _HX_OBJECT_TYPE Object;
     }
 
@@ -2332,8 +2380,14 @@ namespace HxPosed.PInvoke
         [NativeTypeName("HXS_HYPERVISOR_STATUS")]
         public _HXS_HYPERVISOR_STATUS Status;
 
-        [NativeTypeName("UINT64")]
-        public ulong Version;
+        [NativeTypeName("UINT32")]
+        public uint _PAD;
+
+        [NativeTypeName("UINT32")]
+        public uint Version;
+
+        [NativeTypeName("UINT32")]
+        public uint _PAD2;
     }
 
     public partial struct _HXS_GET_SET_PAGE_ATTRIBUTE
@@ -2342,16 +2396,16 @@ namespace HxPosed.PInvoke
         public ulong TypeBits;
     }
 
-    public unsafe partial struct _HXS_ALLOCATE_MEMORY
+    public partial struct _HXS_ALLOCATE_MEMORY
     {
         [NativeTypeName("HX_RMD")]
-        public void* RawMemoryDescriptor;
+        public ulong RawMemoryDescriptor;
     }
 
-    public unsafe partial struct _HXS_DESCRIBE_MEMORY
+    public partial struct _HXS_DESCRIBE_MEMORY
     {
         [NativeTypeName("HX_RMD")]
-        public void* RawMemoryDescriptor;
+        public ulong RawMemoryDescriptor;
     }
 
     public partial struct _HXS_TRANSLATE_ADDRESS
@@ -2365,7 +2419,7 @@ namespace HxPosed.PInvoke
         [NativeTypeName("HX_PROCESS_FIELD")]
         public ulong Field;
 
-        [NativeTypeName("__AnonymousRecord_hxposed_L380_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L384_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public ref ulong NtPathOffset
@@ -2462,7 +2516,7 @@ namespace HxPosed.PInvoke
         [NativeTypeName("HX_TOKEN_FIELD")]
         public ulong Field;
 
-        [NativeTypeName("__AnonymousRecord_hxposed_L396_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L400_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public Span<sbyte> Name
@@ -2489,11 +2543,11 @@ namespace HxPosed.PInvoke
             }
         }
 
-        public ref uint Index
+        public ref uint IntegrityIndex
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Index, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.IntegrityIndex, 1));
             }
         }
 
@@ -2505,11 +2559,11 @@ namespace HxPosed.PInvoke
             }
         }
 
-        public ref _HX_TOKEN_IMPERSONATION_LEVEL Level
+        public ref _HX_TOKEN_IMPERSONATION_LEVEL Impersonationlevel
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Level, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Impersonationlevel, 1));
             }
         }
 
@@ -2538,7 +2592,7 @@ namespace HxPosed.PInvoke
 
             [FieldOffset(0)]
             [NativeTypeName("UINT32")]
-            public uint Index;
+            public uint IntegrityIndex;
 
             [FieldOffset(0)]
             [NativeTypeName("UINT32")]
@@ -2546,7 +2600,7 @@ namespace HxPosed.PInvoke
 
             [FieldOffset(0)]
             [NativeTypeName("HX_TOKEN_IMPERSONATION_LEVEL")]
-            public _HX_TOKEN_IMPERSONATION_LEVEL Level;
+            public _HX_TOKEN_IMPERSONATION_LEVEL Impersonationlevel;
 
             [FieldOffset(0)]
             [NativeTypeName("HX_TOKEN_PRIVILEGES")]
@@ -2554,12 +2608,12 @@ namespace HxPosed.PInvoke
         }
     }
 
-    public unsafe partial struct _HXS_GET_THREAD_FIELD
+    public partial struct _HXS_GET_THREAD_FIELD
     {
         [NativeTypeName("HX_THREAD_FIELD")]
         public ulong Field;
 
-        [NativeTypeName("__AnonymousRecord_hxposed_L412_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L416_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public ref int ImpersonationStatus
@@ -2570,16 +2624,16 @@ namespace HxPosed.PInvoke
             }
         }
 
-        public ref void* Token
+        public ref ulong Token
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref this, 1)).Anonymous.Token;
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Token, 1));
             }
         }
 
         [StructLayout(LayoutKind.Explicit)]
-        public unsafe partial struct _Anonymous_e__Union
+        public partial struct _Anonymous_e__Union
         {
             [FieldOffset(0)]
             [NativeTypeName("BOOL")]
@@ -2587,7 +2641,7 @@ namespace HxPosed.PInvoke
 
             [FieldOffset(0)]
             [NativeTypeName("HX_TOKEN")]
-            public void* Token;
+            public ulong Token;
         }
     }
 
@@ -2600,10 +2654,10 @@ namespace HxPosed.PInvoke
         public _HX_OBJECT_STATE ObjectState;
     }
 
-    public unsafe partial struct _HXS_REGISTER_CALLBACK
+    public partial struct _HXS_REGISTER_CALLBACK
     {
         [NativeTypeName("HX_CALLBACK")]
-        public void* Object;
+        public ulong Object;
     }
 
     public partial struct _HXS_EXECUTE_PRIVILEGED
@@ -2611,7 +2665,7 @@ namespace HxPosed.PInvoke
         [NativeTypeName("HX_PRIVILEGED_INSTRUCTION")]
         public ulong Instruction;
 
-        [NativeTypeName("__AnonymousRecord_hxposed_L456_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L460_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public ref ulong Cr3
@@ -2673,31 +2727,43 @@ namespace HxPosed.PInvoke
         public ulong Msr;
     }
 
+    public partial struct _HXS_GET_HANDLE_OBJECT
+    {
+        [NativeTypeName("UINT64")]
+        public ulong Object;
+
+        [NativeTypeName("UINT32")]
+        public uint GrantedAccess;
+
+        [NativeTypeName("UINT32")]
+        public uint _PAD;
+    }
+
     public partial struct _HXR_ALLOCATE_MEMORY
     {
         [NativeTypeName("UINT32")]
         public uint Size;
 
         [NativeTypeName("UINT32")]
-        public uint PAD;
+        public uint _PAD;
 
         [NativeTypeName("HX_MEMORY_POOL")]
         public ulong Pool;
     }
 
-    public unsafe partial struct _HXR_FREE_MEMORY
+    public partial struct _HXR_FREE_MEMORY
     {
         [NativeTypeName("HX_RMD")]
-        public void* Object;
+        public ulong Object;
     }
 
     public unsafe partial struct _HXR_MAP_RAW_MEMORY_DESCRIPTOR
     {
         [NativeTypeName("HX_RMD")]
-        public void* MemoryDescriptor;
+        public ulong MemoryDescriptor;
 
         [NativeTypeName("HX_PROCESS")]
-        public void* AddressSpace;
+        public ulong AddressSpace;
 
         [NativeTypeName("PVOID")]
         public void* MapAddress;
@@ -2709,10 +2775,10 @@ namespace HxPosed.PInvoke
         public ulong Operation;
     }
 
-    public unsafe partial struct _HXR_GET_SET_PAGE_ATTRIBUTE
+    public partial struct _HXR_GET_SET_PAGE_ATTRIBUTE
     {
         [NativeTypeName("HX_PROCESS")]
-        public void* AddressSpace;
+        public ulong AddressSpace;
 
         [NativeTypeName("HX_PAGING_OPERATION")]
         public ulong Operation;
@@ -2727,10 +2793,10 @@ namespace HxPosed.PInvoke
         public _HX_PAGING_TYPE PagingType;
     }
 
-    public unsafe partial struct _HXR_TRANSLATE_ADDRESS
+    public partial struct _HXR_TRANSLATE_ADDRESS
     {
         [NativeTypeName("HX_PROCESS")]
-        public void* AddressSpace;
+        public ulong AddressSpace;
 
         [NativeTypeName("UINT64")]
         public ulong VirtualAddress;
@@ -2745,19 +2811,7 @@ namespace HxPosed.PInvoke
         public uint Size;
     }
 
-    public unsafe partial struct _HXR_KILL_PROCESS
-    {
-        [NativeTypeName("HX_PROCESS")]
-        public void* Address;
-
-        [NativeTypeName("UINT32")]
-        public uint ExitCode;
-
-        [NativeTypeName("UINT32")]
-        public uint PAD;
-    }
-
-    public unsafe partial struct _HXR_GET_PROCESS_FIELD
+    public partial struct _HXR_GET_PROCESS_FIELD
     {
         [NativeTypeName("HX_PROCESS")]
         public ulong Address;
@@ -2766,7 +2820,7 @@ namespace HxPosed.PInvoke
         public _HXS_GET_PROCESS_FIELD Data;
     }
 
-    public unsafe partial struct _HXR_SET_PROCESS_FIELD
+    public partial struct _HXR_SET_PROCESS_FIELD
     {
         [NativeTypeName("HX_PROCESS")]
         public ulong Address;
@@ -2775,37 +2829,37 @@ namespace HxPosed.PInvoke
         public _HXS_GET_PROCESS_FIELD Data;
     }
 
-    public unsafe partial struct _HXR_GET_TOKEN_FIELD
+    public partial struct _HXR_GET_TOKEN_FIELD
     {
         [NativeTypeName("HX_TOKEN")]
-        public void* Address;
+        public ulong Address;
 
         [NativeTypeName("HXS_GET_TOKEN_FIELD")]
         public _HXS_GET_TOKEN_FIELD Data;
     }
 
-    public unsafe partial struct _HXR_SET_TOKEN_FIELD
+    public partial struct _HXR_SET_TOKEN_FIELD
     {
         [NativeTypeName("HX_TOKEN")]
-        public void* Address;
+        public ulong Address;
 
         [NativeTypeName("HXS_GET_TOKEN_FIELD")]
         public _HXS_GET_TOKEN_FIELD Data;
     }
 
-    public unsafe partial struct _HXR_GET_THREAD_FIELD
+    public partial struct _HXR_GET_THREAD_FIELD
     {
         [NativeTypeName("HX_THREAD")]
-        public void* Address;
+        public ulong Address;
 
         [NativeTypeName("HXS_GET_THREAD_FIELD")]
         public _HXS_GET_THREAD_FIELD Data;
     }
 
-    public unsafe partial struct _HXR_SET_THREAD_FIELD
+    public partial struct _HXR_SET_THREAD_FIELD
     {
         [NativeTypeName("HX_THREAD")]
-        public void* Address;
+        public ulong Address;
 
         [NativeTypeName("HXS_GET_THREAD_FIELD")]
         public _HXS_GET_THREAD_FIELD Data;
@@ -2820,10 +2874,10 @@ namespace HxPosed.PInvoke
         public void* EventHandle;
     }
 
-    public unsafe partial struct _HXR_UNREGISTER_CALLBACK
+    public partial struct _HXR_UNREGISTER_CALLBACK
     {
         [NativeTypeName("HX_CALLBACK")]
-        public void* Object;
+        public ulong Object;
     }
 
     public partial struct _HXR_EXECUTE_PRIVILEGED
@@ -2831,7 +2885,7 @@ namespace HxPosed.PInvoke
         [NativeTypeName("HX_PRIVILEGED_INSTRUCTION")]
         public ulong Instruction;
 
-        [NativeTypeName("__AnonymousRecord_hxposed_L574_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L580_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public ref ulong Cr3
@@ -2899,6 +2953,39 @@ namespace HxPosed.PInvoke
         public ulong Operation;
     }
 
+    public partial struct _HXR_UPGRADE_HANDLE
+    {
+        [NativeTypeName("UINT64")]
+        public ulong Handle;
+
+        [NativeTypeName("HX_PROCESS")]
+        public ulong Process;
+
+        [NativeTypeName("UINT64")]
+        public ulong AccessMask;
+    }
+
+    public partial struct _HXR_SWAP_HANDLE_OBJECT
+    {
+        [NativeTypeName("UINT64")]
+        public ulong Handle;
+
+        [NativeTypeName("HX_PROCESS")]
+        public ulong Process;
+
+        [NativeTypeName("UINT64")]
+        public ulong NewObject;
+    }
+
+    public partial struct _HXR_GET_HANDLE_OBJECT
+    {
+        [NativeTypeName("UINT64")]
+        public ulong Handle;
+
+        [NativeTypeName("HX_PROCESS")]
+        public ulong Process;
+    }
+
     public enum _HX_SERVICE_FUNCTION
     {
         HxSvcGetState = 0x0,
@@ -2925,16 +3012,103 @@ namespace HxPosed.PInvoke
         HxSvcMsrIo = 0x60,
         HxSvcExecutePrivilegedInstruction = 0x61,
         HxSvcInterProcessorInterrupt = 0x62,
+        HxSvcUpgradeHandle = 0x70,
+        HxSvcGetHandleObject = 0x71,
+        HxSvcSwapHandleObject = 0x72,
+    }
+
+    public enum _HX_ERROR_CODE
+    {
+        HxErrSuccess = 0,
+        HxErrNotAllowed = 1,
+        HxErrNotFound = 2,
+        HxErrInvalidParameters = 3,
+        HxErrNtError = 4,
+        HxErrTimedOut = 5,
+        HxErrHvNotLoaded = 6,
+    }
+
+    public enum _HX_NOT_ALLOWED_REASON
+    {
+        HxErrReasonLockHeld = 2,
+        HxErrReasonPageNotPresent = 3,
+        HxErrReasonMappingsExist = 4,
+        HxErrReasonAccessViolation = 5,
+    }
+
+    public enum _HX_NOT_FOUND_REASON
+    {
+        HxErrReasonProcess = 1,
+        HxErrReasonMdl = 3,
+        HxErrReasonThread = 4,
+        HxErrReasonFunction = 5,
+        HxErrReasonToken = 6,
+        HxErrReasonCallback = 7,
+        HxErrReasonEvent = 9,
+        HxErrReasonField = 10,
+        HxErrReasonHandle = 11,
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public partial struct _HX_RESULT
     {
-        [NativeTypeName("UINT32")]
-        public uint ErrorCode;
+        [NativeTypeName("HX_ERROR_CODE")]
+        public _HX_ERROR_CODE ErrorCode;
 
-        [NativeTypeName("UINT32")]
-        public uint ErrorReason;
+        [NativeTypeName("__AnonymousRecord_hxposed_L685_C5")]
+        public _Anonymous_e__Union Anonymous;
+
+        public ref _HX_NOT_ALLOWED_REASON NotAllowedReason
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.NotAllowedReason, 1));
+            }
+        }
+
+        public ref _HX_NOT_FOUND_REASON NotFoundReason
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.NotFoundReason, 1));
+            }
+        }
+
+        public ref uint NtStatus
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.NtStatus, 1));
+            }
+        }
+
+        public ref uint Parameter
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Parameter, 1));
+            }
+        }
+
+        [StructLayout(LayoutKind.Explicit, Pack = 1)]
+        public partial struct _Anonymous_e__Union
+        {
+            [FieldOffset(0)]
+            [NativeTypeName("enum _HX_NOT_ALLOWED_REASON")]
+            public _HX_NOT_ALLOWED_REASON NotAllowedReason;
+
+            [FieldOffset(0)]
+            [NativeTypeName("enum _HX_NOT_FOUND_REASON")]
+            public _HX_NOT_FOUND_REASON NotFoundReason;
+
+            [FieldOffset(0)]
+            [NativeTypeName("UINT32")]
+            public uint NtStatus;
+
+            [FieldOffset(0)]
+            [NativeTypeName("UINT32")]
+            public uint Parameter;
+        }
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -3007,14 +3181,14 @@ namespace HxPosed.PInvoke
         [NativeTypeName("HX_RESULT")]
         public _HX_RESULT Result;
 
-        [NativeTypeName("__AnonymousRecord_hxposed_L640_C5")]
+        [NativeTypeName("__AnonymousRecord_hxposed_L704_C5")]
         public _Anonymous_e__Union Anonymous;
 
         public ref ulong Arg1
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.Arg1, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.Arg1, 1));
             }
         }
 
@@ -3022,7 +3196,7 @@ namespace HxPosed.PInvoke
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.Arg2, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.Arg2, 1));
             }
         }
 
@@ -3030,7 +3204,7 @@ namespace HxPosed.PInvoke
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.Arg3, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.Arg3, 1));
             }
         }
 
@@ -3038,7 +3212,7 @@ namespace HxPosed.PInvoke
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.Padding, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.Padding, 1));
             }
         }
 
@@ -3046,7 +3220,7 @@ namespace HxPosed.PInvoke
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.ExtendedArg1, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.ExtendedArg1, 1));
             }
         }
 
@@ -3054,7 +3228,7 @@ namespace HxPosed.PInvoke
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.ExtendedArg2, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.ExtendedArg2, 1));
             }
         }
 
@@ -3062,7 +3236,7 @@ namespace HxPosed.PInvoke
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.ExtendedArg3, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.ExtendedArg3, 1));
             }
         }
 
@@ -3070,7 +3244,7 @@ namespace HxPosed.PInvoke
         {
             get
             {
-                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous_1.ExtendedArg4, 1));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.Anonymous.ExtendedArg4, 1));
             }
         }
 
@@ -3167,6 +3341,14 @@ namespace HxPosed.PInvoke
             get
             {
                 return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.ExecutePrivilegedInstructionResponse, 1));
+            }
+        }
+
+        public ref _HXS_GET_HANDLE_OBJECT GetHandleObjectResponse
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.GetHandleObjectResponse, 1));
             }
         }
 
@@ -3314,12 +3496,36 @@ namespace HxPosed.PInvoke
             }
         }
 
+        public ref _HXR_UPGRADE_HANDLE UpgradeHandleRequest
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.UpgradeHandleRequest, 1));
+            }
+        }
+
+        public ref _HXR_SWAP_HANDLE_OBJECT SwapHandleObjectRequest
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.SwapHandleObjectRequest, 1));
+            }
+        }
+
+        public ref _HXR_GET_HANDLE_OBJECT GetHandleObjectRequest
+        {
+            get
+            {
+                return ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Anonymous.GetHandleObjectRequest, 1));
+            }
+        }
+
         [StructLayout(LayoutKind.Explicit, Pack = 1)]
         public partial struct _Anonymous_e__Union
         {
             [FieldOffset(0)]
-            [NativeTypeName("__AnonymousRecord_hxposed_L641_C9")]
-            public _Anonymous_1_e__Struct Anonymous_1;
+            [NativeTypeName("__AnonymousRecord_hxposed_L705_C9")]
+            public _Anonymous_1_e__Struct Anonymous;
 
             [FieldOffset(0)]
             [NativeTypeName("HXS_STATUS")]
@@ -3368,6 +3574,10 @@ namespace HxPosed.PInvoke
             [FieldOffset(0)]
             [NativeTypeName("HXS_EXECUTE_PRIVILEGED")]
             public _HXS_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionResponse;
+
+            [FieldOffset(0)]
+            [NativeTypeName("HXS_GET_HANDLE_OBJECT")]
+            public _HXS_GET_HANDLE_OBJECT GetHandleObjectResponse;
 
             [FieldOffset(0)]
             [NativeTypeName("HXR_OPEN_OBJECT")]
@@ -3441,6 +3651,18 @@ namespace HxPosed.PInvoke
             [NativeTypeName("HXR_EXECUTE_PRIVILEGED")]
             public _HXR_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionRequest;
 
+            [FieldOffset(0)]
+            [NativeTypeName("HXR_UPGRADE_HANDLE")]
+            public _HXR_UPGRADE_HANDLE UpgradeHandleRequest;
+
+            [FieldOffset(0)]
+            [NativeTypeName("HXR_SWAP_HANDLE_OBJECT")]
+            public _HXR_SWAP_HANDLE_OBJECT SwapHandleObjectRequest;
+
+            [FieldOffset(0)]
+            [NativeTypeName("HXR_GET_HANDLE_OBJECT")]
+            public _HXR_GET_HANDLE_OBJECT GetHandleObjectRequest;
+
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public partial struct _Anonymous_1_e__Struct
             {
@@ -3473,48 +3695,6 @@ namespace HxPosed.PInvoke
 
     public static unsafe partial class Methods
     {
-        public const int HxOpenHandle = 0;
-        public const int HxOpenHypervisor = 1;
-
-        public const int HxThreadFieldActiveImpersonationInfo = 1;
-        public const int HxThreadFieldAdjustedClientToken = 2;
-
-        public const int HxTokenFieldUnknown = 0;
-        public const int HxTokenFieldSourceName = 1;
-        public const int HxTokenFieldAccountName = 2;
-        public const int HxTokenFieldType = 3;
-        public const int HxTokenFieldIntegrityLevelIndex = 4;
-        public const int HxTokenFieldMandatoryPolicy = 5;
-        public const int HxTokenFieldImpersonationLevel = 6;
-        public const int HxTokenFieldPresentPrivileges = 7;
-        public const int HxTokenFieldEnabledPrivileges = 8;
-        public const int HxTokenFieldEnabledByDefaultPrivileges = 9;
-
-        public const int HxProcFieldUnknown = 0;
-        public const int HxProcFieldNtPath = 1;
-        public const int HxProcFieldProtection = 2;
-        public const int HxProcFieldSigners = 3;
-        public const int HxProcFieldMitigationFlags = 4;
-        public const int HxProcFieldToken = 5;
-        public const int HxProcFieldThreads = 6;
-        public const int HxProcFieldDirectoryTableBase = 7;
-        public const int HxProcFieldUserDirectoryTableBase = 8;
-
-        public const int HxMemMap = 0;
-        public const int HxMemUnMap = 1;
-
-        public const int HxPoolNonPaged = 0;
-        public const int HxContiguousPhysical = 1;
-
-        public const int HxPml5 = 0;
-        public const int HxPml4 = 1;
-        public const int HxPdp = 2;
-        public const int HxPd = 3;
-        public const int HxPt = 4;
-
-        public const int HxPageOperationSet = 0;
-        public const int HxPageOperationGet = 1;
-
         public const int HxMsrRead = 0;
         public const int HxMsrWrite = 1;
 
@@ -3530,61 +3710,208 @@ namespace HxPosed.PInvoke
         public const int HxPiCli = 9;
         public const int HxPiSti = 10;
 
-        [DllImport("libhxposed.dll")]
-        [return: NativeTypeName("BOOL")]
-        public static extern int HxGetStatus([NativeTypeName("PHXS_STATUS")] _HXS_STATUS* Response);
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxpTrap([NativeTypeName("PHX_REQUEST_RESPONSE")] _HX_REQUEST_RESPONSE* RequestResponse);
 
-        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int HxpTrap([NativeTypeName("PHX_REQUEST_RESPONSE")] _HX_REQUEST_RESPONSE* RequestResponse);
-
-        [DllImport("libhxposed.dll")]
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         [return: NativeTypeName("UINT32")]
         public static extern uint HxReadAsyncResponseLength([NativeTypeName("UINT64")] ulong Offset);
 
-        [DllImport("libhxposed.dll")]
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         [return: NativeTypeName("PVOID")]
-        public static extern void* HxReadAsyncResponseSlice([NativeTypeName("UINT64")] ulong Offset, [NativeTypeName("PUINT32")] uint* Count);
+        public static extern void* HxReadAsyncResponseSlice([NativeTypeName("UINT64")] ulong Offset, [NativeTypeName("PUINT32")] uint* Length);
 
-        [DllImport("libhxposed.dll")]
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         [return: NativeTypeName("PVOID")]
         public static extern void* HxReadAsyncResponseType([NativeTypeName("UINT64")] ulong Offset);
 
-        public static _HX_REQUEST_RESPONSE HxCall(_HX_SERVICE_FUNCTION function, bool extendedArgsPresent = false)
-        {
-            return new _HX_REQUEST_RESPONSE
-            {
-                Call = new _HX_CALL
-                {
-                    ServiceFunction = (ulong)function,
-                    ExtendedArgsPresent = (ulong)(extendedArgsPresent ? 1 : 0)
-                }
-            };
-        }
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("BOOL")]
+        public static extern int HxGetStatus([NativeTypeName("PHXS_STATUS")] _HXS_STATUS* Response);
 
-        public static void HxClose(_HX_SERVICE_FUNCTION function, ulong addr)
-        {
-            var call = HxCall(function);
-            call.CloseObjectRequest.Address = addr;
-            unsafe
-            {
-                HxpTrap(&call);
-            }
-        }
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxCloseObject([NativeTypeName("HX_SERVICE_FUNCTION")] _HX_SERVICE_FUNCTION Function, [NativeTypeName("HX_OBJECT")] ulong Object);
 
-        public static ulong? HxOpen(_HX_SERVICE_FUNCTION function, ulong addrOrId, ulong openType)
-        {
-            var call = HxCall(function);
-            call.OpenObjectRequest.AddressOrId = addrOrId;
-            call.OpenObjectRequest.OpenType = openType;
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxOpenObject([NativeTypeName("HX_SERVICE_FUNCTION")] _HX_SERVICE_FUNCTION Function, [NativeTypeName("PVOID")] void* AddrOrId, [NativeTypeName("PHX_OBJECT")] ulong* Object);
 
-            unsafe
-            {
-                HxpTrap(&call);
-            }
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetProcessProtection([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PHX_PROCESS_PROTECTION")] _HX_PROCESS_PROTECTION* Protection);
 
-            if (call.Result.ErrorCode != 0) return null;
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetProcessProtection([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PHX_PROCESS_PROTECTION")] _HX_PROCESS_PROTECTION* Protection);
 
-            return call.OpenObjectResponse.Object.Object;
-        }
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetProcessMitigation([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PHX_PROCESS_MITIGATION_FLAGS")] _HX_PROCESS_MITIGATION_FLAGS* Mitigation);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetProcessMitigation([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PHX_PROCESS_MITIGATION_FLAGS")] _HX_PROCESS_MITIGATION_FLAGS* Mitigation);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetProcessSigners([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PHX_PROCESS_SIGNERS")] _HX_PROCESS_SIGNERS* Signers);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetProcessSigners([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PHX_PROCESS_SIGNERS")] _HX_PROCESS_SIGNERS* Signers);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetProcessToken([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PUINT64")] ulong* Token);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetProcessToken([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PUINT64")] ulong* Token);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetProcessDirectoryTableBase([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PUINT64")] ulong* DirectoryTableBase);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetProcessDirectoryTableBase([NativeTypeName("HX_OBJECT")] ulong Process, [NativeTypeName("PUINT64")] ulong* DirectoryTableBase);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetProcessNtPath([NativeTypeName("HX_PROCESS")] ulong Process, [NativeTypeName("PWCHAR *")] ushort** Name);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetProcessThreads([NativeTypeName("HX_PROCESS")] ulong Process, [NativeTypeName("PUINT32 *")] uint** Threads, [NativeTypeName("PUINT32")] uint* Count);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenSourceName([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PCHAR")] sbyte* SourceName);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenSourceName([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PCHAR")] sbyte* SourceName);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenType([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_TYPE")] _HX_TOKEN_TYPE* Type);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenType([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_TYPE")] _HX_TOKEN_TYPE* Type);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenIntegrityLevelIndex([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PUINT32")] uint* IntegrityLevelIndex);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenIntegrityLevelIndex([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PUINT32")] uint* IntegrityLevelIndex);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenMandatoryPolicy([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PUINT32")] uint* MandatoryPolicy);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenMandatoryPolicy([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PUINT32")] uint* MandatoryPolicy);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenImpersonationLevel([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_IMPERSONATION_LEVEL")] _HX_TOKEN_IMPERSONATION_LEVEL* ImpersonationLevel);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenImpersonationLevel([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_IMPERSONATION_LEVEL")] _HX_TOKEN_IMPERSONATION_LEVEL* ImpersonationLevel);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenPresentPrivileges([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_PRIVILEGES")] _HX_TOKEN_PRIVILEGES* PresentPrivileges);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenPresentPrivileges([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_PRIVILEGES")] _HX_TOKEN_PRIVILEGES* PresentPrivileges);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenEnabledPrivileges([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_PRIVILEGES")] _HX_TOKEN_PRIVILEGES* EnabledPrivileges);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenEnabledPrivileges([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_PRIVILEGES")] _HX_TOKEN_PRIVILEGES* EnabledPrivileges);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenEnabledByDefaultPrivileges([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_PRIVILEGES")] _HX_TOKEN_PRIVILEGES* EnabledByDefaultPrivileges);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetTokenEnabledByDefaultPrivileges([NativeTypeName("HX_OBJECT")] ulong Token, [NativeTypeName("PHX_TOKEN_PRIVILEGES")] _HX_TOKEN_PRIVILEGES* EnabledByDefaultPrivileges);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetTokenAccountName([NativeTypeName("HX_PROCESS")] ulong Process, [NativeTypeName("PWCHAR *")] ushort** Name);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetThreadActiveImpersonationInfo([NativeTypeName("HX_OBJECT")] ulong Thread, [NativeTypeName("PBOOL")] int* ActiveImpersonationInfo);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetThreadActiveImpersonationInfo([NativeTypeName("HX_OBJECT")] ulong Thread, [NativeTypeName("PBOOL")] int* ActiveImpersonationInfo);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetThreadAdjustedClientToken([NativeTypeName("HX_OBJECT")] ulong Thread, [NativeTypeName("PHX_TOKEN")] ulong* AdjustedClientToken);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSetThreadAdjustedClientToken([NativeTypeName("HX_OBJECT")] ulong Thread, [NativeTypeName("PHX_TOKEN")] ulong* AdjustedClientToken);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxReadMsr([NativeTypeName("UINT64")] ulong Msr, [NativeTypeName("PUINT64")] ulong* Value);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxWriteMsr([NativeTypeName("UINT64")] ulong Msr, [NativeTypeName("UINT64")] ulong Value);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxExecPrivileged([NativeTypeName("HX_PRIVILEGED_INSTRUCTION")] ulong Instruction, [NativeTypeName("PUINT64")] ulong* Result);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxUpgradeHandle([NativeTypeName("UINT64")] ulong Handle, [NativeTypeName("HX_PROCESS")] ulong Process, [NativeTypeName("UINT32")] uint AccessMask);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxSwapHandleObject([NativeTypeName("UINT64")] ulong Handle, [NativeTypeName("HX_PROCESS")] ulong Process, [NativeTypeName("HX_OBJECT")] ulong NewObject);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxGetHandleObject([NativeTypeName("UINT64")] ulong Handle, [NativeTypeName("HX_PROCESS")] ulong Process, [NativeTypeName("PHX_OBJECT")] ulong* Object, [NativeTypeName("PUINT32")] uint* GrantedAccess);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxAllocateMemory([NativeTypeName("HX_MEMORY_POOL")] ulong Pool, [NativeTypeName("UINT32")] uint Size, [NativeTypeName("PHX_RMD")] ulong* Descriptor);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxFreeMemory([NativeTypeName("HX_RMD")] ulong Descriptor);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxMapDescriptor([NativeTypeName("HX_RMD")] ulong Descriptor, [NativeTypeName("HX_PROCESS")] ulong AddressSpace, [NativeTypeName("PVOID")] void* MapAddress, [NativeTypeName("HX_MAP_OPERATION")] ulong Operation);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxDescribeMemory([NativeTypeName("UINT64")] ulong PhysicalAddress, [NativeTypeName("UINT32")] uint Size, [NativeTypeName("PHX_RMD")] ulong* Descriptor);
+
+        [DllImport("libhxposed.dll", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [return: NativeTypeName("HX_RESULT")]
+        public static extern _HX_RESULT HxTranslateAddress([NativeTypeName("PVOID")] void* VirtualAddress, [NativeTypeName("HX_PROCESS")] ulong AddressSpace, [NativeTypeName("PUINT64")] ulong* PhysicalAddress);
     }
 }
