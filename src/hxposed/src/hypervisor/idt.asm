@@ -23,9 +23,8 @@ hv_int_bp:
     push 0  # push dummy
     push 3  # #BP
 
-    # fall through....
-    # should we put an implicit jmp?
-    # naaaaah
+    # make sure we wont fallthrough if i add something after this label
+    jmp hv_int_handler
 
 hv_int_handler:
     # when at this point, RSP is like this:
@@ -37,41 +36,38 @@ hv_int_handler:
     # [RSP + 32] = RFLAGS
     # [RSP + 40] = RSP
 
-    # first, save context
-    sub rsp, 240    # size of Registers
     push rcx
+    rdfsbase rcx
+    mov rcx, [rcx]  # dereference registers inside HvFs
 
-    lea rcx, [rsp + 8]  # this is cool
     call capture_context
 
-    pop rcx     # rcx was "dirty"
+    mov rdx, [rsp + 16]    # get RIP
+    mov [rcx + rip_offset], rdx
+    mov rdx, [rsp + 32]    # get rflags
+    mov [rcx + rflags_offset], rdx
+    mov rdx, [rsp + 40]    # get RSP
+    mov [rcx + rsp_offset], rdx
 
-    mov [rsp + rcx_offset], rcx
-    mov rcx, [rsp + 256]    # get RIP
-    mov [rsp + rip_offset], rcx
-    mov rcx, [rsp + 280]    # get RSP
-    mov [rsp + rsp_offset], rcx
+    # use r15 since its nonvolatile and will survive the vm_int_handler call
+    mov r15, rcx
+    pop rcx     # get original rcx
 
-    mov rdx, [rsp + 240]    # set second arg to exception vector
-    mov r8, [rsp + 248]     # set third arg to error code
+    mov [r15 + rcx_offset], rcx # finally get back rcx
 
-    mov rcx, rsp    # set the first arg to Registers structure
+    pop rdx    # set second arg to exception vector
+    pop r8     # set third arg to error code
 
-    # looks like we trashed RSP
-    mov rbp, rsp
-    sub rsp, 32     # make buffer area so we dont hurt Registers structure
-    and rsp, -16    # make sure its aligned
-
-    sub rsp, 32     # now the shadow space
+    sub rsp, 32     # allocate shadow space
     call vm_int_handler # fresh air
+    add rsp, 32
 
     # we dont need cli since we are in a vmexit
     hlt             # time to debug
 
     # set rip here to continue from exception i guess
-    mov rsp, rbp    # where we were?
-    add rsp, 240    # we dont need that struct anymore
-    add rsp, 16     # skip the error code and exception vector pushed by us or the cpu
+    mov rcx, r15
+    call restore_context    # where guest were?
 
     iretq           # where we were?
 
