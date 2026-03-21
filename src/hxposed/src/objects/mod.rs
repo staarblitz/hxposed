@@ -94,8 +94,11 @@ impl ObjectTracker {
         self.tokens.get_mut(&token)
     }
 
-    pub fn get_open_process(&mut self, process: ProcessObject) -> Option<&mut NtProcess> {
-        self.processes.get_mut(&process)
+    pub fn get_open_process(&mut self, process: ProcessObject) -> Option<NtProcess> {
+        if process == 0 {
+            return Some(NtProcess::current())
+        }
+        self.processes.get_mut(&process).cloned()
     }
 
     pub fn get_callback(&mut self, mdl_addr: CallbackObject) -> Option<&mut NtCallback> {
