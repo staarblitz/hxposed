@@ -3,6 +3,7 @@ use crate::hxposed::error::{NotAllowedReason, NotFoundReason};
 use alloc::string::String;
 use alloc::vec::Vec;
 use crate::error::HypervisorError;
+use crate::hxposed::ObjectType;
 
 pub mod empty;
 pub mod memory;
@@ -12,6 +13,7 @@ pub mod security;
 pub mod status;
 pub mod thread;
 pub mod io;
+pub mod handle;
 
 #[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
 pub struct HypervisorResponse {
@@ -57,6 +59,31 @@ pub trait VmcallResponse: Sized + Send + Sync + Unpin {
     fn from_raw(raw: HypervisorResponse) -> Self;
     fn into_raw(self) -> HypervisorResponse;
 }
+
+#[derive(Clone, Debug)]
+pub struct OpenObjectResponse {
+    pub object: ObjectType,
+}
+
+impl VmcallResponse for OpenObjectResponse {
+    fn from_raw(raw: HypervisorResponse) -> Self {
+        Self {
+            object: ObjectType::from_raw(raw.arg1, raw.arg2),
+        }
+    }
+
+    fn into_raw(self) -> HypervisorResponse {
+        let object = ObjectType::into_raw(self.object);
+
+        HypervisorResponse {
+            result: HypervisorResult::ok(),
+            arg1: object.0,
+            arg2: object.1,
+            ..Default::default()
+        }
+    }
+}
+
 
 // messy. ideas?
 
