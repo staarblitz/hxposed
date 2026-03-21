@@ -12,6 +12,7 @@ pub enum HypervisorError {
     NtError(u32),
     TimedOut,
     HvNotLoaded,
+    Unknown
 }
 
 impl fmt::Debug for HypervisorError {
@@ -27,6 +28,7 @@ impl fmt::Debug for HypervisorError {
             Self::TimedOut => write!(f, "TimedOut"),
             Self::NtError(val) => write!(f, "NtError: {:#x}", val),
             Self::HvNotLoaded => write!(f, "HvNotLoaded"),
+            Self::Unknown => write!(f, "UnknownError"),
         }
     }
 }
@@ -41,6 +43,7 @@ impl fmt::Display for HypervisorError {
             Self::TimedOut => write!(f, "Operation took too long"),
             Self::NtError(val) => write!(f, "Internal NT returned error: {:#x}", val),
             Self::HvNotLoaded => write!(f, "Hypervisor is not loaded"),
+            HypervisorError::Unknown => write!(f, "Unknown error"),
         }
     }
 }
@@ -54,7 +57,10 @@ impl HypervisorError {
             1 => HypervisorError::NotAllowed(NotAllowedReason::from_bits(response.result.error_reason as _)),
             2 => HypervisorError::NotFound(NotFoundReason::from_bits(response.result.error_reason as _)),
             3 => HypervisorError::InvalidParameters(response.result.error_reason as _),
-            _ => unreachable!(), // HvNotLoaded is a pseudo error. its returned by vmcall mechanism when RCX is not 2009.
+            4 => HypervisorError::NtError(response.result.error_reason as _),
+            5 => HypervisorError::TimedOut,
+            6 => HypervisorError::HvNotLoaded, // HvNotLoaded is a pseudo error. its returned by vmcall mechanism when RCX is not 2009.
+            _ => Self::Unknown,
         }
     }
 }
