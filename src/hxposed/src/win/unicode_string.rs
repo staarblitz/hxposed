@@ -36,13 +36,15 @@ impl UnicodeString {
     }
 
     pub fn from_unicode_string(str: &UNICODE_STRING) -> Self {
-        let mut vec: Vec<u16> = Vec::with_capacity((str.MaximumLength / 2) as _);
+        let mut vec: Vec<u16> = Vec::with_capacity((str.MaximumLength / 2) as usize + 1);
 
         unsafe {
             // not Vec::from_raw_parts because it does not copy, it owns the buffer
             core::ptr::copy_nonoverlapping(str.Buffer, vec.as_mut_ptr(), (str.Length / 2) as _);
             vec.set_len((str.Length / 2) as _);
         }
+
+        vec.push(0); // make sure its null terminated
         Self { buffer: vec }
     }
 
