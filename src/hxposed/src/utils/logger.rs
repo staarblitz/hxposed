@@ -2,9 +2,11 @@ use crate::win::{KeGetCurrentProcessorNumber, KeQuerySystemTime};
 use alloc::boxed::Box;
 use x86::io::outb;
 
+#[repr(C)]
 pub struct HvLogger {
     buffer: Box<[LogEntry; 4096 * 8]>,
     cursor: usize,
+    cycle: u32
 }
 
 impl HvLogger {
@@ -12,6 +14,7 @@ impl HvLogger {
         Self {
             buffer: unsafe { Box::new_zeroed().assume_init() },
             cursor: 0,
+            cycle: 0
         }
     }
 
@@ -39,7 +42,10 @@ impl HvLogger {
 
     pub fn log(&mut self, log_type: LogType, event: LogEvent) {
         if self.cursor >= self.buffer.len() {
-            self.cursor = 0;
+            //TODO: code handler for LogViewer
+            self.cursor = 1;
+            self.cycle += 1;
+            self.buffer[0] = LogEntry::new(LogType::Info, LogEvent::LogRingReset(self.cycle));
         }
 
         self.buffer[self.cursor] = LogEntry::new(log_type, event);
@@ -125,7 +131,8 @@ pub enum LogEvent {
     WritingAsyncBuffer(u64, u64) = 26,
     WrittenAsyncBuffer(u64, u64) = 27,
     NtInfo(u64, u64, u64) = 28,
-    BuildOffset(u32, u64) = 29
+    BuildOffset(u32, u64) = 29,
+    LogRingReset(u32) = 30
 }
 
 impl LogEvent {
@@ -160,6 +167,7 @@ impl LogEvent {
             LogEvent::WrittenAsyncBuffer(x, y) => (27, x, y, 0, 0),
             LogEvent::NtInfo(x, y, z) => (28, x, y, z, 0),
             LogEvent::BuildOffset(x,y) => (29, x as _, y, 0, 0),
+            LogEvent::LogRingReset(x) => (30, x as _,0,0,0)
         }
     }
 }
