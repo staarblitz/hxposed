@@ -7,6 +7,7 @@ use crate::utils::logger::LogEvent;
 use bit_field::BitField;
 use hxposed_core::hxposed::call::HypervisorCall;
 use hxposed_core::hxposed::error::NotFoundReason;
+use hxposed_core::hxposed::requests::handle::*;
 use hxposed_core::hxposed::requests::io::*;
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::requests::notify::*;
@@ -36,7 +37,7 @@ pub extern "C" fn vmexit_handler() -> u64 {
     let rip = Vmcs::vmread(vmcs::guest::RIP);
     let next_rip = rip + Vmcs::vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN);
 
-/*    vcpu.logger.trace(LogEvent::VmxExitReason(exit_reason));
+    /*    vcpu.logger.trace(LogEvent::VmxExitReason(exit_reason));
     vcpu.logger.trace(LogEvent::RIP(rip, next_rip));*/
 
     match exit_reason {
@@ -101,7 +102,7 @@ fn invalid_handler(_req: &HypervisorRequest) -> HypervisorResponse {
     HypervisorResponse::not_found_what(NotFoundReason::ServiceFunction)
 }
 
-const DISPATCH_TABLE_MAX: usize = 7;
+const DISPATCH_TABLE_MAX: usize = 8;
 #[allow(unused)]
 static DISPATCH_TABLE: [[VmcallHandler; 16]; DISPATCH_TABLE_MAX] = [
     hyper_row!(|_| {
@@ -151,6 +152,12 @@ static DISPATCH_TABLE: [[VmcallHandler; 16]; DISPATCH_TABLE_MAX] = [
         |x| { io_services::rw_msr(MsrIoRequest::from_raw(x)) },
         |x| { io_services::exec_privileged(PrivilegedInstructionRequest::from_raw(x)) }
     ),
+    hyper_row!(
+        |x| { handle_services::upgrade_handle(UpgradeHandleRequest::from_raw(x)) },
+        |x| { handle_services::get_handle_obj(GetHandleObjectRequest::from_raw(x)) },
+        |x| { handle_services::swap_handle_obj(SwapHandleObjectRequest::from_raw(x)) }
+
+    ),
 ];
 
 ///
@@ -186,9 +193,6 @@ pub(crate) fn vmcall_handler(guest: &mut HvFs) -> bool {
         true => {}
         false => {
             guest.logger.warn(LogEvent::NoHxInfo);
-            guest.write_response(HypervisorResponse::not_found_what(
-                NotFoundReason::HxInfo as _,
-            ));
             return false;
         }
     }
@@ -228,11 +232,9 @@ pub(crate) fn vmcall_handler(guest: &mut HvFs) -> bool {
 
     let result = DISPATCH_TABLE[category][func](&request);
 
-    guest.logger.trace(LogEvent::HyperResult(
-        result.arg1,
-        result.arg2,
-        result.arg3,
-    ));
+    guest
+        .logger
+        .trace(LogEvent::HyperResult(result.arg1, result.arg2, result.arg3));
 
     guest.write_response(result);
     true
