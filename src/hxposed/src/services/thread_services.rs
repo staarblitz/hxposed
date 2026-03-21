@@ -1,12 +1,12 @@
 use crate::nt::process::NtProcess;
 use crate::nt::thread::NtThread;
 use hxposed_core::hxposed::error::NotFoundReason;
-use hxposed_core::hxposed::requests::process::ObjectOpenType;
 use hxposed_core::hxposed::requests::thread::*;
-use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
+use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::thread::*;
-use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::hxposed::responses::{HypervisorResponse, OpenObjectResponse, VmcallResponse};
 use hxposed_core::hxposed::ObjectType;
+
 pub(crate) fn get_thread_field_sync(request: GetThreadFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
     let tracker = process.get_object_tracker_unchecked();
@@ -68,22 +68,14 @@ pub(crate) fn open_thread_sync(request: OpenThreadRequest) -> HypervisorResponse
         None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
     };
 
-    match request.open_type {
-        ObjectOpenType::Handle => OpenObjectResponse {
-            object: ObjectType::Handle(thread.open_handle().get_forget() as _),
-        }
-        .into_raw(),
-        ObjectOpenType::Hypervisor => {
-            let rep = OpenObjectResponse {
-                object: ObjectType::Token(thread.nt_thread as _),
-            }
-            .into_raw();
-            process
-                .get_object_tracker_unchecked()
-                .add_open_thread(thread);
-            rep
-        }
+    let rep = OpenObjectResponse {
+        object: ObjectType::Token(thread.nt_thread as _),
     }
+    .into_raw();
+    process
+        .get_object_tracker_unchecked()
+        .add_open_thread(thread);
+    rep
 }
 ///
 /// # Close Thread

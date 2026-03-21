@@ -1,11 +1,10 @@
 use crate::nt::process::NtProcess;
-use hxposed_core::hxposed::ObjectType;
-use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
-use hxposed_core::hxposed::func::ServiceFunction;
+use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::requests::process::*;
-use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
+use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::*;
-use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::hxposed::responses::{HypervisorResponse, OpenObjectResponse, VmcallResponse};
+use hxposed_core::hxposed::ObjectType;
 
 ///
 /// # Set Process Field (Sync)
@@ -25,7 +24,7 @@ use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 pub(crate) fn set_process_field_sync(request: SetProcessFieldRequest) -> HypervisorResponse {
     let process = NtProcess::current();
-    let process = match process
+    let mut process = match process
         .get_object_tracker_unchecked()
         .get_open_process(request.process as _)
     {
@@ -118,7 +117,7 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
         }
         ProcessField::UserDirectoryTableBase(_) => {
             ProcessField::DirectoryTableBase(process.get_user_directory_table_base().into())
-        },
+        }
         ProcessField::Unknown => ProcessField::Unknown,
     };
 
@@ -158,23 +157,14 @@ pub(crate) fn open_process(request: OpenProcessRequest) -> HypervisorResponse {
         Some(process) => process,
         None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
     };
+    let uid = process.nt_process as u64;
+    caller
+        .get_object_tracker()
+        .unwrap()
+        .add_open_process(process);
 
-    match request.open_type {
-        ObjectOpenType::Handle => OpenObjectResponse {
-            object: ObjectType::Handle(process.open_handle().unwrap().get_forget() as _),
-        }
-        .into_raw(),
-        ObjectOpenType::Hypervisor => {
-            let uid = process.nt_process as u64;
-            caller
-                .get_object_tracker()
-                .unwrap()
-                .add_open_process(process);
-
-            OpenObjectResponse {
-                object: ObjectType::Process(uid) as _,
-            }
-            .into_raw()
-        }
+    OpenObjectResponse {
+        object: ObjectType::Process(uid) as _,
     }
+    .into_raw()
 }

@@ -4,3 +4,4 @@ pub mod memory_services;
 pub mod process_services;
 pub mod security_services;
 pub mod thread_services;
+pub mod handle_services;

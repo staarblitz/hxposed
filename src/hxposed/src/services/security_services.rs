@@ -8,7 +8,7 @@ use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::process::ObjectOpenType;
 use hxposed_core::hxposed::requests::security::*;
-use hxposed_core::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
+use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::security::*;
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
 use hxposed_core::hxposed::{ObjectType, TokenObject};
@@ -85,31 +85,14 @@ pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HypervisorR
 
 pub(crate) fn open_token_sync(request: OpenTokenRequest) -> HypervisorResponse {
     let process = NtProcess::current();
-    match request.open_type {
-        ObjectOpenType::Handle => {
-            match NtObject::<PACCESS_TOKEN>::create_handle(
-                request.token as _,
-                process.get_handle_table(),
-            ) {
-                Ok(handle) => OpenObjectResponse {
-                    object: ObjectType::Handle(handle as _),
-                }
-                .into_raw(),
-                Err(_) => HypervisorResponse::not_found_what(NotFoundReason::Token),
-            }
-        }
-        ObjectOpenType::Hypervisor => {
-            // if token is 0, use the system token
-            let token = match request.token == 0 {
-                true => unsafe { nt::SYSTEM_TOKEN as TokenObject },
-                false => request.token,
-            };
-            process
-                .get_object_tracker_unchecked()
-                .add_open_token(NtToken::from_ptr_owned(token as _));
-            EmptyResponse::default()
-        }
-    }
+    let token = match request.token == 0 {
+        true => unsafe { nt::SYSTEM_TOKEN as TokenObject },
+        false => request.token,
+    };
+    process
+        .get_object_tracker_unchecked()
+        .add_open_token(NtToken::from_ptr_owned(token as _));
+    EmptyResponse::default()
 }
 
 pub(crate) fn close_token_sync(request: CloseTokenRequest) -> HypervisorResponse {
