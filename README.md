@@ -150,6 +150,12 @@ Cpu services:
 - Disable/enable preemption
 - Send inter-processor interrupt
 
+Handle services:
+- Upgrade handle access rights
+- Swap handle object
+- Get handle object
+- Get current access rights
+
 Callback services:
 - Process creation/termination callbacks
 
