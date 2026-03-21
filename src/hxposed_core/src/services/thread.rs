@@ -19,7 +19,6 @@ impl Drop for HxThread {
     fn drop(&mut self) {
         let _ = CloseThreadRequest {
             thread: self.addr,
-            open_type: ObjectOpenType::Hypervisor,
         }
         .send();
     }
@@ -112,110 +111,6 @@ impl HxThread {
         }
     }
 
-    /* ///
-    /// # Get Context (New)
-    ///
-    /// - Gets the thread context.
-    /// - [`Amd64Context`] is allocated by callee.
-    ///
-    /// ## Warning
-    /// - Make sure you have `await`ed the call to [`Self::suspend`] before calling this function.
-    /// - Unlike any other function which returns number of bytes required when given a null pointer,
-    /// this function does **not**. The `CONTEXT` structure has a fixed size.
-    ///
-    /// ## Return
-    /// * [`Amd64Context`] - Thread context.
-    /// * Or error
-    async fn get_context_new(&mut self) -> Result<Box<Amd64Context>, HypervisorError> {
-        // total heap allocation. using Box::new allocates on stack first, then moves to heap.
-        let mut boxed = unsafe { Box::<Amd64Context>::new_zeroed().assume_init() };
-
-        self.get_context(&mut boxed).await?;
-
-        Ok(boxed)
-    }
-
-    ///
-    /// # Get Context
-    ///
-    /// - Gets the thread context.
-    /// - [`Amd64Context`] is allocated by caller.
-    ///
-    /// ## Warning
-    /// - Make sure you have `await`ed the call to [`Self::suspend`] before calling this function.
-    /// - Unlike any other function which returns number of bytes required when given a null pointer,
-    /// this function does **not**. The `CONTEXT` structure has a fixed size.
-    ///
-    /// ## Return
-    /// * [`Amd64Context`] - Thread context.
-    /// * Or error
-    async fn get_context(
-        &mut self,
-        ctx: &mut Box<Amd64Context>,
-    ) -> Result<(), HypervisorError> {
-        GetSetThreadContextRequest {
-            addr: self.addr,
-            operation: ThreadContextOperation::Get,
-            data: ctx.as_mut() as *mut _ as _,
-            data_len: size_of::<Amd64Context>(),
-        }
-        .send_async()
-        .await?;
-
-        Ok(())
-    }
-
-    ///
-    /// # Get Context
-    ///
-    /// Sets the thread context.
-    ///
-    /// ## Arguments
-    ///
-    /// ## Warning
-    /// - Make sure you have `await`ed the call to [`Self::suspend`] before calling this function.
-    /// - Unlike any other function which returns number of bytes required when given a null pointer,
-    /// this function does **not**. The `CONTEXT` structure has a fixed size.
-    ///
-    /// ## Return
-    /// * Error or ().
-    async fn set_context(&mut self, mut ctx: Box<Amd64Context>) -> Result<(), HypervisorError> {
-        GetSetThreadContextRequest {
-            addr: self.addr,
-            operation: ThreadContextOperation::Set,
-            data: ctx.as_mut() as *mut _ as _,
-            data_len: size_of::<Amd64Context>(),
-        }
-        .send_async()
-        .await?;
-
-        Ok(())
-    }*/
-
-
-    ///
-    /// # Open Handle
-    ///
-    /// Returns a handle with `THREAD_ALL_ACCESS`.
-    ///
-    /// ## Arguments
-    /// * `id` - Thread id
-    ///
-    /// ## Warning
-    /// - The caller holds full ownership to the handle.
-    ///
-    /// ## Returns
-    /// * Handle as an u64.
-    pub async fn open_handle(id: u32) -> Result<u64, HypervisorError> {
-        let result = OpenThreadRequest {
-            pid: 0,
-            tid: id,
-            open_type: ObjectOpenType::Handle,
-        }.send()?;
-
-        Ok(result.object.into())
-    }
-
     ///
     /// # Open
     ///
@@ -237,9 +132,7 @@ impl HxThread {
     /// ```
     pub fn open(id: u32) -> Result<Self, HypervisorError> {
         let result = OpenThreadRequest {
-            pid: 0,
-            tid: id,
-            open_type: ObjectOpenType::Hypervisor,
+            tid: id as _,
         }
         .send()?;
 

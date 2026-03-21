@@ -8,7 +8,7 @@ use crate::hxposed::requests::Vmcall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::read_response_as_string;
 use crate::hxposed::responses::security::GetTokenFieldResponse;
-use crate::hxposed::ObjectType;
+use crate::hxposed::{ObjectType, TokenObject};
 use crate::services::types::security_fields::TokenPrivilege;
 use alloc::string::String;
 
@@ -24,37 +24,13 @@ impl Drop for HxToken {
 }
 
 impl HxToken {
-    pub(crate) fn from_raw_object(addr: u64) -> Result<HxToken, HypervisorError> {
+    pub(crate) fn from_raw_object(addr: TokenObject) -> Result<HxToken, HypervisorError> {
         OpenTokenRequest {
             token: addr,
-            open_type: ObjectOpenType::Hypervisor,
         }
         .send()?;
 
         Ok(Self { addr })
-    }
-
-    ///
-    /// # Open Handle
-    ///
-    /// Returns a handle with `TOKEN_ALL_ACCESS`.
-    ///
-    /// ## Permission
-    /// * [`PluginPermissions::SECURITY_MANAGE`]
-    ///
-    /// ## Warning
-    /// - The caller holds full ownership to the handle.
-    ///
-    /// ## Returns
-    /// * Handle as an u64.
-    pub fn open_handle(&self) -> Result<u64, HypervisorError> {
-        let resp = OpenTokenRequest {
-            token: self.addr,
-            open_type: ObjectOpenType::Handle,
-        }
-        .send()?;
-
-        Ok(resp.object.into())
     }
 
     ///
@@ -67,7 +43,6 @@ impl HxToken {
     pub fn get_system_token() -> HxToken {
         let addr = OpenTokenRequest {
             token: 0,
-            open_type: ObjectOpenType::Hypervisor,
         }
         .send()
         .unwrap();

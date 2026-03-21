@@ -27,7 +27,6 @@ impl Drop for HxProcess {
     fn drop(&mut self) {
         let _ = CloseProcessRequest {
             process: self.addr,
-            open_type: ObjectOpenType::Hypervisor,
         }
         .send();
     }
@@ -44,34 +43,6 @@ impl HxProcess {
     /// Opens the current process for your use.
     pub fn current() -> Self {
         Self::open(unsafe { GetCurrentProcessId() }).unwrap()
-    }
-
-    ///
-    /// # Open Handle
-    ///
-    /// Returns a handle with `PROCESS_ALL_ACCESS`.
-    ///
-    /// Remember that you still might have to remove process protection ([`Self::set_protection`]) to have full access to the process object.
-    ///
-    /// ## Arguments
-    /// * `id` - Process id
-    ///
-    /// ## Warning
-    /// - The caller holds full ownership to the handle.
-    ///
-    /// ## Returns
-    /// * Handle as an u64.
-    pub fn open_handle(id: u32) -> Result<u64, HypervisorError> {
-        let result = OpenProcessRequest {
-            process_id: id,
-            open_type: ObjectOpenType::Handle,
-        }
-        .send()?;
-
-        Ok(match result.object {
-            ObjectType::Handle(handle) => handle,
-            _ => panic!("Unexpected object type"),
-        })
     }
 
     ///
@@ -241,8 +212,7 @@ impl HxProcess {
     /// ```
     pub fn open(id: u32) -> Result<Self, HypervisorError> {
         let call = OpenProcessRequest {
-            process_id: id,
-            open_type: ObjectOpenType::Hypervisor,
+            process_id: id as _,
         }
         .send()?;
 
@@ -423,7 +393,7 @@ impl HxProcess {
         })
         .send()?.field
         {
-            ProcessField::NtPath(offset) => unsafe {
+            ProcessField::NtPath(offset) => {
                 Ok(read_response_as_string(offset))
             },
             _ => unreachable!(),
