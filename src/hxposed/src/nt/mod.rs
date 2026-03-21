@@ -18,7 +18,7 @@ pub(crate) mod token;
 use crate::nt::registry::NtKey;
 use crate::utils::logger::LogEvent;
 use crate::win::*;
-use crate::{scoped_log, utils, GLOBAL_LOGGER};
+use crate::{GLOBAL_LOGGER, scoped_log, utils};
 use alloc::vec::Vec;
 use core::ffi::c_void;
 use core::str::FromStr;
@@ -103,11 +103,7 @@ pub(crate) fn get_nt_info() -> Result<(), ()> {
 }
 pub(crate) fn get_nt_base() -> PVOID {
     unsafe {
-        let ptr = &*PsLoadedModuleList;
-        let links = &*ptr.InLoadOrderLinks;
-        let entry = links.Flink as *const LDR_DATA_TABLE_ENTRY;
-
-        (*entry).DllBase
+        (**PsLoadedModuleList).DllBase
     }
 }
 
@@ -227,7 +223,8 @@ pub(crate) unsafe fn get_ethread_field<T: 'static>(
                     EThreadField::OffsetFromListEntry => -0x578, // returns the pointer to actual ETHREAD
                     EThreadField::ClientId => 0x508,
                     EThreadField::CrossThreadFlags => 0x5a0,
-                    EThreadField::AdjustedClientToken => 0x648
+                    EThreadField::AdjustedClientToken => 0x648,
+                    EThreadField::KernelApcDisable => 0x1e4
                 }
             }
             _ => {
@@ -312,7 +309,7 @@ pub(crate) unsafe fn get_logon_session_field<T: 'static>(
 }
 
 pub(crate) unsafe fn get_object_header(object: *mut u64) -> *mut u64 {
-    unsafe { object.byte_offset(-0x30) }
+    unsafe { object.byte_offset(-0x30) } // _OBJECT_HEADER is actually 0x38 bytes. But since the Body field is the object itself, we cut it down
 }
 
 pub(crate) unsafe fn get_object_body(object_header: *mut c_void) -> *mut c_void {
@@ -352,6 +349,7 @@ pub enum EThreadField {
     ClientId,
     CrossThreadFlags,
     AdjustedClientToken,
+    KernelApcDisable
 }
 
 /// TODO: Document what those return

@@ -65,13 +65,6 @@ impl NtToken {
         UnicodeString::from_unicode_string(unsafe { &*uc })
     }
 
-    pub fn open_handle(&self) -> HandleBox {
-        HandleBox::new(
-            NtObject::create_handle(self.nt_token, NtProcess::current().get_handle_table())
-                .unwrap(),
-        )
-    }
-
     pub fn get_source_name(&self) -> u64 {
         unsafe { *get_access_token_field::<u64>(AccessTokenField::TokenSource, self.nt_token) }
     }

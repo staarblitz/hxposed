@@ -68,7 +68,7 @@ impl Drop for NtProcess {
 }
 
 impl NtProcess {
-    pub fn from_id(id: u32) -> Option<NtProcess> {
+    pub fn from_id(id: u64) -> Option<NtProcess> {
         let mut process = PEPROCESS::default();
         let status = unsafe { PsLookupProcessByProcessId(id as _, &mut process) };
 
@@ -258,13 +258,6 @@ impl NtProcess {
             unsafe { core::slice::from_raw_parts(path.as_ptr() as *const u8, path.len() * 2) },
             0x2009,
         )
-    }
-
-    pub fn open_handle(&self) -> Result<HandleBox, ()> {
-        match NtObject::create_handle(self.nt_process as _, self.get_handle_table()) {
-            Ok(x) => Ok(HandleBox::new(x)),
-            Err(_) => Err(()),
-        }
     }
 
     pub fn begin_context(&self) -> ApcProcessContext {

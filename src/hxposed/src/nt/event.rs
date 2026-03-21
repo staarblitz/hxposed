@@ -70,8 +70,8 @@ impl NtEvent {
     pub fn from_handle(handle: HANDLE) -> Result<NtEvent, ()> {
         let process = NtProcess::current();
         let obj = match NtObject::<PKEVENT>::from_handle(handle, process.get_handle_table()) {
-            Ok(ptr) => ptr,
-            Err(_) => return Err(()),
+            Some(ptr) => ptr,
+            None => return Err(()),
         };
 
         Ok(Self::open_event(obj.object_addr as _, true))

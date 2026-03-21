@@ -39,7 +39,7 @@ impl Drop for NtThread {
 }
 
 impl NtThread {
-    pub fn from_id(id: u32) -> Option<NtThread> {
+    pub fn from_id(id: u64) -> Option<NtThread> {
         let mut process = PETHREAD::default();
         let status = unsafe { PsLookupThreadByThreadId(id as _, &mut process) };
 
@@ -65,13 +65,6 @@ impl NtThread {
             lock: unsafe { PushLock::from_ptr(get_ethread_field::<u64>(EThreadField::Lock, ptr)) },
             owns,
         }
-    }
-
-    pub fn open_handle(&self) -> HandleBox {
-        HandleBox::new(
-            NtObject::create_handle(self.nt_thread, NtProcess::current().get_handle_table())
-                .unwrap(),
-        )
     }
 
     pub fn get_impersonation_info(&self) -> bool {
