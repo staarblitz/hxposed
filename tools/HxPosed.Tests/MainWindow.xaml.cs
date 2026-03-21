@@ -28,37 +28,6 @@ namespace HxPosed.Tests
         {
             InitializeComponent();
             DataContext = this; // 200 iq
-            unsafe
-            {
-                var reqResp = new _HX_REQUEST_RESPONSE
-                {
-                    Call = new _HX_CALL
-                    {
-                        ServiceFunction = (ulong)_HX_SERVICE_FUNCTION.HxSvcRegisterNotifyEvent,
-                    },
-                    RegisterCallbackRequest = new _HXR_REGISTER_CALLBACK
-                    {
-                        EventHandle = (void*)Win32.CreateEvent(nint.Zero, true, false, null),
-                        ObjectType = new _HX_OBJECT_TYPE
-                        {
-                            Object = (ulong)_HX_OBJECT_TYPES.HxObProcess
-                        }
-                    },
-                };
-
-                if (Methods.HxpTrap(&reqResp) != 0)
-                {
-                    MessageBox.Show("Hypervisor is not loaded!");
-                    //return;
-                    //Application.Current.Shutdown();
-                }
-
-                if (reqResp.Result.ErrorCode != 0)
-                {
-                    MessageBox.Show($"Error registering callbacks opReq: {reqResp.Result.ErrorCode} {reqResp.Result.ErrorReason}");
-                }
-            }
-
             ReloadProcesses();
         }
 
