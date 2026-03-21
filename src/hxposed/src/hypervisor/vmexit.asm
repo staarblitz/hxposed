@@ -13,8 +13,10 @@ hv_vm_run:
 # we should handle dr7
 
 hv_vm_exit:
-    push r15                # save r15
-    rdfsbase r15            # set r15 to our HvCpu
+
+    push r15        # save r15
+    rdfsbase r15    # set r15 to our HvCpu
+    mov r15, [r15]
 
     # save gprs
     mov [r15 + rax_offset], rax
