@@ -47,14 +47,14 @@ make_the_call:
 	cpuid	; where we were?
 
 	cmp rcx, 2009h	; the normal cpuid behavior resets the rcx. in this case, it should stay the same.
+
 	je call_ok	
-	mov rax, -1	; hypervisor did NOT catch our trap
+	
+	mov rsi, 06		; HvNotLoaded
+
 	jmp return
 
 call_ok:
-	xor rax, rax ; good to go!
-	mov qword ptr [rdi + 8], rsi	; save result to second field of HX_REQUEST_RESPONSE
-
 	; fetch regs returned by hypervisor
 	mov qword ptr [rdi + 16], r8
 	mov qword ptr [rdi + 24], r9
@@ -62,11 +62,13 @@ call_ok:
 	
 return:
 
+	mov qword ptr [rdi + 8], rsi	; save result to second field of HX_REQUEST_RESPONSE
+	mov rax, rsi	; HX_RESULT
+
 	; get em back
 	pop rbx
 	pop rdi
 	pop rsi
-	
 
 	ret
 
