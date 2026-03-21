@@ -9,6 +9,19 @@ namespace HxPosed.Tests
 {
     internal static class Win32
     {
+        public const int HANDLE_ALL_ACCESS = 0x1FFFFFF;
+        public const int PROCESS_QUERY_INFORMATION = 0x400;
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentProcessId();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern nint OpenProcess(
+        uint processAccess,
+        bool bInheritHandle,
+        int processId
+    );
+
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CloseHandle(nint handle);
 
