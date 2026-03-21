@@ -4,13 +4,13 @@ use crate::hxposed::TokenObject;
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
+use crate::hxposed::responses::empty::{EmptyResponse};
+use crate::hxposed::responses::OpenObjectResponse;
 use crate::hxposed::responses::security::*;
 use crate::services::types::security_fields::{ImpersonationLevel, TokenPrivilege, TokenType};
 
 pub struct OpenTokenRequest {
     pub token: TokenObject,
-    pub open_type: ObjectOpenType,
 }
 
 pub struct CloseTokenRequest {
@@ -100,7 +100,6 @@ impl VmcallRequest for OpenTokenRequest {
         HypervisorRequest {
             call: HypervisorCall::open_token(),
             arg1: self.token,
-            arg2: self.open_type.clone().to_bits() as _,
 
             ..Default::default()
         }
@@ -109,7 +108,6 @@ impl VmcallRequest for OpenTokenRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             token: request.arg1,
-            open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }
 }

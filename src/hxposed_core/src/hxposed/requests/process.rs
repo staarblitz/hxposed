@@ -2,21 +2,20 @@
 
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
+use crate::hxposed::responses::empty::{EmptyResponse};
 use crate::hxposed::responses::process::*;
 use crate::hxposed::ProcessObject;
+use crate::hxposed::responses::OpenObjectResponse;
 use crate::services::types::process_fields::*;
 
 #[derive(Clone, Default, Debug)]
 pub struct OpenProcessRequest {
-    pub process_id: u32,
-    pub open_type: ObjectOpenType,
+    pub process_id: u64,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct CloseProcessRequest {
     pub process: ProcessObject,
-    pub open_type: ObjectOpenType,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -44,7 +43,6 @@ impl VmcallRequest for OpenProcessRequest {
         HypervisorRequest {
             call: HypervisorCall::open_process(),
             arg1: self.process_id as _,
-            arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
         }
     }
@@ -52,7 +50,6 @@ impl VmcallRequest for OpenProcessRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             process_id: request.arg1 as _,
-            open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }
 }
@@ -64,7 +61,6 @@ impl VmcallRequest for CloseProcessRequest {
         HypervisorRequest {
             call: HypervisorCall::close_process(),
             arg1: self.process as _,
-            arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
         }
     }
@@ -72,7 +68,6 @@ impl VmcallRequest for CloseProcessRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             process: request.arg1 as _,
-            open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }
 }

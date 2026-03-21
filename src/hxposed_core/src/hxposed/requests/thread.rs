@@ -1,21 +1,19 @@
 use crate::hxposed::call::HypervisorCall;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use crate::hxposed::responses::empty::{EmptyResponse, OpenObjectResponse};
+use crate::hxposed::responses::empty::{EmptyResponse};
+use crate::hxposed::responses::OpenObjectResponse;
 use crate::hxposed::responses::thread::*;
 use crate::hxposed::ThreadObject;
 
 #[derive(Clone, Default, Debug)]
 pub struct OpenThreadRequest {
-    pub pid: u32,
-    pub tid: u32,
-    pub open_type: ObjectOpenType,
+    pub tid: u64,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct CloseThreadRequest {
     pub thread: ThreadObject,
-    pub open_type: ObjectOpenType,
 }
 
 #[derive(Debug, Clone)]
@@ -81,7 +79,6 @@ impl VmcallRequest for CloseThreadRequest {
         HypervisorRequest {
             call: HypervisorCall::close_thread(),
             arg1: self.thread.clone() as _,
-            arg2: self.open_type.clone().to_bits() as _,
             ..Default::default()
         }
     }
@@ -89,20 +86,17 @@ impl VmcallRequest for CloseThreadRequest {
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
             thread: request.arg1 as _,
-            open_type: ObjectOpenType::from_bits(request.arg2 as _),
         }
     }
 }
 
 impl VmcallRequest for OpenThreadRequest {
-    type Response = OpenObjectResponse; // it works. that's all I can say
+    type Response = OpenObjectResponse;
 
     fn into_raw(self) -> HypervisorRequest {
         HypervisorRequest {
             call: HypervisorCall::open_thread(),
-            arg1: self.pid as _,
-            arg2: self.tid as _,
-            arg3: self.open_type.clone().to_bits() as _,
+            arg1: self.tid as _,
 
             ..Default::default()
         }
@@ -110,9 +104,7 @@ impl VmcallRequest for OpenThreadRequest {
 
     fn from_raw(request: &HypervisorRequest) -> Self {
         Self {
-            pid: request.arg1 as _,
-            tid: request.arg2 as _,
-            open_type: ObjectOpenType::from_bits(request.arg3 as _),
+            tid: request.arg1 as _,
         }
     }
 }
