@@ -55,8 +55,8 @@ hv_int_handler:
 
     mov [r15 + rcx_offset], rcx # finally get back rcx
 
-    pop rdx    # set second arg to exception vector
-    pop r8     # set third arg to error code
+    pop rcx    # set first arg to exception vector
+    pop rdx    # set second arg to error code
 
     sub rsp, 32     # allocate shadow space
     call vm_int_handler # fresh air
