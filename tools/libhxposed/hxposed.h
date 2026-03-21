@@ -1,4 +1,7 @@
 #pragma once
+#ifndef HXPOSED
+#define HXPOSED
+
 #include <Windows.h>
 
 // incredible
@@ -9,12 +12,18 @@
 
 #define HX_ASYNC_BASE 0x20090000
 #define HX_CALLBACK_RESERVED_OFFSET 0
+#define DLL_EXPORT __declspec(dllexport)
 
-typedef PVOID HX_THREAD;
-typedef PVOID HX_PROCESS;
-typedef PVOID HX_TOKEN;
-typedef PVOID HX_RMD;
-typedef PVOID HX_CALLBACK;
+typedef UINT64 HX_OBJECT;
+typedef HX_OBJECT *PHX_OBJECT;
+
+typedef HX_OBJECT HX_THREAD;
+typedef HX_OBJECT HX_PROCESS;
+typedef HX_OBJECT HX_TOKEN;
+typedef HX_TOKEN *PHX_TOKEN;
+typedef HX_OBJECT HX_RMD;
+typedef HX_RMD *PHX_RMD;
+typedef HX_OBJECT HX_CALLBACK;
 
 typedef enum _HX_OBJECT_TYPES {
     HxObHandle = 0,
@@ -31,24 +40,18 @@ typedef enum _HX_OBJECT_STATE {
     HxObDeleted = 2
 } HX_OBJECT_STATE;
 
-typedef UINT64 HX_OPEN_TYPE;
-enum {
-    HxOpenHandle = 0,
-    HxOpenHypervisor = 1
-};
 
 typedef struct _HX_OBJECT_TYPE {
     HX_OBJECT_TYPES Type;
-    PVOID Object;
+    HX_OBJECT Object;
 } HX_OBJECT_TYPE;
 
 typedef struct _HXR_OPEN_OBJECT {
     UINT64 AddressOrId;
-    HX_OPEN_TYPE OpenType;
 } HXR_OPEN_OBJECT, *PHXR_OPEN_OBJECT;
 
 typedef struct _HXR_CLOSE_OBJECT {
-    UINT64 Address;
+    HX_OBJECT Address;
 } HXR_CLOSE_OBJECT, *PHXR_CLOSE_OBJECT;
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN SECURITY
@@ -94,7 +97,7 @@ typedef union _HX_TOKEN_PRIVILEGES {
         UINT64 SeDelegateSessionUserImpersonatePrivilege : 1;
         UINT64 RESERVED2 : 27;
     };
-} HX_TOKEN_PRIVILEGES;
+} HX_TOKEN_PRIVILEGES, *PHX_TOKEN_PRIVILEGES;
 
 
 typedef enum _HX_TOKEN_IMPERSONATION_LEVEL {
@@ -102,25 +105,25 @@ typedef enum _HX_TOKEN_IMPERSONATION_LEVEL {
     Identification = 1,
     Impersonation = 2,
     Delegation = 3,
-} HX_TOKEN_IMPERSONATION_LEVEL;
+} HX_TOKEN_IMPERSONATION_LEVEL, *PHX_TOKEN_IMPERSONATION_LEVEL;
 
 typedef enum _HX_TOKEN_TYPE {
-    HxTokenPrimary,
-    HxTokenImpersonation
-} HX_TOKEN_TYPE;
+    HxTokenPrimary = 0,
+    HxTokenImpersonation = 1
+} HX_TOKEN_TYPE, *PHX_TOKEN_TYPE;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END SECURITY
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
 
 typedef UINT64 HX_THREAD_FIELD;
-enum {
+enum _HX_THREAD_FIELD {
     HxThreadFieldActiveImpersonationInfo = 1,
     HxThreadFieldAdjustedClientToken = 2,
 };
 
 typedef UINT64 HX_TOKEN_FIELD;
-enum {
+enum _HX_TOKEN_FIELD  {
     HxTokenFieldUnknown = 0,
     HxTokenFieldSourceName = 1,
     HxTokenFieldAccountName = 2,
@@ -134,35 +137,33 @@ enum {
 };
 
 typedef UINT64 HX_PROCESS_FIELD;
-enum {
-    HxProcFieldUnknown = 0,
-    HxProcFieldNtPath = 1,
-    HxProcFieldProtection = 2,
-    HxProcFieldSigners = 3,
-    HxProcFieldMitigationFlags = 4,
-    HxProcFieldToken = 5,
-    HxProcFieldThreads = 6,
-    HxProcFieldDirectoryTableBase = 7,
-    HxProcFieldUserDirectoryTableBase = 8,
+enum _HX_PROCESS_FIELD {
+    HxProcessFieldUnknown = 0,
+    HxProcessFieldNtPath = 1,
+    HxProcessFieldProtection = 2,
+    HxProcessFieldSigners = 3,
+    HxProcessFieldMitigation = 4,
+    HxProcessFieldToken = 5,
+    HxProcessFieldThreads = 6,
+    HxProcessFieldDirectoryTableBase = 7,
+    HxProcessFieldUserDirectoryTableBase = 8,
 };
 
-
-
 typedef UINT64 HX_MAP_OPERATION;
-enum {
+enum _HX_MAP_OPERATION {
     HxMemMap = 0,
     HxMemUnMap = 1
 };
 
 typedef UINT64 HX_MEMORY_POOL;
-enum {
+enum _HX_MEMORY_POOL {
     HxPoolNonPaged = 0,
     HxContiguousPhysical = 1
 };
 
 
 typedef UINT64 HX_PAGING_OBJECT;
-enum {
+enum _HX_PAGING_OBJECT {
     HxPml5 = 0,
     HxPml4 = 1,
     HxPdp = 2,
@@ -187,12 +188,11 @@ typedef union _HX_VIRTUAL_ADDRESS {
 
 typedef struct _HX_PAGING_TYPE {
     HX_PAGING_OBJECT ObjectType;
-    UINT64 PAD;
     HX_VIRTUAL_ADDRESS Object;
 } HX_PAGING_TYPE;
 
 typedef UINT64 HX_PAGING_OPERATION;
-enum {
+enum _HX_PAGING_OPERATION {
     HxPageOperationSet = 0,
     HxPageOperationGet = 1
 };
@@ -208,7 +208,7 @@ typedef struct _HX_PROCESS_PROTECTION {
             UCHAR Signer : 4;                                                 //0x0
         };
     };
-} HX_PROCESS_PROTECTION;
+} HX_PROCESS_PROTECTION, *PHX_PROCESS_PROTECTION;
 
 typedef union _HX_PROCESS_MITIGATION_FLAGS_2 {
     ULONG MitigationFlags2;                                             //0x754
@@ -291,12 +291,12 @@ typedef union _HX_PROCESS_MITIGATION_FLAGS_1 {
 typedef struct _HX_PROCESS_MITIGATION_FLAGS {
     HX_PROCESS_MITIGATION_FLAGS_1 First;
     HX_PROCESS_MITIGATION_FLAGS_2 Second;
-} HX_PROCESS_MITIGATION_FLAGS;
+} HX_PROCESS_MITIGATION_FLAGS, *PHX_PROCESS_MITIGATION_FLAGS;
 
 typedef struct _HX_PROCESS_SIGNERS {
     UCHAR Level;
     UCHAR SectionLevel;
-} HX_PROCESS_SIGNERS;
+} HX_PROCESS_SIGNERS, *PHX_PROCESS_SIGNERS;
 
 typedef enum _HX_PROCESS_PROTECTION_TYPE {
     HxPsProtTypeNone = 0,
@@ -351,9 +351,10 @@ typedef struct _HXS_OPEN_OBJECT_RESPONSE {
 
 typedef struct _HXS_STATUS {
     HXS_HYPERVISOR_STATUS Status;
-    UINT64 Version;
+    UINT32 _PAD;
+    UINT32 Version;
+    UINT32 _PAD2;
 } HXS_STATUS, * PHXS_STATUS;
-
 
 ///////////////////////////////////////////////////////////////////////////////////////// END STATUS
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN MEMORY
@@ -400,9 +401,9 @@ typedef struct _HXS_GET_TOKEN_FIELD {
         CHAR Name[8];
         UINT64 NameOffset;
         HX_TOKEN_TYPE Type;
-        UINT32 Index;
+        UINT32 IntegrityIndex;
         UINT32 Policy;
-        HX_TOKEN_IMPERSONATION_LEVEL Level;
+        HX_TOKEN_IMPERSONATION_LEVEL Impersonationlevel;
         HX_TOKEN_PRIVILEGES Privileges;
     };
 } HXS_GET_TOKEN_FIELD, * PHXS_GET_TOKEN_FIELD;
@@ -469,14 +470,23 @@ typedef struct _HXS_MSR_OPERATION {
 } HXS_MSR_OPERATION, *PHXS_MSR_OPERATION;
 
 ///////////////////////////////////////////////////////////////////////////////////////// END CALLBACKS
+///////////////////////////////////////////////////////////////////////////////////////// BEGIN HANDLE
+
+typedef struct _HXS_GET_HANDLE_OBJECT {
+    UINT64 Object;
+    UINT32 GrantedAccess;
+    UINT32 _PAD;
+} HXS_GET_HANDLE_OBJECT, *PHXS_GET_HANDLE_OBJECT;
+
+///////////////////////////////////////////////////////////////////////////////////////// END HANDLE
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN MEMORY
 
-
 typedef struct _HXR_ALLOCATE_MEMORY {
     UINT32 Size;
-    UINT32 PAD;
+    UINT32 _PAD;
     HX_MEMORY_POOL Pool;
 } HXR_ALLOCATE_MEMORY, * PHXR_ALLOCATE_MEMORY;
 
@@ -513,13 +523,6 @@ typedef struct _HXR_DESCRIBE_MEMORY {
 
 ///////////////////////////////////////////////////////////////////////////////////////// END MEMORY
 ///////////////////////////////////////////////////////////////////////////////////////// BEGIN PROCESS
-
-
-typedef struct _HXR_KILL_PROCESS {
-    HX_PROCESS Address;
-    UINT32 ExitCode;
-    UINT32 PAD;
-} HXR_KILL_PROCESS, * PHXR_KILL_PROCESS;
 
 typedef struct _HXR_GET_PROCESS_FIELD {
     HX_PROCESS Address;
@@ -589,6 +592,26 @@ typedef struct _HXR_MSR_OPERATION {
 } HXR_MSR_OPERATION, *PHXR_MSR_OPERATION;
  
 ///////////////////////////////////////////////////////////////////////////////////////// END CPU/IO
+///////////////////////////////////////////////////////////////////////////////////////// BEGIN HANDLE
+
+typedef struct _HXR_UPGRADE_HANDLE {
+    UINT64 Handle;
+    HX_PROCESS Process;
+    UINT64 AccessMask;
+} HXR_UPGRADE_HANDLE, *PHXR_UPGRADE_HANDLE;
+
+typedef struct _HXR_SWAP_HANDLE_OBJECT {
+    UINT64 Handle;
+    HX_PROCESS Process;
+    UINT64 NewObject;
+} HXR_SWAP_HANDLE_OBJECT, *PHXR_SWAP_HANDLE_OBJECT;
+
+typedef struct _HXR_GET_HANDLE_OBJECT {
+    UINT64 Handle;
+    HX_PROCESS Process;
+} HXR_GET_HANDLE_OBJECT, * PHXR_GET_HANDLE_OBJECT;
+
+///////////////////////////////////////////////////////////////////////////////////////// END HANDLE
 
 typedef enum _HX_SERVICE_FUNCTION {
     HxSvcGetState = 0x0,
@@ -620,13 +643,51 @@ typedef enum _HX_SERVICE_FUNCTION {
 
     HxSvcMsrIo = 0x60,
     HxSvcExecutePrivilegedInstruction = 0x61,
-    HxSvcInterProcessorInterrupt = 0x62
+    HxSvcInterProcessorInterrupt = 0x62,
+
+    HxSvcUpgradeHandle = 0x70,
+    HxSvcGetHandleObject = 0x71,
+    HxSvcSwapHandleObject = 0x72
 } HX_SERVICE_FUNCTION;
+
+typedef enum _HX_ERROR_CODE{
+    HxErrSuccess = 0,
+    HxErrNotAllowed = 1,
+    HxErrNotFound = 2,
+    HxErrInvalidParameters = 3,
+    HxErrNtError = 4,
+    HxErrTimedOut = 5,
+    HxErrHvNotLoaded = 6
+} HX_ERROR_CODE;
+
+typedef enum _HX_NOT_ALLOWED_REASON {
+   HxErrReasonLockHeld = 2,
+   HxErrReasonPageNotPresent = 3,
+   HxErrReasonMappingsExist = 4,
+   HxErrReasonAccessViolation = 5
+} HX_NOT_ALLOWED_REASON;
+
+typedef enum _HX_NOT_FOUND_REASON {
+    HxErrReasonProcess = 1,
+    HxErrReasonMdl = 3,
+    HxErrReasonThread = 4,
+    HxErrReasonFunction = 5,
+    HxErrReasonToken = 6,
+    HxErrReasonCallback = 7,
+    HxErrReasonEvent = 9,
+    HxErrReasonField = 10,
+    HxErrReasonHandle = 11
+} HX_NOT_FOUND_REASON;
 
 #pragma pack(push,1)
 typedef struct _HX_RESULT {
-    UINT32 ErrorCode;
-    UINT32 ErrorReason;
+    HX_ERROR_CODE ErrorCode;
+    union {
+        enum _HX_NOT_ALLOWED_REASON NotAllowedReason;
+        enum _HX_NOT_FOUND_REASON NotFoundReason;
+        UINT32 NtStatus;
+        UINT32 Parameter;
+    };
 } HX_RESULT, * PHX_RESULT;
 
 typedef struct _HX_CALL {
@@ -671,6 +732,7 @@ typedef struct _HX_REQUEST_RESPONSE {
         HXS_MSR_OPERATION MsrIoResponse;
         HXS_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionResponse;
 
+        HXS_GET_HANDLE_OBJECT GetHandleObjectResponse;
 
 
         HXR_OPEN_OBJECT OpenObjectRequest;
@@ -697,17 +759,72 @@ typedef struct _HX_REQUEST_RESPONSE {
 
         HXR_MSR_OPERATION MsrIoRequest;
         HXR_EXECUTE_PRIVILEGED ExecutePrivilegedInstructionRequest;
+
+        HXR_UPGRADE_HANDLE UpgradeHandleRequest;
+        HXR_SWAP_HANDLE_OBJECT SwapHandleObjectRequest;
+        HXR_GET_HANDLE_OBJECT GetHandleObjectRequest;
     };
 } HX_REQUEST_RESPONSE, * PHX_REQUEST_RESPONSE;
 
 #pragma pack(pop)
 
-BOOL HxIsError(PHX_RESULT Error);
+DLL_EXPORT HX_RESULT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse);
 
-__declspec(dllexport) BOOL HxGetStatus(PHXS_STATUS Response);
+DLL_EXPORT UINT32 HxReadAsyncResponseLength(UINT64 Offset);
+DLL_EXPORT PVOID HxReadAsyncResponseSlice(UINT64 Offset, PUINT32 Length);
+DLL_EXPORT PVOID HxReadAsyncResponseType(UINT64 Offset);
 
-__declspec(dllexport) INT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse);
+DLL_EXPORT BOOL HxGetStatus(PHXS_STATUS Response);
+DLL_EXPORT HX_RESULT HxCloseObject(HX_SERVICE_FUNCTION Function, HX_OBJECT Object);
+DLL_EXPORT HX_RESULT HxOpenObject(HX_SERVICE_FUNCTION Function, PVOID AddrOrId, PHX_OBJECT Object);
 
-__declspec(dllexport) UINT32 HxReadAsyncResponseLength(UINT64 Offset);
-__declspec(dllexport) PVOID HxReadAsyncResponseSlice(UINT64 Offset, PUINT32 Length);
-__declspec(dllexport) PVOID HxReadAsyncResponseType(UINT64 Offset);
+#define GENERATE_HX_GET_FUNC_SIGN(x,y,z) \
+    DLL_EXPORT HX_RESULT HxGet##x##y(HX_OBJECT x, z y);
+#define GENERATE_HX_SET_FUNC_SIGN(x,y,z) \
+    DLL_EXPORT HX_RESULT HxSet##x##y(HX_OBJECT x, z y);
+
+#define GENERATE_HX_FUNC_SIGN(x, y, z) \
+    GENERATE_HX_GET_FUNC_SIGN(x,y,z) \
+    GENERATE_HX_SET_FUNC_SIGN(x,y,z)
+    
+GENERATE_HX_FUNC_SIGN(Process, Protection, PHX_PROCESS_PROTECTION)
+GENERATE_HX_FUNC_SIGN(Process, Mitigation, PHX_PROCESS_MITIGATION_FLAGS)
+GENERATE_HX_FUNC_SIGN(Process, Signers, PHX_PROCESS_SIGNERS)
+GENERATE_HX_FUNC_SIGN(Process, Token, PUINT64)
+GENERATE_HX_FUNC_SIGN(Process, DirectoryTableBase, PUINT64)
+DLL_EXPORT HX_RESULT HxGetProcessNtPath(HX_PROCESS Process, PWCHAR* Name);
+DLL_EXPORT HX_RESULT HxGetProcessThreads(HX_PROCESS Process, PUINT32* Threads, PUINT32 Count);
+
+GENERATE_HX_FUNC_SIGN(Token, SourceName, PCHAR)
+GENERATE_HX_FUNC_SIGN(Token, Type, PHX_TOKEN_TYPE)
+GENERATE_HX_FUNC_SIGN(Token, IntegrityLevelIndex, PUINT32)
+GENERATE_HX_FUNC_SIGN(Token, MandatoryPolicy, PUINT32)
+GENERATE_HX_FUNC_SIGN(Token, ImpersonationLevel, PHX_TOKEN_IMPERSONATION_LEVEL)
+GENERATE_HX_FUNC_SIGN(Token, PresentPrivileges, PHX_TOKEN_PRIVILEGES)
+GENERATE_HX_FUNC_SIGN(Token, EnabledPrivileges, PHX_TOKEN_PRIVILEGES)
+GENERATE_HX_FUNC_SIGN(Token, EnabledByDefaultPrivileges, PHX_TOKEN_PRIVILEGES)
+DLL_EXPORT HX_RESULT HxGetTokenAccountName(HX_PROCESS Process, PWCHAR* Name);
+
+GENERATE_HX_FUNC_SIGN(Thread, ActiveImpersonationInfo, PBOOL)
+GENERATE_HX_FUNC_SIGN(Thread, AdjustedClientToken, PHX_TOKEN)
+
+#undef GENERATE_HX_GET_FUNC_SIGN
+#undef GENERATE_HX_SET_FUNC_SIGN
+#undef GENERATE_HX_FUNC_SIGN
+
+DLL_EXPORT HX_RESULT HxReadMsr(UINT64 Msr, PUINT64 Value);
+DLL_EXPORT HX_RESULT HxWriteMsr(UINT64 Msr, UINT64 Value);
+DLL_EXPORT HX_RESULT HxExecPrivileged(HX_PRIVILEGED_INSTRUCTION Instruction, PUINT64 Result);
+
+DLL_EXPORT HX_RESULT HxUpgradeHandle(UINT64 Handle, HX_PROCESS Process, UINT32 AccessMask);
+DLL_EXPORT HX_RESULT HxSwapHandleObject(UINT64 Handle, HX_PROCESS Process, HX_OBJECT NewObject);
+DLL_EXPORT HX_RESULT HxGetHandleObject(UINT64 Handle, HX_PROCESS Process, PHX_OBJECT Object, PUINT32 GrantedAccess);
+
+DLL_EXPORT HX_RESULT HxAllocateMemory(HX_MEMORY_POOL Pool, UINT32 Size, PHX_RMD Descriptor);
+DLL_EXPORT HX_RESULT HxFreeMemory(HX_RMD Descriptor);
+DLL_EXPORT HX_RESULT HxMapDescriptor(HX_RMD Descriptor, HX_PROCESS AddressSpace, PVOID MapAddress, HX_MAP_OPERATION Operation);
+DLL_EXPORT HX_RESULT HxDescribeMemory(UINT64 PhysicalAddress, UINT32 Size, PHX_RMD Descriptor);
+DLL_EXPORT HX_RESULT HxTranslateAddress(PVOID VirtualAddress, HX_PROCESS AddressSpace, PUINT64 PhysicalAddress);
+
+
+#endif // !HXPOSED
