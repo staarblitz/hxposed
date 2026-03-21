@@ -18,9 +18,6 @@
     <ClCompile Include="hxposed.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="err.c">
-      <Filter>Quelldateien</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hxposed.h">

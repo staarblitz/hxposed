@@ -185,7 +185,6 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="err.c" />
     <ClCompile Include="hxposed.c" />
   </ItemGroup>
   <ItemGroup>
