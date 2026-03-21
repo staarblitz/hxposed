@@ -20,6 +20,7 @@ use core::{mem, ptr};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
 use hxposed_core::services::types::security_fields::TokenPrivilege;
+use crate::nt::{get_ethread_field, EThreadField};
 
 pub type PEPROCESS = *mut c_void;
 pub type PKEVENT = *mut c_void;
@@ -263,7 +264,19 @@ pub unsafe extern "C" fn ExpLookupHandleTableEntry(
 
 pub unsafe extern "C" fn ExCreateHandle(Table: PHANDLE_TABLE, ObjectHeader: PVOID) -> *mut u64 {
     let func: ExCreateHandleType = mem::transmute(NT_EX_CREATE_HANDLE);
-    func(Table, ObjectHeader)
+    // KiLeaveCritical region triggers APC requests which causes #GP on VmExits.
+    // so we have to set the KernelApcDisable
+
+    let field = get_ethread_field::<u32>(EThreadField::KernelApcDisable, KeGetCurrentThread());
+    let old = field.read_unaligned();
+
+    field.write_unaligned(0);
+
+    let result = func(Table, ObjectHeader);
+
+    field.write_unaligned(old);
+
+    result
 }
 
 pub unsafe extern "C" fn PsTerminateProcess(Process: PEPROCESS, ExitCode: NtStatus) -> NtStatus {
@@ -301,7 +314,7 @@ pub unsafe fn KeQuerySystemTime() -> u64 {
 
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
-    pub static PsLoadedModuleList: *mut LDR_DATA_TABLE_ENTRY;
+    pub static PsLoadedModuleList: *mut *mut LDR_DATA_TABLE_ENTRY;
 
     pub fn DbgPrint(Str: *const c_char, ...);
 
@@ -522,7 +535,7 @@ pub struct UNICODE_STRING {
 #[repr(C)]
 #[derive(Default, Clone)]
 pub struct LDR_DATA_TABLE_ENTRY {
-    pub InLoadOrderLinks: *mut LIST_ENTRY,
+    pub InLoadOrderLinks: LIST_ENTRY,
     pub ExceptionTable: *mut c_void,
     pub ExceptionTableSize: u64,
     pub GpValue: *mut c_void,
