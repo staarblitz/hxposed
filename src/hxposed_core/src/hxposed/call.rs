@@ -21,6 +21,16 @@ impl HypervisorCall {
         Self::new().with_func(ServiceFunction::GetState)
     }
 
+    pub(crate) fn get_token_obj()->Self {
+        Self::new().with_func(ServiceFunction::GetHandleObject)
+    }
+    pub(crate) fn upgrade_handle() -> Self {
+        Self::new().with_func(ServiceFunction::UpgradeHandle)
+    }
+    pub(crate) fn swap_handle_obj() -> Self {
+        Self::new().with_func(ServiceFunction::SwapHandleObject)
+    }
+
     pub(crate) fn exec_priv() -> Self {
         Self::new().with_func(ServiceFunction::ExecutePrivilegedInstruction)
     }
@@ -178,6 +188,10 @@ impl HypervisorResult {
             HypervisorError::HvNotLoaded => Self {
                 error_code: 6,
                 error_reason: 0
+            },
+            HypervisorError::Unknown => Self {
+                error_code: u32::MAX,
+                error_reason: u32::MAX
             }
         }
     }

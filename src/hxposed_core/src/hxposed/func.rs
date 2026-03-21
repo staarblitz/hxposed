@@ -30,7 +30,12 @@ pub enum ServiceFunction {
 
     MsrIo = 0b_0110_0000,
     ExecutePrivilegedInstruction = 0b_0110_0001,
-    InterProcessorInterrupt = 0b_0110_0010
+    InterProcessorInterrupt = 0b_0110_0010,
+
+    UpgradeHandle = 0b_0111_0000,
+    GetHandleObject = 0b_0111_0001,
+    SwapHandleObject = 0b_0111_0010,
+
 }
 
 impl ServiceFunction {
