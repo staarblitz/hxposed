@@ -2,6 +2,12 @@ use crate::win::DbgPrint;
 use core::fmt;
 
 #[macro_export]
+macro_rules! size_assert {
+    ($name:ident, $size:expr) => {
+        const _: [(); 0 - (!(size_of::<$name>() == $size) as usize)] = [];
+    };
+}
+#[macro_export]
 macro_rules! scoped_log {
     ($level:ident, $event:expr) => {
         {
