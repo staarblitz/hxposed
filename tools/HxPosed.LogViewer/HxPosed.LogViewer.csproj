@@ -9,4 +9,8 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\HxPosed.Core\HxPosed.Core.csproj" />
+  </ItemGroup>
+
 </Project>
