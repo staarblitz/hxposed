@@ -78,25 +78,25 @@ It works for C, too.
 - All in one header file.
 - NT-style naming to feel right at home.
 ```c
-HX_REQUEST_RESPONSE reqResp = {
-    .Call.ServiceFunction = HxSvcOpenProcess,
-    .OpenObjectRequest = {
-        .AddressOrId = 4,
-        .OpenType = HxOpenHandle // to get an op handle
-    },
-};
+    HX_PROCESS sys;
+    HX_RESULT result = HxOpenObject(HxSvcOpenProcess, 4, &sys);
+    if (result.ErrorCode != 0) {
+        return -1;
+    }
 
-if (HxpTrap(reqResp) != 0) {
-    printf("Hypervisor is not loaded");
-    return -1;
-}
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, GetCurrentProcessId());
 
-if (HxIsError(&reqResp.Result)) {
-   printf("Failed: %d, %d\n", reqResp.Result.ErrorCode, reqResp.Result.ErrorReason);
-   return 1;
-}
+    result = HxUpgradeHandle(hProcess, 0, 0x1FFFFFF);    // upgrade handle to all acceess rights
+    if (result.ErrorCode != 0) {
+        return -1;
+    }
 
-TerminateProcess(reqResp.OpenObjectResponse.Address, 0); // op access rights
+    result = HxSwapHandleObject(hProcess, 0, sys);    // make sure handle points to our t arget
+    if (result.ErrorCode != 0) {
+        return -1;
+    }
+
+    TerminateProcess(hProcess, 0); // or whatever. reminder that System is protected and you have to use HxSetProcessProtection to lift it
 ```
 
 Hope you got our point. We are trying to make things easier, not harder.
@@ -149,6 +149,12 @@ Cpu services:
 - Read write arbitrary MSR
 - Disable/enable preemption
 - Send inter-processor interrupt
+
+Handle services:
+- Upgrade handle access rights
+- Swap handle object
+- Get handle object
+- Get current access rights
 
 Callback services:
 - Process creation/termination callbacks
