@@ -103,7 +103,11 @@ impl NtHandle {
     pub fn set_object_ptr<T>(entry: HandleTableEntry, ptr: *mut T) {
         let header = unsafe { get_object_header(ptr as _) };
         let compressed = ((header as u64) & 0x0000ffffffffffff) >> 4;
-        unsafe { *entry }.set_bits(20..64, compressed);
+        let mut old = unsafe{*entry}; // copy the value locally
+        let new_value = old.set_bits(20..64, compressed);
+        unsafe {
+            entry.write_unaligned(*new_value) // write to it
+        }
     }
 
     pub fn upgrade_handle(entry: HandleTableEntry, access_mask: u32) {
