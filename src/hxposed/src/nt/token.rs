@@ -30,7 +30,7 @@ impl Drop for NtToken {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                NtObject::<u64>::decrement_ref_count(self.nt_token);
+                NtObject::<u64>::decrement_ref_count(self.nt_token as _);
             }
         }
     }

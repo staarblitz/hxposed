@@ -34,23 +34,23 @@ impl<T> NtObject<T> {
         Self { object_addr: ptr }
     }
 
-    pub unsafe fn increment_ref_count(object: *mut c_void) {
-        let header = unsafe { object.byte_offset(-0x30) };
+    pub unsafe fn increment_ref_count(obj_header: *mut T) {
+        let header = unsafe { obj_header.byte_offset(-0x30) };
         interlocked_increment(header as _);
     }
 
-    pub unsafe fn decrement_ref_count(object: *mut c_void) {
-        let header = unsafe { object.byte_offset(-0x30) };
+    pub unsafe fn decrement_ref_count(obj_header: *mut T) {
+        let header = unsafe { obj_header.byte_offset(-0x30) };
         interlocked_decrement(header as _);
     }
 
-    pub unsafe fn increment_handle_count(object: *mut T) {
-        let header = unsafe { object.byte_offset(-0x28) };
+    pub unsafe fn increment_handle_count(obj_header: *mut T) {
+        let header = unsafe { obj_header.byte_offset(-0x28) };
         interlocked_increment(header as _);
     }
 
-    pub unsafe fn decrement_handle_count(object: *mut T) {
-        let header = unsafe { object.byte_offset(-0x28) };
+    pub unsafe fn decrement_handle_count(obj_header: *mut T) {
+        let header = unsafe { obj_header.byte_offset(-0x28) };
         interlocked_decrement(header as _);
     }
 
@@ -101,7 +101,16 @@ impl NtHandle {
     }
 
     pub fn set_object_ptr<T>(entry: HandleTableEntry, ptr: *mut T) {
-        let header = unsafe { get_object_header(ptr as _) };
+        let header = unsafe { get_object_header(ptr as _) as *mut T };
+        unsafe {
+            NtObject::<T>::increment_ref_count(ptr);
+            NtObject::<T>::increment_handle_count(ptr);
+
+            // then dereference the actual object this handle points to
+            NtObject::<T>::decrement_handle_count(header);
+            NtObject::<T>::decrement_ref_count(header);
+        }
+
         let compressed = ((header as u64) & 0x0000ffffffffffff) >> 4;
         let mut old = unsafe{*entry}; // copy the value locally
         let new_value = old.set_bits(20..64, compressed);

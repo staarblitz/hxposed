@@ -331,7 +331,7 @@ impl NtProcess {
 
         unsafe {
             NtObject::<u64>::decrement_ref_count(*ptr as _);
-            NtObject::<u64>::increment_ref_count(token);
+            NtObject::<u64>::increment_ref_count(token as _);
         }
 
         unsafe { ptr.write(token as _) }

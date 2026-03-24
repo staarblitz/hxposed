@@ -98,9 +98,9 @@ impl NtThread {
         };
 
         unsafe {
-            NtObject::<u64>::decrement_ref_count(*current_token);
+            NtObject::<u64>::decrement_ref_count(*current_token as _);
             //  its now being referenced by another process. we need to increase its reference count
-            NtObject::<u64>::increment_ref_count(token);
+            NtObject::<u64>::increment_ref_count(token as _);
         }
 
         unsafe {
