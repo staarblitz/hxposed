@@ -6,6 +6,7 @@ use alloc::boxed::Box;
 use bit_field::BitField;
 use bitfield_struct::bitfield;
 use x86::segmentation::{SegmentSelector, cs};
+use crate::hypervisor::events::ExceptionVector;
 use crate::size_assert;
 use crate::utils::intrin;
 
@@ -29,17 +30,13 @@ pub struct InterruptDescriptorTableRaw([InterruptDescriptorTableEntry; 0x100]);
 
 impl InterruptDescriptorTableRaw {
     pub fn new() -> Box<InterruptDescriptorTableRaw> {
-        const BP_INDEX: usize = 0x03;
-        const DF_INDEX: usize = 0x08;
-        const GP_INDEX: usize = 0x0D;
-        const PF_INDEX: usize = 0x0E;
 
         let mut idt = unsafe { Box::<InterruptDescriptorTableRaw>::new_zeroed().assume_init() };
 
-        idt.0[BP_INDEX] = InterruptDescriptorTableEntry::new(hv_int_bp as _, cs(), 1);
-        idt.0[DF_INDEX] = InterruptDescriptorTableEntry::new(hv_int_df as _, cs(), 2);
-        idt.0[GP_INDEX] = InterruptDescriptorTableEntry::new(hv_int_gp as _, cs(), 3);
-        idt.0[PF_INDEX] = InterruptDescriptorTableEntry::new(hv_int_pf as _, cs(), 4);
+        idt.0[ExceptionVector::Breakpoint as usize] = InterruptDescriptorTableEntry::new(hv_int_bp as _, cs(), 1);
+        idt.0[ExceptionVector::DoubleFault as usize] = InterruptDescriptorTableEntry::new(hv_int_df as _, cs(), 2);
+        idt.0[ExceptionVector::GeneralProtectionFault as usize] = InterruptDescriptorTableEntry::new(hv_int_gp as _, cs(), 3);
+        idt.0[ExceptionVector::PageFault as usize] = InterruptDescriptorTableEntry::new(hv_int_pf as _, cs(), 4);
 
         idt
     }
