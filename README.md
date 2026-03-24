@@ -147,7 +147,8 @@ Security services:
 
 Cpu services:
 - Read write arbitrary MSR
-- Disable/enable preemption
+- Set RFLAGS
+- Execute privileged instructions
 - Send inter-processor interrupt
 
 Handle services:
@@ -481,7 +482,7 @@ HxPosed is not just a framework. It's a knowledge base you can learn Windows int
 
 `tools` contains the tools for using HxPosed.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
-- `HxPosed.Tests` a process manager demonstrating all features of HxPosed
+- `HxPosed.Tests` a process manager demonstrating all features of HxPosed.
 - `libhxposed` native library providing access to hypervisor. Written in C and asm.
 - `pocman` simple piece of code demonstrating usage of `libhxposed`.
 
