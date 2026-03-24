@@ -235,6 +235,27 @@ DLL_EXPORT HX_RESULT HxTranslateAddress(PVOID VirtualAddress, HX_PROCESS Address
 	return result;
 }
 
+DLL_EXPORT HX_RESULT HxRegisterCallback(HX_OBJECT_TYPE ObjectType, HANDLE EventHandle, PHX_CALLBACK CallbackObject) {
+	HX_REQUEST_RESPONSE reqResp = {
+		.Call.ServiceFunction = HxSvcRegisterNotifyEvent,
+		.RegisterCallbackRequest.ObjectType = ObjectType,
+		.RegisterCallbackRequest.EventHandle = EventHandle
+	};
+
+	HX_RESULT result = HxpTrap(&reqResp);
+	*CallbackObject = reqResp.RegisterCallbackResponse.Object;
+	return result;
+}
+
+DLL_EXPORT HX_RESULT HxUnregisterCallback(HX_CALLBACK CallbackObject) {
+	HX_REQUEST_RESPONSE reqResp = {
+		.Call.ServiceFunction = HxSvcRegisterNotifyEvent,
+		.UnregisterCallbackRequest.Object = CallbackObject
+	};
+
+	return HxpTrap(&reqResp);
+}
+
 #define GENERATE_HX_FUNC_IMPL_GET(x, y, z) \
 DLL_EXPORT HX_RESULT HxGet##x##y(HX_OBJECT x, z y) { \
     return HxpGetObjectField(HxSvcGet##x##Field, x, Hx##x##Field##y, y); \

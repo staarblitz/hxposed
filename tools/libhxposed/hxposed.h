@@ -24,6 +24,7 @@ typedef HX_TOKEN *PHX_TOKEN;
 typedef HX_OBJECT HX_RMD;
 typedef HX_RMD *PHX_RMD;
 typedef HX_OBJECT HX_CALLBACK;
+typedef HX_CALLBACK *PHX_CALLBACK;
 
 typedef enum _HX_OBJECT_TYPES {
     HxObHandle = 0,
@@ -826,5 +827,7 @@ DLL_EXPORT HX_RESULT HxMapDescriptor(HX_RMD Descriptor, HX_PROCESS AddressSpace,
 DLL_EXPORT HX_RESULT HxDescribeMemory(UINT64 PhysicalAddress, UINT32 Size, PHX_RMD Descriptor);
 DLL_EXPORT HX_RESULT HxTranslateAddress(PVOID VirtualAddress, HX_PROCESS AddressSpace, PUINT64 PhysicalAddress);
 
+DLL_EXPORT HX_RESULT HxRegisterCallback(HX_OBJECT_TYPE ObjectType, HANDLE EventHandle, PHX_CALLBACK CallbackObject);
+DLL_EXPORT HX_RESULT HxUnregisterCallback(HX_CALLBACK CallbackObject);
 
 #endif // !HXPOSED
