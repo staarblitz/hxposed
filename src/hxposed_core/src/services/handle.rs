@@ -8,6 +8,8 @@ use crate::hxposed::requests::Vmcall;
 ///
 /// Represents a handle
 ///
+/// ## Getting a handle with full access rights
+///
 /// To get a handle with full rights, do the steps below:
 /// 1. Create a handle to current process with `PROCESS_QUERY_LIMITED_INFORMATION` (to be sure)
 /// 2. Upgrade the handle via [`Self::upgrade`] to all access rights
