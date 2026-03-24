@@ -16,6 +16,7 @@ pub(crate) mod vcpu;
 pub(crate) mod vmexit;
 pub mod vmfs;
 mod tables;
+mod events;
 // Most of credit goes to Satoshi Tanda's Barevisor project
 // I just supported Windows 11, beautified it, and "rewrote" it for HxPosed.,
 
