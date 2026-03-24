@@ -16,6 +16,7 @@ use x86::controlregs::{Cr0, Cr4, cr0, cr0_write, cr3, cr4, cr4_write};
 use x86::msr::{IA32_FEATURE_CONTROL, IA32_VMX_BASIC, rdmsr, wrmsr};
 use x86::segmentation::{cs, ds, es, fs, gs, ss};
 use x86::vmx::{VmFail, vmcs};
+use crate::hypervisor::events::VmInterruptInfo;
 
 #[repr(align(4096), C)]
 pub struct Vmcs {
@@ -143,6 +144,13 @@ pub struct HvCpu {
 }
 
 impl HvCpu {
+    pub fn inject_event(event: VmInterruptInfo, error_code: Option<u64>) {
+        Vmcs::vmwrite(vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD, event.into_bits());
+        if let Some(error_code) = error_code {
+            Vmcs::vmwrite(vmcs::control::VMENTRY_EXCEPTION_ERR_CODE, error_code)
+        }
+    }
+
     pub fn new(registers: Registers) -> Self {
         Self {
             vmcs: Vmcs::new(),

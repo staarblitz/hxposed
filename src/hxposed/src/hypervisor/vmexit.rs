@@ -1,5 +1,5 @@
 use crate::hyper_row;
-use crate::hypervisor::vcpu::Vmcs;
+use crate::hypervisor::vcpu::{HvCpu, Vmcs};
 use crate::hypervisor::vmfs::HvFs;
 use crate::nt::process::NtProcess;
 use crate::services::*;
@@ -22,10 +22,10 @@ use x86::controlregs::{cr4, cr4_write, xcr0_write, Cr4, Xcr0};
 use x86::cpuid::cpuid;
 use x86::msr::{rdmsr, wrmsr};
 use x86::vmx::vmcs;
+use crate::hypervisor::events;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn vmexit_handler() -> u64 {
-    const VMX_EXIT_REASON_VMCALL: u64 = 18;
     const VMX_EXIT_REASON_CPUID: u64 = 10;
     const VMX_EXIT_REASON_RDMSR: u64 = 31;
     const VMX_EXIT_REASON_WRMSR: u64 = 32;
@@ -33,12 +33,8 @@ pub extern "C" fn vmexit_handler() -> u64 {
 
     let vcpu = unsafe { &mut *HvFs::get_current() };
     let exit_reason = Vmcs::vmread(vmcs::ro::EXIT_REASON);
-    let qualification = Vmcs::vmread(vmcs::ro::EXIT_QUALIFICATION);
     let rip = Vmcs::vmread(vmcs::guest::RIP);
     let next_rip = rip + Vmcs::vmread(vmcs::ro::VMEXIT_INSTRUCTION_LEN);
-
-    /*    vcpu.logger.trace(LogEvent::VmxExitReason(exit_reason));
-    vcpu.logger.trace(LogEvent::RIP(rip, next_rip));*/
 
     match exit_reason {
         VMX_EXIT_REASON_CPUID => {
@@ -90,6 +86,7 @@ pub extern "C" fn vmexit_handler() -> u64 {
         }
         _ => {
             vcpu.logger.warn(LogEvent::UnknownExitReason(exit_reason));
+            HvCpu::inject_event(events::UNKNOWN_OPCODE, None);
         }
     }
 
