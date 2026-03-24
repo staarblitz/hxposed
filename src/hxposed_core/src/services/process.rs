@@ -302,7 +302,7 @@ impl HxProcess {
     ///
     /// - Gets the internal process signature levels. The `SignatureLevel` and `SectionSignatureLevel`.
     /// - For more information about signature levels, protection and so on and so forth,
-    /// please visit [this article](https://www.crowdstrike.com/en-us/blog/protected-processes-part-3-windows-pki-internals-signing-levels-scenarios-signers-root-keys/).
+    /// visit [this article](https://www.crowdstrike.com/en-us/blog/protected-processes-part-3-windows-pki-internals-signing-levels-scenarios-signers-root-keys/).
     ///
     /// (You can also visit [this blog](https://staarblitz.github.io). I heard there is pretty neat stuff there.)
     ///
