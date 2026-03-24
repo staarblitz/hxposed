@@ -3,6 +3,7 @@ use crate::hxposed::{Handle, HxObject};
 use crate::hxposed::requests::handle::*;
 use crate::hxposed::responses::handle::*;
 use crate::hxposed::requests::Vmcall;
+use crate::services::process::HxProcess;
 
 /// # HxHandle
 ///
@@ -63,7 +64,9 @@ impl HxHandle {
     /// - It is undefined what happens (probably BSOD) if you set it to an invalid object
     /// - There is no checking for that. So be careful and always take pointers from Hx structures
     /// - You still need to adjust the handle access rights to access the object
-    /// - This handles the kernel-mode reference counts. So don't worry
+    /// - The handle stays valid even if you close the Hx object associated with it (e.g. [`HxProcess`])
+    /// - The handle is still a normal handle object you can close with `CloseHandle`
+    /// - This handles the kernel-mode reference counts. So don't worry and enjoy the handle
     pub fn set_object(&mut self, new_object: HxObject) -> Result<(), HypervisorError> {
         SwapHandleObjectRequest {
             handle: self.handle,
