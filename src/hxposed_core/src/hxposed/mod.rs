@@ -6,13 +6,14 @@ pub mod responses;
 pub mod status;
 pub mod utils;
 
-pub type ProcessObject = u64;
-pub type ThreadObject = u64;
-pub type TokenObject = u64;
-pub type RmdObject = u64;
-pub type CallbackObject = u64;
-pub type AsyncCookie = u64;
+pub type HxObject = u64;
 pub type Handle = u64;
+pub type ProcessObject = HxObject;
+pub type ThreadObject = HxObject;
+pub type TokenObject = HxObject;
+pub type RmdObject = HxObject;
+pub type CallbackObject = HxObject;
+pub type AsyncCookie = HxObject;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum ObjectType {

@@ -10,6 +10,9 @@ pub mod security;
 pub mod thread;
 #[cfg(feature = "usermode")]
 pub mod callbacks;
-pub mod types;
 #[cfg(feature = "usermode")]
 pub mod cpu;
+#[cfg(feature = "usermode")]
+pub mod handle;
+
+pub mod types;
