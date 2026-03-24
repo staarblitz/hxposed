@@ -11,6 +11,7 @@ use hxposed_core::hxposed::requests::io::{
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::io::{MsrIoResponse, PrivilegedInstructionResponse};
 use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hypervisor::vmfs::HvFs;
 use crate::utils;
 
 pub fn rw_msr(request: MsrIoRequest) -> HypervisorResponse {
@@ -79,14 +80,10 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HypervisorRespo
                 instruction: PrivilegedInstruction::Sidt(base, limit as _)
             }.into_raw();
         }
-        PrivilegedInstruction::Cli => {
-            let mut state = Vmcs::vmread(vmcs::guest::INTERRUPTIBILITY_STATE);
-            Vmcs::vmwrite(vmcs::guest::INTERRUPTIBILITY_STATE, *state.set_bit(0, true));
-        }
-        PrivilegedInstruction::Sti => {
-            let mut state = Vmcs::vmread(vmcs::guest::INTERRUPTIBILITY_STATE);
-            Vmcs::vmwrite(vmcs::guest::INTERRUPTIBILITY_STATE, *state.set_bit(0, false));
-        }
+        PrivilegedInstruction::MovToRFlags(rflags) => unsafe {
+            (*HvFs::get_current()).registers.rflags = rflags;
+        },
+        PrivilegedInstruction::Unknown => return HypervisorResponse::invalid_params(0)
     };
 
     EmptyResponse::default()

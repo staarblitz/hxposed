@@ -1,4 +1,5 @@
 use bitfield_struct::bitfield;
+
 #[bitfield(u64)]
 pub struct InterProcessorInterrupt {
     pub vector: u8,

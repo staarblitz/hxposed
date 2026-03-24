@@ -18,8 +18,8 @@ pub enum PrivilegedInstruction {
     Lidt(u64, u16),
     Sgdt(u64, u16),
     Sidt(u64, u16),
-    Cli,
-    Sti
+    MovToRFlags(u64),
+    Unknown
 }
 
 impl PrivilegedInstruction {
@@ -34,8 +34,8 @@ impl PrivilegedInstruction {
             PrivilegedInstruction::Lidt(x,y) => (6, x,y),
             PrivilegedInstruction::Sgdt(x,y) => (7, x, y),
             PrivilegedInstruction::Sidt(x,y) => (8, x, y),
-            PrivilegedInstruction::Cli => (9, 0, 0),
-            PrivilegedInstruction::Sti => (10, 0, 0),
+            PrivilegedInstruction::MovToRFlags(x) => (9, x, 0),
+            PrivilegedInstruction::Unknown => (u64::MAX, u64::MAX, u16::MAX),
         }
     }
 
@@ -50,9 +50,7 @@ impl PrivilegedInstruction {
             6 => PrivilegedInstruction::Lidt(arg, arg2),
             7 => PrivilegedInstruction::Sgdt(arg, arg2),
             8 => PrivilegedInstruction::Sidt(arg, arg2),
-            9 => PrivilegedInstruction::Cli,
-            10 => PrivilegedInstruction::Sti,
-            _ => unreachable!(),
+            _ => Self::Unknown,
         }
     }
 }
