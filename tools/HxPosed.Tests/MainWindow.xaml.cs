@@ -22,8 +22,6 @@ namespace HxPosed.Tests
     {
         public ObservableCollection<ProcessModel> Processes { get; } = [];
 
-
-
         public MainWindow()
         {
             InitializeComponent();
@@ -58,7 +56,6 @@ namespace HxPosed.Tests
                 return;
             }
 
-            // this is worst c# code i have ever written tbh
             unsafe
             {
                 var spi = (Win32.SYSTEM_PROCESS_INFORMATION*)ptr;
@@ -81,15 +78,8 @@ namespace HxPosed.Tests
         {
             var selectedItem = (ProcessModel)processesList.SelectedItem;
 
-            if (Win32.TerminateProcess((nint)selectedItem.Handle, 0))
-            {
-                MessageBox.Show("Process killed");
-
-            }
-            else
-            {
-                MessageBox.Show($"Failed to kill process {Marshal.GetLastWin32Error()}");
-            }
+            selectedItem.Kill();
+            MessageBox.Show("Process killed");
 
             ReloadProcesses();
         }

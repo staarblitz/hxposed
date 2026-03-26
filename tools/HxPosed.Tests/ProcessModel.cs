@@ -2,11 +2,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
 using static HxPosed.PInvoke.Methods;
 
@@ -65,13 +67,31 @@ namespace HxPosed.Tests
                 }
             }
 
+            return me;
+
         cleanup:
             me.Dispose();
             return null;
         }
 
+        /// <summary>
+        /// Disposes the object
+        /// </summary>
+        public void Kill()
+        {
+            var result = Win32.TerminateProcess(Handle, 0);
+            Dispose();
+            if (result)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            Dispose();
+        }
+
         public void Dispose()
         {
+            if (_disposed) return;
+
             _disposed = true;
 
             // possible in early init
@@ -94,11 +114,11 @@ namespace HxPosed.Tests
             }
         }
 
-        private void SetProtection(_HX_PROCESS_PROTECTION value)
+        private _HX_RESULT SetProtection(_HX_PROCESS_PROTECTION value)
         {
             unsafe
             {
-                HxSetProcessProtection(Object, &value);
+                return HxSetProcessProtection(Object, &value);
             }
         }
 
@@ -107,7 +127,7 @@ namespace HxPosed.Tests
             unsafe
             {
                 var protection = new _HX_PROCESS_PROTECTION();
-                HxGetProcessProtection(Object, &protection);
+                HxGetProcessProtection(Object, &protection).ThrowIfError();
                 return protection;
             }
         }
@@ -121,7 +141,7 @@ namespace HxPosed.Tests
             }
             set
             {
-                SetProtection(value);
+                SetProtection(value).ThrowIfError();
             }
         }
         public _HX_PROCESS_MITIGATION_FLAGS Mitigation { get; private set; }

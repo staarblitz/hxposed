@@ -17,11 +17,13 @@ pub struct NtObject<T> {
 pub struct NtHandle;
 
 pub type HandleTableEntry = *mut u64;
+pub type ObjectHeader = *mut u64;
+pub type ObjectBody = *mut u64;
 
 impl<T> Drop for NtObject<T> {
     fn drop(&mut self) {
         unsafe {
-            Self::decrement_ref_count(self.object_addr as _);
+            Self::decrement_ref_count(get_object_header(self.object_addr as _) as _);
         }
     }
 }
@@ -29,29 +31,25 @@ impl<T> Drop for NtObject<T> {
 impl<T> NtObject<T> {
     pub fn from_ptr(ptr: *mut T) -> Self {
         unsafe {
-            Self::increment_ref_count(ptr as _);
+            Self::increment_ref_count(get_object_header(ptr as _) as _);
         }
         Self { object_addr: ptr }
     }
 
     pub unsafe fn increment_ref_count(obj_header: *mut T) {
-        let header = unsafe { obj_header.byte_offset(-0x30) };
-        interlocked_increment(header as _);
+        interlocked_increment(obj_header as _);
     }
 
     pub unsafe fn decrement_ref_count(obj_header: *mut T) {
-        let header = unsafe { obj_header.byte_offset(-0x30) };
-        interlocked_decrement(header as _);
+        interlocked_decrement(obj_header as _);
     }
 
     pub unsafe fn increment_handle_count(obj_header: *mut T) {
-        let header = unsafe { obj_header.byte_offset(-0x28) };
-        interlocked_increment(header as _);
+        interlocked_increment(obj_header.byte_offset(8) as _);
     }
 
     pub unsafe fn decrement_handle_count(obj_header: *mut T) {
-        let header = unsafe { obj_header.byte_offset(-0x28) };
-        interlocked_decrement(header as _);
+        interlocked_decrement(obj_header.byte_offset(8) as _);
     }
 
     pub fn from_handle_entry(entry: HandleTableEntry) -> NtObject<T> {
@@ -102,13 +100,17 @@ impl NtHandle {
 
     pub fn set_object_ptr<T>(entry: HandleTableEntry, ptr: *mut T) {
         let header = unsafe { get_object_header(ptr as _) as *mut T };
+        let old_object = unsafe {get_object_header(Self::get_object_ptr::<T>(entry) as _) as *mut T};
         unsafe {
-            NtObject::<T>::increment_ref_count(ptr);
-            NtObject::<T>::increment_handle_count(ptr);
+            NtObject::<T>::increment_ref_count(header);
+
+            // no. we cannot simply increment or decrement handle count. we have to invoke OpenProcedure and CloseProcedure
+            // like the object manager does. or we fuck up. like i currently do
+            NtObject::<T>::increment_handle_count(header);
 
             // then dereference the actual object this handle points to
-            NtObject::<T>::decrement_handle_count(header);
-            NtObject::<T>::decrement_ref_count(header);
+            NtObject::<T>::decrement_handle_count(old_object);
+            NtObject::<T>::decrement_ref_count(old_object);
         }
 
         let compressed = ((header as u64) & 0x0000ffffffffffff) >> 4;

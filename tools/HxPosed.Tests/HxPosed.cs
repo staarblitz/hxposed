@@ -1267,6 +1267,8 @@ namespace HxPosed.PInvoke
         [NativeTypeName("__AnonymousRecord_hxposed_L201_C5")]
         public _Anonymous_e__Union Anonymous;
 
+        public override string ToString() => $"{(_HX_PROCESS_PROTECTION_TYPE)Type} - {(_HX_PROCESS_SIGNATURE_LEVEL)Signer}";
+
         public ref byte Level
         {
             get
@@ -3057,6 +3059,24 @@ namespace HxPosed.PInvoke
 
         [NativeTypeName("__AnonymousRecord_hxposed_L685_C5")]
         public _Anonymous_e__Union Anonymous;
+
+        public void ThrowIfError()
+        {
+            if (ErrorCode != 0)
+            {
+                var errorText = ErrorCode switch
+                {
+                   _HX_ERROR_CODE.HxErrSuccess => "Success",
+                   _HX_ERROR_CODE.HxErrNotAllowed => "Not allowed",
+                   _HX_ERROR_CODE.HxErrNotFound => $"Object {Anonymous.NotFoundReason} not found",
+                   _HX_ERROR_CODE.HxErrInvalidParameters => $"Invalid parameter {Anonymous.Parameter} passed",
+                   _HX_ERROR_CODE.HxErrNtError => $"NT error {Anonymous.NtStatus}",
+                   _HX_ERROR_CODE.HxErrHvNotLoaded => "Hypervisor is not loaded",
+                   _HX_ERROR_CODE.HxErrTimedOut => "Timeout"
+                };
+                throw new Exception(errorText);
+            }
+        }
 
         public ref _HX_NOT_ALLOWED_REASON NotAllowedReason
         {

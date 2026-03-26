@@ -9,12 +9,16 @@
   </Configurations>
   <Project Path="HxPosed.Core/HxPosed.Core.csproj">
     <BuildType Solution="StaticDbg|*" Project="Release" />
+    <Platform Solution="Debug|x64" Project="x64" />
   </Project>
   <Project Path="HxPosed.LogViewer/HxPosed.LogViewer.csproj" Id="45cc5e2e-e1d3-47eb-b558-00b3c13104f1">
     <BuildType Solution="StaticDbg|*" Project="Release" />
+    <Platform Solution="Debug|x64" Project="x64" />
   </Project>
   <Project Path="HxPosed.Tests/HxPosed.Tests.csproj" Id="a6577536-5c89-485a-b772-949d9a269464">
     <BuildType Solution="StaticDbg|*" Project="Release" />
+    <Platform Solution="Debug|x64" Project="x64" />
+    <Build Solution="Debug|Any CPU" Project="false" />
   </Project>
   <Project Path="libhxposed/libhxposed.vcxproj" Id="cf554df4-2e49-4c91-814a-1058abf4e44a" />
   <Project Path="pocman/pocman.vcxproj" Id="a4d59fef-2808-468d-b06e-01dc6ad6fdc6">

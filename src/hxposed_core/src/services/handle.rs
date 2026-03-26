@@ -3,7 +3,6 @@ use crate::hxposed::{Handle, HxObject};
 use crate::hxposed::requests::handle::*;
 use crate::hxposed::responses::handle::*;
 use crate::hxposed::requests::Vmcall;
-use crate::services::process::HxProcess;
 
 /// # HxHandle
 ///
