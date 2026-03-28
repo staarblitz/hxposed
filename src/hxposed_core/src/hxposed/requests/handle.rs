@@ -1,5 +1,5 @@
-use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
-use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::requests::{HxRequest, SyscallRequest};
+use crate::hxposed::call::HxCall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::{Handle, ProcessObject};
 use crate::hxposed::responses::handle::GetHandleObjectResponse;
@@ -24,19 +24,19 @@ pub struct GetHandleObjectRequest {
     pub process: ProcessObject,
 }
 
-impl VmcallRequest for GetHandleObjectRequest {
+impl SyscallRequest for GetHandleObjectRequest {
     type Response = GetHandleObjectResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::upgrade_handle(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::upgrade_handle(),
             arg1: self.handle,
             arg2: self.process,
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             handle: request.arg1,
             process: request.arg2,
@@ -44,12 +44,12 @@ impl VmcallRequest for GetHandleObjectRequest {
     }
 }
 
-impl VmcallRequest for UpgradeHandleRequest {
+impl SyscallRequest for UpgradeHandleRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::upgrade_handle(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::upgrade_handle(),
             arg1: self.handle,
             arg2: self.process,
             arg3: self.access_rights as _,
@@ -57,7 +57,7 @@ impl VmcallRequest for UpgradeHandleRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             handle: request.arg1,
             process: request.arg2,
@@ -66,12 +66,12 @@ impl VmcallRequest for UpgradeHandleRequest {
     }
 }
 
-impl VmcallRequest for SwapHandleObjectRequest {
+impl SyscallRequest for SwapHandleObjectRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::swap_handle_obj(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::swap_handle_obj(),
             arg1: self.handle,
             arg2: self.process,
             arg3: self.object,
@@ -79,7 +79,7 @@ impl VmcallRequest for SwapHandleObjectRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             handle: request.arg1,
             process: request.arg2,

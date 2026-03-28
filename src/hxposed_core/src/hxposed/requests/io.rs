@@ -1,5 +1,5 @@
-use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use crate::hxposed::call::HxCall;
+use crate::hxposed::requests::{HxRequest, SyscallRequest};
 use crate::hxposed::responses::io::*;
 
 #[derive(Debug)]
@@ -85,13 +85,13 @@ impl MsrOperation {
     }
 }
 
-impl VmcallRequest for PrivilegedInstructionRequest {
+impl SyscallRequest for PrivilegedInstructionRequest {
     type Response = PrivilegedInstructionResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let args = self.instruction.into_raw();
-        HypervisorRequest{
-            call: HypervisorCall::exec_priv(),
+        HxRequest {
+            call: HxCall::exec_priv(),
             arg1: args.0,
             arg2: args.1,
             arg3: args.2 as u64,
@@ -99,19 +99,19 @@ impl VmcallRequest for PrivilegedInstructionRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             instruction: PrivilegedInstruction::from_bits(request.arg1, request.arg2, request.arg3 as _)
         }
     }
 }
 
-impl VmcallRequest for MsrIoRequest {
+impl SyscallRequest for MsrIoRequest {
     type Response = MsrIoResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::msr_io(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::msr_io(),
             arg1: self.msr as _,
             arg2: self.value as _,
             arg3: self.operation.into_bits(),
@@ -119,7 +119,7 @@ impl VmcallRequest for MsrIoRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             msr: request.arg1 as _,
             value: request.arg2 as _,

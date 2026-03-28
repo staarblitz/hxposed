@@ -1,6 +1,6 @@
-use crate::hxposed::call::HypervisorResult;
+use crate::hxposed::call::HxResult;
 use crate::hxposed::requests::io::PrivilegedInstruction;
-use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::responses::{HxResponse, SyscallResponse};
 
 #[derive(Clone)]
 pub struct PrivilegedInstructionResponse {
@@ -12,17 +12,17 @@ pub struct MsrIoResponse {
     pub value: u64,
 }
 
-impl VmcallResponse for PrivilegedInstructionResponse {
-    fn from_raw(raw: HypervisorResponse) -> Self {
+impl SyscallResponse for PrivilegedInstructionResponse {
+    fn from_raw(raw: HxResponse) -> Self {
         Self {
             instruction: PrivilegedInstruction::from_bits(raw.arg1, raw.arg2, raw.arg3 as _)
         }
     }
 
-    fn into_raw(self) -> HypervisorResponse {
+    fn into_raw(self) -> HxResponse {
         let args = self.instruction.into_raw();
-        HypervisorResponse {
-            result: HypervisorResult::ok(),
+        HxResponse {
+            result: HxResult::ok(),
             arg1: args.0,
             arg2: args.1,
             arg3: args.2 as _,
@@ -31,14 +31,14 @@ impl VmcallResponse for PrivilegedInstructionResponse {
     }
 }
 
-impl VmcallResponse for MsrIoResponse {
-    fn from_raw(raw: HypervisorResponse) -> Self {
+impl SyscallResponse for MsrIoResponse {
+    fn from_raw(raw: HxResponse) -> Self {
         Self { value: raw.arg1 }
     }
 
-    fn into_raw(self) -> HypervisorResponse {
-        HypervisorResponse {
-            result: HypervisorResult::ok(),
+    fn into_raw(self) -> HxResponse {
+        HxResponse {
+            result: HxResult::ok(),
             arg1: self.value,
             ..Default::default()
         }

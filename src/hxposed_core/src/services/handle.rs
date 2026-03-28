@@ -1,8 +1,8 @@
-use crate::error::HypervisorError;
+use crate::error::HxError;
 use crate::hxposed::{Handle, HxObject};
 use crate::hxposed::requests::handle::*;
 use crate::hxposed::responses::handle::*;
-use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::Syscall;
 
 /// # HxHandle
 ///
@@ -43,7 +43,7 @@ impl HxHandle {
     /// - This has no object type checking.
     /// - To get all access rights for all objects, use [`Self::HANDLE_ALL_ACCESS`]
     /// - Remember that some objects (especially processes) might have extra protection mechanisms.
-    pub fn upgrade(&mut self, access_rights: u32) -> Result<(), HypervisorError> {
+    pub fn upgrade(&mut self, access_rights: u32) -> Result<(), HxError> {
         UpgradeHandleRequest {
             handle: self.handle,
             access_rights,
@@ -66,7 +66,7 @@ impl HxHandle {
     /// - The handle stays valid even if you close the Hx object associated with it (e.g. [`HxProcess`])
     /// - The handle is still a normal handle object you can close with `CloseHandle`
     /// - This handles the kernel-mode reference counts. So don't worry and enjoy the handle
-    pub fn set_object(&mut self, new_object: HxObject) -> Result<(), HypervisorError> {
+    pub fn set_object(&mut self, new_object: HxObject) -> Result<(), HxError> {
         SwapHandleObjectRequest {
             handle: self.handle,
             process: 0,
@@ -81,7 +81,7 @@ impl HxHandle {
     ///
     /// ## Returns
     /// [`GetHandleObjectResponse`] - Underlying object and access rights.
-    pub fn get_object(&mut self) -> Result<GetHandleObjectResponse, HypervisorError> {
+    pub fn get_object(&mut self) -> Result<GetHandleObjectResponse, HxError> {
         GetHandleObjectRequest {
             handle: self.handle,
             process: 0,

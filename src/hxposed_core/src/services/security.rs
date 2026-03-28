@@ -1,12 +1,10 @@
 #![allow(dead_code)]
 #![allow(unused_parens)]
 
-use crate::error::HypervisorError;
-use crate::hxposed::requests::process::ObjectOpenType;
+use crate::error::HxError;
 use crate::hxposed::requests::security::*;
-use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::Syscall;
 use crate::hxposed::responses::empty::EmptyResponse;
-use crate::hxposed::responses::read_response_as_string;
 use crate::hxposed::responses::security::GetTokenFieldResponse;
 use crate::hxposed::{ObjectType, TokenObject};
 use crate::services::types::security_fields::TokenPrivilege;
@@ -24,11 +22,8 @@ impl Drop for HxToken {
 }
 
 impl HxToken {
-    pub(crate) fn from_raw_object(addr: TokenObject) -> Result<HxToken, HypervisorError> {
-        OpenTokenRequest {
-            token: addr,
-        }
-        .send()?;
+    pub(crate) fn from_raw_object(addr: TokenObject) -> Result<HxToken, HxError> {
+        OpenTokenRequest { token: addr }.send()?;
 
         Ok(Self { addr })
     }
@@ -41,11 +36,7 @@ impl HxToken {
     /// ## Returns
     /// * [`HxToken`] for the SYSTEM
     pub fn get_system_token() -> HxToken {
-        let addr = OpenTokenRequest {
-            token: 0,
-        }
-        .send()
-        .unwrap();
+        let addr = OpenTokenRequest { token: 0 }.send().unwrap();
 
         HxToken {
             addr: match addr.object {
@@ -69,7 +60,7 @@ impl HxToken {
     ///
     /// ## Return
     /// * [`TokenPrivilege`] - Bitmask of privileges.
-    pub fn get_present_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
+    pub fn get_present_privileges(&self) -> Result<TokenPrivilege, HxError> {
         match (GetTokenFieldRequest {
             token: self.addr,
             field: TokenField::PresentPrivileges(TokenPrivilege::None),
@@ -95,7 +86,7 @@ impl HxToken {
     pub fn set_present_privileges(
         &self,
         privileges: TokenPrivilege,
-    ) -> Result<EmptyResponse, HypervisorError> {
+    ) -> Result<EmptyResponse, HxError> {
         SetTokenFieldRequest {
             token: self.addr,
             field: TokenField::PresentPrivileges(privileges),
@@ -122,7 +113,7 @@ impl HxToken {
     pub fn set_enabled_privileges(
         &self,
         privileges: TokenPrivilege,
-    ) -> Result<EmptyResponse, HypervisorError> {
+    ) -> Result<EmptyResponse, HxError> {
         SetTokenFieldRequest {
             token: self.addr,
             field: TokenField::EnabledPrivileges(privileges),
@@ -143,7 +134,7 @@ impl HxToken {
     ///
     /// ## Return
     /// * [`TokenPrivilege`] - Bitmask of privileges.
-    pub fn get_enabled_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
+    pub fn get_enabled_privileges(&self) -> Result<TokenPrivilege, HxError> {
         match (GetTokenFieldRequest {
             token: self.addr,
             field: TokenField::EnabledPrivileges(TokenPrivilege::None),
@@ -168,7 +159,7 @@ impl HxToken {
     ///
     /// ## Return
     /// * [`TokenPrivilege`] - Bitmask of privileges.
-    pub fn get_default_enabled_privileges(&self) -> Result<TokenPrivilege, HypervisorError> {
+    pub fn get_default_enabled_privileges(&self) -> Result<TokenPrivilege, HxError> {
         match (GetTokenFieldRequest {
             token: self.addr,
             field: TokenField::EnabledByDefaultPrivileges(TokenPrivilege::None),
@@ -194,7 +185,7 @@ impl HxToken {
     ///
     /// ## Return
     /// * [`String`] - A beautiful string.
-    pub fn get_source_name(&self) -> Result<String, HypervisorError> {
+    pub fn get_source_name(&self) -> Result<String, HxError> {
         match (GetTokenFieldRequest {
             token: self.addr,
             field: TokenField::SourceName(0),
@@ -205,7 +196,7 @@ impl HxToken {
                 // did I tell this u64 is a char[8]?
                 match String::from_utf8(name.to_le_bytes().to_vec()) {
                     Ok(str) => Ok(str),
-                    Err(_) => Err(HypervisorError::InvalidParameters(0)),
+                    Err(_) => Err(HxError::InvalidParameters(0)),
                 }
             }
             _ => unreachable!(),
@@ -230,16 +221,20 @@ impl HxToken {
     ///
     /// ## Return
     /// * [`String`] - A beautiful string.
-    pub async fn get_account_name(&self) -> Result<String, HypervisorError> {
+    pub async fn get_account_name(&self) -> Result<String, HxError> {
+        let mut vec = Vec::<u8>::with_capacity(1024);
         match (GetTokenFieldRequest {
             token: self.addr,
-            field: TokenField::AccountName(0),
+            field: TokenField::AccountName(vec.as_ptr() as _),
         })
         .send()?
         {
-            GetTokenFieldResponse::AccountName(offset) => unsafe {
-                Ok(read_response_as_string(offset))
-            },
+            GetTokenFieldResponse::AccountName(offset) => {
+                unsafe {
+                    vec.set_len(offset as _);
+                }
+                String::from_utf8(vec).map_err(|_| HxError::InvalidParameters(0))
+            }
             _ => unreachable!(),
         }
     }

@@ -1,9 +1,9 @@
 #![allow(unused_parens)]
 #![allow(dead_code)]
 
-use crate::error::HypervisorError;
+use crate::error::HxError;
 use crate::hxposed::requests::process::*;
-use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::Syscall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::process::GetProcessFieldResponse;
 use crate::hxposed::ObjectType;
@@ -14,7 +14,6 @@ use crate::services::types::process_fields::*;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::arch::asm;
-use crate::hxposed::responses::read_response_as_string;
 
 #[derive(Debug)]
 pub struct HxProcess {
@@ -56,7 +55,7 @@ impl HxProcess {
     ///
     /// ## Returns
     /// * [`HxToken`]
-    pub fn get_primary_token(&self) -> Result<HxToken, HypervisorError> {
+    pub fn get_primary_token(&self) -> Result<HxToken, HxError> {
         match (GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Token(0),
@@ -86,7 +85,7 @@ impl HxProcess {
     ///
     /// ## Arguments
     /// - `token` - New token. See [`HxToken`]
-    pub fn swap_token(&self, token: &HxToken) -> Result<EmptyResponse, HypervisorError> {
+    pub fn swap_token(&self, token: &HxToken) -> Result<EmptyResponse, HxError> {
         SetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Token(token.addr),
@@ -94,7 +93,7 @@ impl HxProcess {
         .send()
     }
 
-    pub fn get_directory_base(&self) -> Result<u64, HypervisorError> {
+    pub fn get_directory_base(&self) -> Result<u64, HxError> {
         let me = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::DirectoryTableBase(0)
@@ -106,7 +105,7 @@ impl HxProcess {
         })
     }
 
-    pub fn get_user_directory_base(&self) -> Result<u64, HypervisorError> {
+    pub fn get_user_directory_base(&self) -> Result<u64, HxError> {
         let me = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::UserDirectoryTableBase(0)
@@ -129,7 +128,7 @@ impl HxProcess {
     pub fn set_mitigation_options(
         &self,
         options: MitigationOptions,
-    ) -> Result<EmptyResponse, HypervisorError> {
+    ) -> Result<EmptyResponse, HxError> {
         SetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::MitigationFlags(options),
@@ -147,7 +146,7 @@ impl HxProcess {
     ///
     /// ## Return
     /// * [`MitigationOptions`] - Contains the mitigation flags.
-    pub fn get_mitigation_options(&self) -> Result<MitigationOptions, HypervisorError> {
+    pub fn get_mitigation_options(&self) -> Result<MitigationOptions, HxError> {
         let result = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::MitigationFlags(MitigationOptions::default()),
@@ -173,7 +172,7 @@ impl HxProcess {
     ///
     /// ## Returns
     /// * [`Vec<u32>`] - Vector containing the ids of threads under specified process.
-    pub fn get_threads(&self) -> Result<&[u32], HypervisorError> {
+    pub fn get_threads(&self) -> Result<&[u32], HxError> {
         match (GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Threads(0),
@@ -210,7 +209,7 @@ impl HxProcess {
     /// ```rust
     /// let process = HxProcess::open(4).unwrap();
     /// ```
-    pub fn open(id: u32) -> Result<Self, HypervisorError> {
+    pub fn open(id: u32) -> Result<Self, HxError> {
         let call = OpenProcessRequest {
             process_id: id as _,
         }
@@ -252,7 +251,7 @@ impl HxProcess {
     pub fn set_protection(
         &mut self,
         new_protection: ProcessProtection,
-    ) -> Result<EmptyResponse, HypervisorError> {
+    ) -> Result<EmptyResponse, HxError> {
         SetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Protection(new_protection),
@@ -289,7 +288,7 @@ impl HxProcess {
     pub fn set_signature_levels(
         &mut self,
         new_levels: ProcessSignatureLevels,
-    ) -> Result<EmptyResponse, HypervisorError> {
+    ) -> Result<EmptyResponse, HxError> {
         SetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Signers(new_levels),
@@ -315,14 +314,14 @@ impl HxProcess {
     ///
     /// ## Returns
     /// * [`ProcessSignatureLevels`] - Signature levels (both `SignatureLevel` and `SectionSignatureLevel`)
-    /// * [`HypervisorError`] - Most likely an NT side error.
+    /// * [`HxError`] - Most likely an NT side error.
     ///
     /// ## Example
     ///
     /// ```rust
     /// let signature = process.get_signature_levels().unwrap();
     /// ```
-    pub fn get_signature_levels(&self) -> Result<ProcessSignatureLevels, HypervisorError> {
+    pub fn get_signature_levels(&self) -> Result<ProcessSignatureLevels, HxError> {
         let result = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Signers(ProcessSignatureLevels::default()),
@@ -349,14 +348,14 @@ impl HxProcess {
     ///
     /// ## Returns
     /// * [`ProcessProtection`] - Full path of the process.
-    /// * [`HypervisorError`] - Most likely an NT side error.
+    /// * [`HxError`] - Most likely an NT side error.
     ///
     /// ## Example
     ///
     /// ```rust
     /// let protection = process.get_protection().unwrap();
     /// ```
-    pub fn get_protection(&self) -> Result<ProcessProtection, HypervisorError> {
+    pub fn get_protection(&self) -> Result<ProcessProtection, HxError> {
         let result = GetProcessFieldRequest {
             process: self.addr,
             field: ProcessField::Protection(ProcessProtection::default()),
@@ -385,57 +384,24 @@ impl HxProcess {
     ///
     /// ## Return
     /// * [`String`] - Full path of the process.
-    /// * [`HypervisorError::not_found`] - Unable to decode string from UTF16.
-    pub fn get_nt_path(&self) -> Result<String, HypervisorError> {
+    /// * [`HxError::not_found`] - Unable to decode string from UTF16.
+    pub fn get_nt_path(&self) -> Result<String, HxError> {
+        let mut vec = Vec::<u8>::with_capacity(1024);
         match (GetProcessFieldRequest {
             process: self.addr,
-            field: ProcessField::NtPath(0),
+            field: ProcessField::NtPath(vec.as_ptr() as _),
         })
         .send()?.field
         {
-            ProcessField::NtPath(offset) => {
-                Ok(read_response_as_string(offset))
+            ProcessField::NtPath(length) => {
+                unsafe {
+                    vec.set_len(length as usize);
+                }
+                String::from_utf8(vec).map_err(|_| {
+                    HxError::InvalidParameters(0)
+                })
             },
             _ => unreachable!(),
         }
     }
-
-    /*///
-    /// # Kill
-    ///
-    /// Uses `PspTerminateProces` internally to terminate the process object.
-    ///
-    /// Consumes the object.
-    ///
-    /// ## Warning
-    /// * Object must be dropped by hand **after** a successful termination.
-    ///
-    /// ## Arguments
-    /// * `exit_code` - The [`NTSTATUS`] exit code of the process.
-    ///
-    /// ## Permissions
-    /// - [`PluginPermissions::PROCESS_EXECUTIVE`]
-    ///
-    /// ## Returns
-    /// - [`Result`] with most likely an NT error.
-    ///
-    /// ## Example
-    /// ```rust
-    ///  match process.kill(0).await {
-    ///         Ok(_) => {
-    ///             println!("Killed process!");
-    ///             drop(process);
-    ///         }
-    ///         Err(e) => {
-    ///             println!("Error killing process: {:?}", e);
-    ///         }
-    ///     }
-    /// ```
-    pub fn kill(&self, exit_code: u32) -> AsyncFuture<KillProcessRequest, EmptyResponse> {
-        KillProcessRequest {
-            process: self.addr,
-            exit_code,
-        }
-        .send_async()
-    }*/
 }

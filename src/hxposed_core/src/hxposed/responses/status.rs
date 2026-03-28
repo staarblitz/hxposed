@@ -1,5 +1,5 @@
-use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::call::HxResult;
+use crate::hxposed::responses::{HxResponse, SyscallResponse};
 use crate::hxposed::status::HypervisorStatus;
 
 #[derive(Clone, Default, Debug)]
@@ -9,17 +9,17 @@ pub struct StatusResponse {
     pub version: u32,
 }
 
-impl VmcallResponse for StatusResponse {
-    fn from_raw(raw: HypervisorResponse) -> Self {
+impl SyscallResponse for StatusResponse {
+    fn from_raw(raw: HxResponse) -> Self {
         Self {
             state: HypervisorStatus::from(raw.arg1 as u32),
             version: raw.arg2 as _,
         }
     }
 
-    fn into_raw(self) -> HypervisorResponse {
-        HypervisorResponse {
-            result: HypervisorResult::ok(),
+    fn into_raw(self) -> HxResponse {
+        HxResponse {
+            result: HxResult::ok(),
             arg1: self.state as _,
             arg2: self.version as _,
             ..Default::default()

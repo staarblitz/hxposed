@@ -1,10 +1,9 @@
 use crate::hxposed::func::ServiceFunction;
 use bitfield_struct::bitfield;
-use crate::error::HypervisorError;
+use crate::error::HxError;
 
 #[bitfield(u64)]
-#[derive(PartialEq, Eq)]
-pub struct HypervisorCall {
+pub struct HxCall {
     #[bits(16)]
     pub func: ServiceFunction,
     pub ignore_result: bool,
@@ -15,7 +14,7 @@ pub struct HypervisorCall {
     pub reserved: u64,
 }
 
-impl HypervisorCall {
+impl HxCall {
     pub(crate) fn get_status() -> Self {
         // For this call, other fields are ignored.
         Self::new().with_func(ServiceFunction::GetState)
@@ -135,12 +134,12 @@ impl HypervisorCall {
 
 #[derive(PartialEq, Eq, Copy, Clone, Default, Debug,)]
 #[repr(C)]
-pub struct HypervisorResult {
+pub struct HxResult {
     pub error_code: u32,
     pub error_reason: u32,
 }
 
-impl HypervisorResult {
+impl HxResult {
     pub const fn ok() -> Self {
         Self {
             error_code: 0,
@@ -159,37 +158,37 @@ impl HypervisorResult {
         }
     }
 
-    pub const fn from_error(error: HypervisorError) -> Self {
+    pub const fn from_error(error: HxError) -> Self {
         match error {
-            HypervisorError::Success => Self {
+            HxError::Success => Self {
                 error_code: 0,
                 error_reason: 0,
             },
-            HypervisorError::NotAllowed(x) => Self {
+            HxError::NotAllowed(x) => Self {
                 error_code: 1,
                 error_reason: x.into_bits(),
             },
-            HypervisorError::NotFound(x) => Self {
+            HxError::NotFound(x) => Self {
                 error_code: 2,
                 error_reason: x.into_bits()
             },
-            HypervisorError::InvalidParameters(x) => Self {
+            HxError::InvalidParameters(x) => Self {
                 error_code: 3,
                 error_reason: x
             },
-            HypervisorError::NtError(x) => Self {
+            HxError::NtError(x) => Self {
                 error_code: 4,
                 error_reason: x,
             },
-            HypervisorError::TimedOut => Self {
+            HxError::TimedOut => Self {
                 error_code: 5,
                 error_reason: 0,
             },
-            HypervisorError::HvNotLoaded => Self {
+            HxError::HvNotLoaded => Self {
                 error_code: 6,
                 error_reason: 0
             },
-            HypervisorError::Unknown => Self {
+            HxError::Unknown => Self {
                 error_code: u32::MAX,
                 error_reason: u32::MAX
             }

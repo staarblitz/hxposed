@@ -1,18 +1,18 @@
-use core::ptr::null_mut;
-use crate::error::HypervisorError;
-use crate::hxposed::requests::Vmcall;
+use crate::error::HxError;
+use crate::hxposed::requests::Syscall;
 use crate::hxposed::requests::notify::*;
-use crate::hxposed::responses::{read_response_type, HypervisorResponse};
 use crate::hxposed::responses::notify::*;
 use crate::hxposed::{CallbackObject, ObjectType};
-use core::sync::atomic::{AtomicBool, Ordering};
 use crate::intern::win::{CloseHandle, CreateEventA, ResetEvent, SetEvent, WaitForSingleObject};
+use core::ptr::null_mut;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 pub struct HxCallback {
     callback: CallbackObject,
     pub active: AtomicBool,
     pub target: ObjectType,
     pub event_handle: u64,
+    pub response_buffer: Box<CallbackInformation>,
 }
 
 unsafe impl Sync for HxCallback {}
@@ -48,23 +48,24 @@ impl HxCallback {
     ///
     /// ## Return
     /// * [`HxCallback`] - An abstraction that represents the callback object. The callback is active upon return.
-    /// * [`HypervisorResponse::invalid_params`] with [`ServiceParameter::Arg1`] - Invalid object type specified.
-    pub fn new(target: ObjectType) -> Result<HxCallback, HypervisorError> {
+    /// * [`SyscallResponseInfo::invalid_params`] with [`ServiceParameter::Arg1`] - Invalid object type specified.
+    pub fn new(target: ObjectType) -> Result<HxCallback, HxError> {
         match target {
             ObjectType::Process(_) => {}
             ObjectType::Thread(_) => {}
             _ => {
-                return Err(HypervisorError::InvalidParameters(0));
+                return Err(HxError::InvalidParameters(0));
             }
         }
 
-        let event_handle = unsafe {
-            CreateEventA(null_mut(), 0, 0, null_mut())
-        };
+        let event_handle = unsafe { CreateEventA(null_mut(), 0, 0, null_mut()) };
+
+        let buffer = Box::<CallbackInformation>::new(CallbackInformation::default());
 
         let response = RegisterNotifyHandlerRequest {
             target_object: target,
             event_handle,
+            memory: buffer.as_ref() as *const _ as _,
         }
         .send()?;
 
@@ -72,7 +73,8 @@ impl HxCallback {
             callback: response.callback,
             active: AtomicBool::new(true),
             target,
-            event_handle
+            event_handle,
+            response_buffer: buffer,
         })
     }
 
@@ -83,7 +85,7 @@ impl HxCallback {
     ///
     /// ## Return
     /// * [`CallbackInformation`] - Information about the callback.
-    /// * [`HypervisorError`] - Timed out.
+    /// * [`HxError`] - Timed out.
     ///
     /// ## Example
     /// ```rust
@@ -97,15 +99,10 @@ impl HxCallback {
     ///     }
     /// }
     /// ```
-    pub fn wait_for_callback(&self) -> Result<CallbackInformation, HypervisorError>
-    {
-        match unsafe {
-            WaitForSingleObject(self.event_handle, 2000)
-        } {
-            0 => Ok(unsafe {
-                read_response_type::<CallbackInformation>(CALLBACK_RESPONSE_RESERVED_OFFSET)
-            }),
-            _ => Err(HypervisorError::TimedOut)
+    pub fn wait_for_callback(&self) -> Result<CallbackInformation, HxError> {
+        match unsafe { WaitForSingleObject(self.event_handle, 2000) } {
+            0 => Ok(self.response_buffer.as_ref().clone()),
+            _ => Err(HxError::TimedOut),
         }
     }
 }

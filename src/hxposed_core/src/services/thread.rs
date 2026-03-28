@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 #![allow(unused_parens)]
 
-use crate::error::HypervisorError;
+use crate::error::HxError;
 use crate::hxposed::requests::process::ObjectOpenType;
 use crate::hxposed::requests::thread::*;
-use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::Syscall;
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::thread::GetThreadFieldResponse;
 use crate::intern::win::GetCurrentThreadId;
@@ -32,7 +32,7 @@ impl HxThread {
     /// * [`PluginPermissions::THREAD_EXECUTIVE`]
     ///
     /// Opens the current thread for your use.
-    pub fn current() -> Result<Self, HypervisorError> {
+    pub fn current() -> Result<Self, HxError> {
         Self::open(unsafe { GetCurrentThreadId() })
     }
 
@@ -56,7 +56,7 @@ impl HxThread {
     pub async fn swap_impersonation_token(
         &self,
         token: &HxToken,
-    ) -> Result<EmptyResponse, HypervisorError> {
+    ) -> Result<EmptyResponse, HxError> {
         SetThreadFieldRequest {
             thread: self.addr,
             field: ThreadField::AdjustedClientToken(token.addr),
@@ -74,8 +74,8 @@ impl HxThread {
     ///
     /// ## Return
     /// * [`HxToken`] - Impersonation token.
-    /// * [`HypervisorError`] - Most likely thread is not impersonating.
-    pub async fn get_impersonation_token(&self) -> Result<HxToken, HypervisorError> {
+    /// * [`HxError`] - Most likely thread is not impersonating.
+    pub async fn get_impersonation_token(&self) -> Result<HxToken, HxError> {
         match (GetThreadFieldRequest {
             thread: self.addr,
             field: ThreadField::AdjustedClientToken(0),
@@ -99,7 +99,7 @@ impl HxThread {
     ///
     /// ## Return
     /// * [`bool`]
-    pub fn is_impersonating(&self) -> Result<bool, HypervisorError> {
+    pub fn is_impersonating(&self) -> Result<bool, HxError> {
         match (GetThreadFieldRequest {
             thread: self.addr,
             field: ThreadField::ActiveImpersonationInfo(false),
@@ -130,7 +130,7 @@ impl HxThread {
     /// ```rust
     /// let process = HxThread::open(4).unwrap();
     /// ```
-    pub fn open(id: u32) -> Result<Self, HypervisorError> {
+    pub fn open(id: u32) -> Result<Self, HxError> {
         let result = OpenThreadRequest {
             tid: id as _,
         }

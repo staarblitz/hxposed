@@ -1,5 +1,5 @@
-use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::call::HxResult;
+use crate::hxposed::responses::{HxResponse, SyscallResponse};
 use crate::hxposed::ObjectType;
 
 ///TODO: Replace with ()?
@@ -7,17 +7,17 @@ use crate::hxposed::ObjectType;
 pub struct EmptyResponse;
 
 impl EmptyResponse {
-    pub fn default() -> HypervisorResponse {
-        HypervisorResponse::default()
+    pub fn default() -> HxResponse {
+        HxResponse::default()
     }
 }
 
-impl VmcallResponse for EmptyResponse {
-    fn from_raw(_raw: HypervisorResponse) -> Self {
+impl SyscallResponse for EmptyResponse {
+    fn from_raw(_raw: HxResponse) -> Self {
         EmptyResponse
     }
 
-    fn into_raw(self) -> HypervisorResponse {
+    fn into_raw(self) -> HxResponse {
         panic!("Use with_service instead.")
     }
 }

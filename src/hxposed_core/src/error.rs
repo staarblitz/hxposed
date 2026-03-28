@@ -1,10 +1,10 @@
 use crate::hxposed::error::{NotAllowedReason, NotFoundReason};
-use crate::hxposed::responses::HypervisorResponse;
+use crate::hxposed::responses::HxResponse;
 use core::fmt;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 #[repr(C)]
-pub enum HypervisorError {
+pub enum HxError {
     Success,
     NotAllowed(NotAllowedReason),
     NotFound(NotFoundReason),
@@ -15,7 +15,7 @@ pub enum HypervisorError {
     Unknown
 }
 
-impl fmt::Debug for HypervisorError {
+impl fmt::Debug for HxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Success => write!(f, "Success"),
@@ -33,7 +33,7 @@ impl fmt::Debug for HypervisorError {
     }
 }
 
-impl fmt::Display for HypervisorError {
+impl fmt::Display for HxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Success => write!(f, "Operation succeeded"),
@@ -43,23 +43,23 @@ impl fmt::Display for HypervisorError {
             Self::TimedOut => write!(f, "Operation took too long"),
             Self::NtError(val) => write!(f, "Internal NT returned error: {:#x}", val),
             Self::HvNotLoaded => write!(f, "Hypervisor is not loaded"),
-            HypervisorError::Unknown => write!(f, "Unknown error"),
+            HxError::Unknown => write!(f, "Unknown error"),
         }
     }
 }
 
-impl core::error::Error for HypervisorError {}
+impl core::error::Error for HxError {}
 
-impl HypervisorError {
-    pub fn from_response(response: &HypervisorResponse) -> HypervisorError {
+impl HxError {
+    pub fn from_response(response: &HxResponse) -> HxError {
         match response.result.error_code {
-            0 => HypervisorError::Success,
-            1 => HypervisorError::NotAllowed(NotAllowedReason::from_bits(response.result.error_reason as _)),
-            2 => HypervisorError::NotFound(NotFoundReason::from_bits(response.result.error_reason as _)),
-            3 => HypervisorError::InvalidParameters(response.result.error_reason as _),
-            4 => HypervisorError::NtError(response.result.error_reason as _),
-            5 => HypervisorError::TimedOut,
-            6 => HypervisorError::HvNotLoaded, // HvNotLoaded is a pseudo error. its returned by vmcall mechanism when RCX is not 2009.
+            0 => HxError::Success,
+            1 => HxError::NotAllowed(NotAllowedReason::from_bits(response.result.error_reason as _)),
+            2 => HxError::NotFound(NotFoundReason::from_bits(response.result.error_reason as _)),
+            3 => HxError::InvalidParameters(response.result.error_reason as _),
+            4 => HxError::NtError(response.result.error_reason as _),
+            5 => HxError::TimedOut,
+            6 => HxError::HvNotLoaded, // HvNotLoaded is a pseudo error. its returned by vmcall mechanism when RCX is not 2009.
             _ => Self::Unknown,
         }
     }

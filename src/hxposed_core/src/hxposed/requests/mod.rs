@@ -1,8 +1,8 @@
 #![allow(unused_imports)]
 
-use crate::error::HypervisorError;
-use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::responses::VmcallResponse;
+use crate::error::HxError;
+use crate::hxposed::call::HxCall;
+use crate::hxposed::responses::SyscallResponse;
 use crate::intern::instructions::vmcall;
 use alloc::boxed::Box;
 use core::any::Any;
@@ -18,8 +18,8 @@ pub mod io;
 pub mod handle;
 
 #[derive(Clone, Default, Debug)]
-pub struct HypervisorRequest {
-    pub call: HypervisorCall,
+pub struct HxRequest {
+    pub call: HxCall,
     pub arg1: u64,
     pub arg2: u64,
     pub arg3: u64,
@@ -30,24 +30,24 @@ pub struct HypervisorRequest {
     pub extended_arg3: u128,
     pub extended_arg4: u128,
 }
-pub trait VmcallRequest {
-    type Response: VmcallResponse + Any + Send + Sync + Clone;
-    fn into_raw(self) -> HypervisorRequest;
-    fn from_raw(request: &HypervisorRequest) -> Self;
+pub trait SyscallRequest {
+    type Response: SyscallResponse + Any + Send + Sync + Clone;
+    fn into_raw(self) -> HxRequest;
+    fn from_raw(request: &HxRequest) -> Self;
 }
 
-pub trait Vmcall<T: VmcallRequest> {
-    fn send(self) -> Result<T::Response, HypervisorError>;
+pub trait Syscall<T: SyscallRequest> {
+    fn send(self) -> Result<T::Response, HxError>;
 }
 
-impl<T> Vmcall<T> for T
+impl<T> Syscall<T> for T
 where
-    T: VmcallRequest,
+    T: SyscallRequest,
 {
-    fn send(self) -> Result<T::Response, HypervisorError> {
+    fn send(self) -> Result<T::Response, HxError> {
         let response = vmcall(&mut self.into_raw());
         if response.result.error_code != 0 {
-            Err(HypervisorError::from_response(&response))
+            Err(HxError::from_response(&response))
         } else {
             Ok(T::Response::from_raw(response))
         }

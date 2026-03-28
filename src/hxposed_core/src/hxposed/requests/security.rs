@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use crate::hxposed::TokenObject;
-use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::call::HxCall;
 use crate::hxposed::requests::process::ObjectOpenType;
-use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use crate::hxposed::requests::{HxRequest, SyscallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse};
 use crate::hxposed::responses::OpenObjectResponse;
 use crate::hxposed::responses::security::*;
@@ -29,13 +29,13 @@ pub struct SetTokenFieldRequest {
     pub field: TokenField,
 }
 
-impl VmcallRequest for SetTokenFieldRequest {
+impl SyscallRequest for SetTokenFieldRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let args = self.field.into_raw_enum();
-        HypervisorRequest {
-            call: HypervisorCall::set_token_field(),
+        HxRequest {
+            call: HxCall::set_token_field(),
             arg1: self.token,
             arg2: args.0,
             arg3: args.1,
@@ -43,7 +43,7 @@ impl VmcallRequest for SetTokenFieldRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             token: request.arg1,
             field: TokenField::from_raw_enum(request.arg2, request.arg3),
@@ -51,13 +51,13 @@ impl VmcallRequest for SetTokenFieldRequest {
     }
 }
 
-impl VmcallRequest for GetTokenFieldRequest {
+impl SyscallRequest for GetTokenFieldRequest {
     type Response = GetTokenFieldResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let args = self.field.into_raw_enum();
-        HypervisorRequest {
-            call: HypervisorCall::get_token_field(),
+        HxRequest {
+            call: HxCall::get_token_field(),
             arg1: self.token,
             arg2: args.0,
             arg3: args.1,
@@ -66,7 +66,7 @@ impl VmcallRequest for GetTokenFieldRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             token: request.arg1,
             field: TokenField::from_raw_enum(request.arg2, request.arg3),
@@ -74,38 +74,38 @@ impl VmcallRequest for GetTokenFieldRequest {
     }
 }
 
-impl VmcallRequest for CloseTokenRequest {
+impl SyscallRequest for CloseTokenRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::close_token(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::close_token(),
             arg1: self.token,
 
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             token: request.arg1,
         }
     }
 }
 
-impl VmcallRequest for OpenTokenRequest {
+impl SyscallRequest for OpenTokenRequest {
     type Response = OpenObjectResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::open_token(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::open_token(),
             arg1: self.token,
 
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             token: request.arg1,
         }
@@ -115,7 +115,7 @@ impl VmcallRequest for OpenTokenRequest {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TokenField {
     SourceName(u64), // actually a char[8] lol
-    AccountName(u16),
+    AccountName(u64),
     Type(TokenType),
     IntegrityLevelIndex(u32),
     MandatoryPolicy(u32),

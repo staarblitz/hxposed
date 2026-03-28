@@ -1,23 +1,23 @@
-use crate::hxposed::call::HypervisorResult;
+use crate::hxposed::call::HxResult;
 use crate::hxposed::requests::process::ProcessField;
-use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::responses::{HxResponse, SyscallResponse};
 
 #[derive(Clone)]
 pub struct GetProcessFieldResponse {
     pub field: ProcessField,
 }
 
-impl VmcallResponse for GetProcessFieldResponse {
-    fn from_raw(raw: HypervisorResponse) -> Self {
+impl SyscallResponse for GetProcessFieldResponse {
+    fn from_raw(raw: HxResponse) -> Self {
         Self {
             field: ProcessField::from_raw_enum(raw.arg1, raw.arg2),
         }
     }
 
-    fn into_raw(self) -> HypervisorResponse {
+    fn into_raw(self) -> HxResponse {
         let args = self.field.clone().into_raw_enum();
-        HypervisorResponse {
-            result: HypervisorResult::ok(),
+        HxResponse {
+            result: HxResult::ok(),
             arg1: args.0,
             arg2: args.1,
             arg3: 0,

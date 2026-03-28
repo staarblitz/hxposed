@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use crate::error::HypervisorError;
+use crate::error::HxError;
 use crate::hxposed::requests::memory::*;
-use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::Syscall;
 use crate::hxposed::responses::memory::PageAttributeResponse;
-use crate::hxposed::responses::HypervisorResponse;
+use crate::hxposed::responses::HxResponse;
 use crate::hxposed::ProcessObject;
 use crate::services::memory_map::HxMemoryDescriptor;
 
@@ -17,7 +17,7 @@ impl HxMemory {
     pub fn get_paging_type(
         &self,
         page_type: PagingType,
-    ) -> Result<PageAttributeResponse, HypervisorError> {
+    ) -> Result<PageAttributeResponse, HxError> {
         PageAttributeRequest {
             addr_space: self.process,
             operation: PageAttributeOperation::Get,
@@ -31,7 +31,7 @@ impl HxMemory {
         &self,
         page_type: PagingType,
         type_bits: u64,
-    ) -> Result<PageAttributeResponse, HypervisorError> {
+    ) -> Result<PageAttributeResponse, HxError> {
         PageAttributeRequest {
             addr_space: self.process,
             operation: PageAttributeOperation::Set,
@@ -45,7 +45,7 @@ impl HxMemory {
         // huh?
         process: crate::services::process::HxProcess,
         addr: u64
-    ) -> Result<u64, HypervisorError> {
+    ) -> Result<u64, HxError> {
         let k = TranslateAddressRequest {
             virtual_addr: addr,
             addr_space: process.addr,
@@ -75,7 +75,7 @@ impl HxMemory {
     ///
     /// ## Return
     /// * [`HxMemoryDescriptor<T>`] - An abstract representation of the allocation. See [`HxMemoryDescriptor`].
-    /// * [`HypervisorError`] - Most likely an NT error telling there is not enough memory caused by your blunders using this framework.
+    /// * [`HxError`] - Most likely an NT error telling there is not enough memory caused by your blunders using this framework.
     ///
     /// ## Example
     /// ```rust
@@ -86,9 +86,9 @@ impl HxMemory {
     /// } // automatically unmaps
     ///
     /// ```
-    pub fn alloc<T>(memory_type: MemoryType) -> Result<HxMemoryDescriptor<T>, HypervisorError> {
+    pub fn alloc<T>(memory_type: MemoryType) -> Result<HxMemoryDescriptor<T>, HxError> {
         if size_of::<T>() > u32::MAX as usize {
-            return Err(HypervisorError::InvalidParameters(0));
+            return Err(HxError::InvalidParameters(0));
         }
 
         let result = Self::alloc_raw(size_of::<T>() as _, memory_type)?;
@@ -116,8 +116,8 @@ impl HxMemory {
     ///
     /// ## Return
     /// * [`u64`] - Allocated region's system address.
-    /// * [`HypervisorError`] - Most likely an NT error telling there is not enough memory caused by your blunders using this framework.
-    pub fn alloc_raw(size: u32, memory_type: MemoryType) -> Result<u64, HypervisorError> {
+    /// * [`HxError`] - Most likely an NT error telling there is not enough memory caused by your blunders using this framework.
+    pub fn alloc_raw(size: u32, memory_type: MemoryType) -> Result<u64, HxError> {
         Ok(AllocateMemoryRequest { size, memory_type }
             .send()?
             .rmd)

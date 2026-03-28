@@ -1,6 +1,6 @@
-use crate::error::HypervisorError;
+use crate::error::HxError;
 use crate::hxposed::RmdObject;
-use crate::hxposed::requests::Vmcall;
+use crate::hxposed::requests::Syscall;
 use crate::hxposed::requests::memory::*;
 use crate::hxposed::responses::memory::PageAttributeResponse;
 use crate::services::process::HxProcess;
@@ -91,7 +91,7 @@ impl<T> HxMemoryDescriptor<T> {
         &'a self,
         process: &'a HxProcess,
         address: u64,
-    ) -> Result<HxMemoryGuard<T>, HypervisorError> {
+    ) -> Result<HxMemoryGuard<T>, HxError> {
         MapRmdRequest {
             addr_space: process.addr,
             object: self.rmd,

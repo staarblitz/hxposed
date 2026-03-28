@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use crate::hxposed::call::HxCall;
+use crate::hxposed::requests::{HxRequest, SyscallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse};
 use crate::hxposed::responses::process::*;
 use crate::hxposed::ProcessObject;
@@ -36,49 +36,49 @@ pub struct SetProcessFieldRequest {
     pub field: ProcessField,
 }
 
-impl VmcallRequest for OpenProcessRequest {
+impl SyscallRequest for OpenProcessRequest {
     type Response = OpenObjectResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::open_process(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::open_process(),
             arg1: self.process_id as _,
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             process_id: request.arg1 as _,
         }
     }
 }
 
-impl VmcallRequest for CloseProcessRequest {
+impl SyscallRequest for CloseProcessRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::close_process(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::close_process(),
             arg1: self.process as _,
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             process: request.arg1 as _,
         }
     }
 }
 
-impl VmcallRequest for GetProcessFieldRequest {
+impl SyscallRequest for GetProcessFieldRequest {
     type Response = GetProcessFieldResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let objs = self.field.into_raw_enum();
-        HypervisorRequest {
-            call: HypervisorCall::get_process_field(),
+        HxRequest {
+            call: HxCall::get_process_field(),
             arg1: self.process as _,
             arg2: objs.0,
             arg3: objs.1,
@@ -87,7 +87,7 @@ impl VmcallRequest for GetProcessFieldRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             process: request.arg1 as _,
             field: ProcessField::from_raw_enum(request.arg2, request.arg3)
@@ -95,13 +95,13 @@ impl VmcallRequest for GetProcessFieldRequest {
     }
 }
 
-impl VmcallRequest for SetProcessFieldRequest {
+impl SyscallRequest for SetProcessFieldRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let objs = self.field.into_raw_enum();
-        HypervisorRequest {
-            call: HypervisorCall::set_process_field(),
+        HxRequest {
+            call: HxCall::set_process_field(),
             arg1: self.process as _,
             arg2: objs.0,
             arg3: objs.1,
@@ -110,7 +110,7 @@ impl VmcallRequest for SetProcessFieldRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             process: request.arg1 as _,
             field: ProcessField::from_raw_enum(request.arg2, request.arg3)

@@ -1,9 +1,9 @@
-use crate::error::HypervisorError;
-use crate::hxposed::requests::Vmcall;
+use crate::error::HxError;
+use crate::hxposed::requests::Syscall;
 use crate::hxposed::requests::io::{
     MsrIoRequest, MsrOperation, PrivilegedInstruction, PrivilegedInstructionRequest,
 };
-use crate::hxposed::responses::HypervisorResponse;
+use crate::hxposed::responses::HxResponse;
 use crate::hxposed::utils::transaction::Transaction;
 use crate::services::types::cpu_fields::*;
 use bit_field::BitField;
@@ -21,8 +21,8 @@ impl HxCpu {
     ///
     /// ## Return
     /// * [`u64`] - If MSR is accessible and read.
-    /// * [`HypervisorError::NotAllowed`] - If MSR is inaccessible.
-    pub fn read_msr(msr: u32) -> Result<u64, HypervisorError> {
+    /// * [`HxError::NotAllowed`] - If MSR is inaccessible.
+    pub fn read_msr(msr: u32) -> Result<u64, HxError> {
         let k = MsrIoRequest {
             msr,
             value: 0,
@@ -42,8 +42,8 @@ impl HxCpu {
     ///
     /// ## Return
     /// * [`()`] - If MSR was accessible and written.
-    /// * [`HypervisorError::NotAllowed`] - If MSR is inaccessible or readonly.
-    pub fn write_msr(msr: u32, value: u64) -> Result<(), HypervisorError> {
+    /// * [`HxError::NotAllowed`] - If MSR is inaccessible or readonly.
+    pub fn write_msr(msr: u32, value: u64) -> Result<(), HxError> {
         MsrIoRequest {
             msr,
             value,
@@ -65,7 +65,7 @@ impl HxCpu {
     /// - Unlike other abstractions, there is no safety for execution. If you mess up, you mess up.
     pub fn execute_privileged(
         instruction: PrivilegedInstruction,
-    ) -> Result<PrivilegedInstruction, HypervisorError> {
+    ) -> Result<PrivilegedInstruction, HxError> {
         let k = PrivilegedInstructionRequest { instruction }.send()?;
 
         Ok(k.instruction)
@@ -75,7 +75,7 @@ impl HxCpu {
     ///
     /// Sets the RFLAGS I/O Privilege Level field to allow port i/o and execution of cli/sti
     ///
-    pub fn set_iopl(new: u8) -> Result<(), HypervisorError> {
+    pub fn set_iopl(new: u8) -> Result<(), HxError> {
         let mut rflags = 0u64;
         unsafe { asm!("pushfq", "pop rax", out("rax") rflags) }
         Self::execute_privileged(PrivilegedInstruction::MovToRFlags(
@@ -98,7 +98,7 @@ impl HxCpu {
         apic_id: Option<u32>,
         trigger_mode: Option<TriggerMode>,
         level: Option<Level>,
-    ) -> Result<(), HypervisorError> {
+    ) -> Result<(), HxError> {
         let mut ipi = InterProcessorInterrupt::new()
             .with_vector(vector)
             .with_delivery_mode(delivery_mode)

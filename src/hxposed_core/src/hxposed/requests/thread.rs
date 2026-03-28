@@ -1,6 +1,6 @@
-use crate::hxposed::call::HypervisorCall;
+use crate::hxposed::call::HxCall;
 use crate::hxposed::requests::process::ObjectOpenType;
-use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use crate::hxposed::requests::{HxRequest, SyscallRequest};
 use crate::hxposed::responses::empty::{EmptyResponse};
 use crate::hxposed::responses::OpenObjectResponse;
 use crate::hxposed::responses::thread::*;
@@ -28,13 +28,13 @@ pub struct SetThreadFieldRequest {
     pub field: ThreadField,
 }
 
-impl VmcallRequest for GetThreadFieldRequest {
+impl SyscallRequest for GetThreadFieldRequest {
     type Response = GetThreadFieldResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let args = self.field.into_raw_enum();
-        HypervisorRequest {
-            call: HypervisorCall::get_thread_field(),
+        HxRequest {
+            call: HxCall::get_thread_field(),
             arg1: self.thread as _,
             arg2: args.0,
             arg3: args.1,
@@ -42,7 +42,7 @@ impl VmcallRequest for GetThreadFieldRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             thread: request.arg1 as _,
             field: ThreadField::from_raw_enum(request.arg2, request.arg3)
@@ -50,13 +50,13 @@ impl VmcallRequest for GetThreadFieldRequest {
     }
 }
 
-impl VmcallRequest for SetThreadFieldRequest {
+impl SyscallRequest for SetThreadFieldRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let args = self.field.into_raw_enum();
-        HypervisorRequest {
-            call: HypervisorCall::set_thread_field(),
+        HxRequest {
+            call: HxCall::set_thread_field(),
             arg1: self.thread as _,
             arg2: args.0,
             arg3: args.1,
@@ -64,7 +64,7 @@ impl VmcallRequest for SetThreadFieldRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             thread: request.arg1 as _,
             field: ThreadField::from_raw_enum(request.arg2, request.arg3)
@@ -72,37 +72,37 @@ impl VmcallRequest for SetThreadFieldRequest {
     }
 }
 
-impl VmcallRequest for CloseThreadRequest {
+impl SyscallRequest for CloseThreadRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::close_thread(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::close_thread(),
             arg1: self.thread.clone() as _,
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             thread: request.arg1 as _,
         }
     }
 }
 
-impl VmcallRequest for OpenThreadRequest {
+impl SyscallRequest for OpenThreadRequest {
     type Response = OpenObjectResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::open_thread(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::open_thread(),
             arg1: self.tid as _,
 
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             tid: request.arg1 as _,
         }

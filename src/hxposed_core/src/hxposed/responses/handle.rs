@@ -1,5 +1,5 @@
-use crate::hxposed::call::HypervisorResult;
-use crate::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use crate::hxposed::call::HxResult;
+use crate::hxposed::responses::{HxResponse, SyscallResponse};
 
 #[derive(Clone)]
 pub struct GetHandleObjectResponse {
@@ -7,17 +7,17 @@ pub struct GetHandleObjectResponse {
     pub granted_access: u32
 }
 
-impl VmcallResponse for GetHandleObjectResponse {
-    fn from_raw(raw: HypervisorResponse) -> Self {
+impl SyscallResponse for GetHandleObjectResponse {
+    fn from_raw(raw: HxResponse) -> Self {
         Self {
             object: raw.arg1,
             granted_access: raw.arg2 as _
         }
     }
 
-    fn into_raw(self) -> HypervisorResponse {
-        HypervisorResponse {
-            result: HypervisorResult::ok(),
+    fn into_raw(self) -> HxResponse {
+        HxResponse {
+            result: HxResult::ok(),
             arg1: self.object,
             arg2: self.granted_access as _,
             ..Default::default()

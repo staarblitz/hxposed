@@ -1,5 +1,5 @@
-use crate::hxposed::call::HypervisorCall;
-use crate::hxposed::requests::{HypervisorRequest, VmcallRequest};
+use crate::hxposed::call::HxCall;
+use crate::hxposed::requests::{HxRequest, SyscallRequest};
 use crate::hxposed::responses::empty::EmptyResponse;
 use crate::hxposed::responses::memory::*;
 use crate::hxposed::{ProcessObject, RmdObject};
@@ -154,35 +154,35 @@ impl PagingType {
     }
 }
 
-impl VmcallRequest for FreeMemoryRequest {
+impl SyscallRequest for FreeMemoryRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::free_mem(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::free_mem(),
             arg1: self.obj,
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self { obj: request.arg1 }
     }
 }
 
-impl VmcallRequest for DescribeMemoryRequest {
+impl SyscallRequest for DescribeMemoryRequest {
     type Response = DescribeMemoryResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::describe_physical(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::describe_physical(),
             arg1: self.pa,
             arg2: self.size as _,
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             pa: request.arg1,
             size: request.arg2 as _,
@@ -190,19 +190,19 @@ impl VmcallRequest for DescribeMemoryRequest {
     }
 }
 
-impl VmcallRequest for AllocateMemoryRequest {
+impl SyscallRequest for AllocateMemoryRequest {
     type Response = AllocateMemoryResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::mem_alloc(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::mem_alloc(),
             arg1: self.size as _,
             arg2: self.memory_type.into(),
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             size: request.arg1 as _,
             memory_type: request.arg2.into(),
@@ -210,19 +210,19 @@ impl VmcallRequest for AllocateMemoryRequest {
     }
 }
 
-impl VmcallRequest for TranslateAddressRequest {
+impl SyscallRequest for TranslateAddressRequest {
     type Response = TranslateAddressResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::translate_address(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::translate_address(),
             arg1: self.addr_space,
             arg2: self.virtual_addr,
             ..Default::default()
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             addr_space: request.arg1,
             virtual_addr: request.arg2,
@@ -230,12 +230,12 @@ impl VmcallRequest for TranslateAddressRequest {
     }
 }
 
-impl VmcallRequest for MapRmdRequest {
+impl SyscallRequest for MapRmdRequest {
     type Response = EmptyResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
-        HypervisorRequest {
-            call: HypervisorCall::rmd_map(),
+    fn into_raw(self) -> HxRequest {
+        HxRequest {
+            call: HxCall::rmd_map(),
             arg1: self.object,
             arg2: self.addr_space,
             arg3: self.map_addr,
@@ -244,7 +244,7 @@ impl VmcallRequest for MapRmdRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             object: request.arg1,
             addr_space: request.arg2,
@@ -254,13 +254,13 @@ impl VmcallRequest for MapRmdRequest {
     }
 }
 
-impl VmcallRequest for PageAttributeRequest {
+impl SyscallRequest for PageAttributeRequest {
     type Response = PageAttributeResponse;
 
-    fn into_raw(self) -> HypervisorRequest {
+    fn into_raw(self) -> HxRequest {
         let args = self.paging_type.clone().into_raw_enum();
-        HypervisorRequest {
-            call: HypervisorCall::set_page_attr(),
+        HxRequest {
+            call: HxCall::set_page_attr(),
             arg1: self.addr_space,
             arg2: self.operation.into_bits(),
             arg3: self.type_bits,
@@ -271,7 +271,7 @@ impl VmcallRequest for PageAttributeRequest {
         }
     }
 
-    fn from_raw(request: &HypervisorRequest) -> Self {
+    fn from_raw(request: &HxRequest) -> Self {
         Self {
             addr_space: request.arg1,
             operation: PageAttributeOperation::from_bits(request.arg2),
