@@ -1,14 +1,16 @@
+use crate::GLOBAL_LOGGER;
 use crate::utils::danger::DangerPtr;
+use crate::utils::logger::LogEvent;
 use crate::win::{
-    Boolean, ExAllocatePool2, ExFreePool, IoAllocateMdl, IoFreeMdl, MDL, MemoryCacheType,
-    MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl,
-    MmMapLockedPagesSpecifyCache, MmProtectMdlSystemAddress, MmUnmapLockedPages, NtStatus, PVOID,
-    PoolFlags, ProcessorMode,
+    Boolean, ExAllocatePool2, IoAllocateMdl, IoFreeMdl, LockOperation, MDL, MdlFlags,
+    MemoryCacheType, MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl,
+    MmMapLockedPagesSpecifyCache, MmProbeAndLockPages, MmProtectMdlSystemAddress, MmUnlockPages,
+    MmUnmapLockedPages, NtStatus, PVOID, PagePriority, PoolFlags, ProcessorMode,
 };
+use alloc::boxed::Box;
+use core::ffi::c_void;
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
-use crate::GLOBAL_LOGGER;
-use crate::utils::logger::LogEvent;
 
 /// Abstraction over MDL with Rust safety.
 #[derive(Debug)]
@@ -34,6 +36,7 @@ pub enum OwnType {
     NonPaged(usize),
     MmAllocatePages,
     NonOwning,
+    Locked,
 }
 
 #[derive(Debug)]
@@ -46,8 +49,11 @@ pub enum MapStatus {
 impl Drop for MemoryDescriptor {
     fn drop(&mut self) {
         match self.owns {
-            OwnType::NonPaged(addr) => unsafe { ExFreePool(addr as _) },
+            OwnType::NonPaged(addr) => unsafe { drop(Box::from_raw(addr as *mut [u8; 4096])) },
             OwnType::MmAllocatePages => unsafe { MmFreePagesFromMdl(self.mdl.ptr) },
+            OwnType::Locked => unsafe {
+                MmUnlockPages(self.mdl.ptr);
+            },
             OwnType::NonOwning => {
                 // do nothing
             }
@@ -92,8 +98,25 @@ impl MemoryDescriptor {
         me
     }
 
-    pub fn new_describe_nonpaged(ptr: PVOID, length: u32) -> Self {
-        let me = Self {
+    /// Must be in context of process to describe the pages
+    pub fn lock_pages(ptr: PVOID, length: u32) -> Option<Self> {
+        let mut me = Self::new_describe(ptr, length)?;
+        microseh::try_seh(|| unsafe {
+            MmProbeAndLockPages(
+                me.mdl.ptr,
+                ProcessorMode::UserMode,
+                LockOperation::IoWriteAccess,
+            )
+        })
+        .ok()
+        .map(|_| {
+            me.owns = OwnType::Locked;
+            me
+        })
+    }
+
+    pub fn new_describe(ptr: PVOID, length: u32) -> Option<Self> {
+        match (Self {
             mdl: DangerPtr {
                 ptr: unsafe {
                     IoAllocateMdl(ptr, length, Boolean::False, Boolean::False, null_mut())
@@ -104,33 +127,38 @@ impl MemoryDescriptor {
             // no, we do not own. we just "describe" the existing pages.
             owns: OwnType::NonOwning,
             init: true,
-        };
+        }) {
+            desc if desc.mdl.ptr.is_null() => None,
+            desc => Some(desc),
+        }
+    }
+
+    pub fn new_describe_nonpaged(ptr: PVOID, length: u32) -> Option<Self> {
+        let me = Self::new_describe(ptr, length)?;
         // this is crucial. because we should let the mdl know it's for non paged pool after IoAllocateMdl when it's going to be mapped to a user process.
         unsafe {
             MmBuildMdlForNonPagedPool(me.mdl.ptr);
         }
 
-        me
+        Some(me)
     }
 
-    pub fn new(length: usize) -> Self {
+    pub fn new(length: usize) -> Result<Self, NtStatus> {
         let mut me = Self::default();
-        Self::init(&mut me, length);
-        me
+        Self::init(&mut me, length).map(|_| me)
     }
 
-    pub fn new_nonpaged(length: u32) -> Self {
-        let pool = unsafe { ExAllocatePool2(PoolFlags::NonPaged, length as _, 0x2009) };
+    pub fn new_nonpaged(length: u32) -> Option<Self> {
+        let pool = unsafe { Box::<[u8; 4096]>::new_zeroed().assume_init() };
 
-        let mut me = Self::new_describe_nonpaged(pool, length as _);
+        let mut me = Self::new_describe_nonpaged(pool.as_ref().as_ptr() as _, length as _)?;
 
-        // yup, you do
-        me.owns = OwnType::NonPaged(pool as _);
+        me.owns = OwnType::NonPaged(Box::into_raw(pool) as _);
 
-        me
+        Some(me)
     }
 
-    pub fn init(&mut self, length: usize) {
+    pub fn init(&mut self, length: usize) -> Result<(), NtStatus> {
         self.status = MapStatus::Allocated;
         self.length = length;
         self.mdl = DangerPtr {
@@ -145,8 +173,15 @@ impl MemoryDescriptor {
                 )
             },
         };
+
+        if self.mdl.ptr.is_null() {
+            return Err(NtStatus::Unsuccessful);
+        }
+
         self.owns = OwnType::MmAllocatePages;
         self.init = true;
+
+        Ok(())
     }
 
     pub fn unmap(&mut self) -> Result<(), ()> {
@@ -158,9 +193,19 @@ impl MemoryDescriptor {
             _ => Err(()),
         }
     }
-
-    pub fn get_system_address(&self) -> usize {
-        self.mdl.MappedSystemVa as _
+    pub fn get_system_address_safe(&mut self) -> Result<PVOID, NtStatus> {
+        if self.mdl.MdlFlags as u64
+            & (MdlFlags::MappedToSystemVa as u64 | MdlFlags::SourceIsNonpagedPool as u64)
+            == 1
+        {
+            Ok(self.mdl.MappedSystemVa)
+        } else {
+            self.map(
+                None,
+                ProcessorMode::KernelMode,
+                PagePriority::HighPagePriority as _,
+            )
+        }
     }
 
     pub fn protect(&self, protection: u32) -> Result<(), NtStatus> {
@@ -175,7 +220,7 @@ impl MemoryDescriptor {
         address: Option<usize>,
         mode: ProcessorMode,
         flags: u32,
-    ) -> Result<usize, NtStatus> {
+    ) -> Result<PVOID, NtStatus> {
         let address = match microseh::try_seh(|| unsafe {
             MmMapLockedPagesSpecifyCache(
                 self.mdl.ptr,
