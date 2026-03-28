@@ -53,8 +53,8 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HxResponse {
                 instruction: PrivilegedInstruction::MovFromCr8(cr8)
             }.into_raw();
         }
+        // i think we should not support a direct mov to/from cr3
         PrivilegedInstruction::MovFromCr3(mut cr3) => {
-            // we need to take care of kpti
             unsafe {
                 asm!("mov {}, cr3", out(reg) cr3);
             }
