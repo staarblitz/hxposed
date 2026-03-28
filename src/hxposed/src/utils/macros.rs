@@ -21,7 +21,7 @@ macro_rules! scoped_log {
 macro_rules! hyper_row {
     ($($func:expr),*) => {
         {
-            const ARR: [VmcallHandler; 16] = {
+            const ARR: [SyscallHandler; 16] = {
                 let mut row = [INV; 16];
                 let mut i = 0;
                 $(
