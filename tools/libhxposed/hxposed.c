@@ -9,21 +9,6 @@ void* memset(void* s, int c, size_t n) {
 	return s;
 }
 
-DLL_EXPORT UINT32 HxReadAsyncResponseLength(UINT64 Offset) {
-	return *(PUINT32)(HX_ASYNC_BASE + Offset);
-}
-
-DLL_EXPORT PVOID HxReadAsyncResponseSlice(UINT64 Offset, PUINT32 Count) {
-	if (Count)
-		*Count = HxReadAsyncResponseLength(Offset);
-	return (PVOID)(HX_ASYNC_BASE + Offset + 4);
-}
-
-DLL_EXPORT PVOID HxReadAsyncResponseType(UINT64 Offset) {
-	UINT32 typeOffset = HxReadAsyncResponseLength(Offset);
-	return (PVOID)(HX_ASYNC_BASE + typeOffset);
-}
-
 DLL_EXPORT BOOL HxGetStatus(PHXS_STATUS Response) {
 	PHX_REQUEST_RESPONSE reqResp = { 0 };
 
@@ -60,17 +45,22 @@ DLL_EXPORT HX_RESULT HxCloseObject(HX_SERVICE_FUNCTION Function, HX_OBJECT Objec
 	return HxpTrap(&reqResp);
 }
 
-HX_RESULT HxpGetObjectField(HX_SERVICE_FUNCTION Function, HX_OBJECT Object, UINT64 DataField, PUINT64 Field) {
+HX_RESULT HxpGetObjectFieldEx(HX_SERVICE_FUNCTION Function, HX_OBJECT Object, UINT64 DataField, PUINT64 Field, UINT64 FieldData) {
 	HX_REQUEST_RESPONSE reqResp = {
 		.Call.ServiceFunction = Function,
 		.GetProcessFieldRequest.Address = Object,
 		.GetProcessFieldRequest.Data.Field = DataField,
+		.GetProcessFieldRequest.Data.DirectoryTableBase = FieldData
 	};
 
 	HX_RESULT result = HxpTrap(&reqResp);
 
 	*Field = reqResp.GetProcessFieldResponse.DirectoryTableBase;
 	return result;
+}
+
+HX_RESULT HxpGetObjectField(HX_SERVICE_FUNCTION Function, HX_OBJECT Object, UINT64 DataField, PUINT64 Field) {
+	return HxpGetObjectFieldEx(Function, Object, DataField, Field, 0);
 }
 
 HX_RESULT HxpSetObjectField(HX_SERVICE_FUNCTION Function, HX_OBJECT Object, UINT64 DataField, PUINT64 Field) {
@@ -84,25 +74,16 @@ HX_RESULT HxpSetObjectField(HX_SERVICE_FUNCTION Function, HX_OBJECT Object, UINT
 	return HxpTrap(&reqResp);
 }
 
-DLL_EXPORT HX_RESULT HxGetProcessNtPath(HX_PROCESS Process, PWCHAR* Name) {
-	UINT64 Offset;
-	HX_RESULT result = HxpGetObjectField(HxSvcGetProcessField, Process, HxProcessFieldNtPath, &Offset);
-	*Name = HxReadAsyncResponseSlice(Offset, NULL);
-	return result;
+DLL_EXPORT HX_RESULT HxGetProcessNtPath(HX_PROCESS Process, PWCHAR Name, PSIZE_T CharCount) {
+	return  HxpGetObjectFieldEx(HxSvcGetProcessField, Process, HxProcessFieldNtPath, CharCount, Name);
 }
 
-DLL_EXPORT HX_RESULT HxGetProcessThreads(HX_PROCESS Process, PUINT32* Threads, PUINT32 Count) {
-	UINT64 Offset;
-	HX_RESULT result = HxpGetObjectField(HxSvcGetProcessField, Process, HxProcessFieldThreads, &Offset);
-	*Threads = HxReadAsyncResponseSlice(Offset, Count);
-	return result;
+DLL_EXPORT HX_RESULT HxGetProcessThreads(HX_PROCESS Process, PUINT32 Threads, PSIZE_T Count) {
+	return HxpGetObjectFieldEx(HxSvcGetProcessField, Process, HxProcessFieldThreads, Count, Threads);
 }
 
-DLL_EXPORT HX_RESULT HxGetTokenAccountName(HX_PROCESS Process, PWCHAR* Name) {
-	UINT64 Offset;
-	HX_RESULT result = HxpGetObjectField(HxSvcGetTokenField, Process, HxTokenFieldAccountName, &Offset);
-	*Name = HxReadAsyncResponseSlice(Offset, NULL);
-	return result;
+DLL_EXPORT HX_RESULT HxGetTokenAccountName(HX_PROCESS Process, PWCHAR Name, PSIZE_T CharCount) {
+	return HxpGetObjectFieldEx(HxSvcGetProcessField, Process, HxProcessFieldThreads, CharCount, Name);
 }
 
 DLL_EXPORT HX_RESULT HxReadMsr(UINT64 Msr, PUINT64 Value) {
@@ -235,11 +216,12 @@ DLL_EXPORT HX_RESULT HxTranslateAddress(PVOID VirtualAddress, HX_PROCESS Address
 	return result;
 }
 
-DLL_EXPORT HX_RESULT HxRegisterCallback(HX_OBJECT_TYPE ObjectType, HANDLE EventHandle, PHX_CALLBACK CallbackObject) {
+DLL_EXPORT HX_RESULT HxRegisterCallback(HX_OBJECT_TYPE ObjectType, HANDLE EventHandle, PVOID Memory, PHX_CALLBACK CallbackObject) {
 	HX_REQUEST_RESPONSE reqResp = {
 		.Call.ServiceFunction = HxSvcRegisterNotifyEvent,
 		.RegisterCallbackRequest.ObjectType = ObjectType,
-		.RegisterCallbackRequest.EventHandle = EventHandle
+		.RegisterCallbackRequest.EventHandle = EventHandle,
+		.RegisterCallbackRequest.Memory = Memory
 	};
 
 	HX_RESULT result = HxpTrap(&reqResp);

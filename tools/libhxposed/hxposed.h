@@ -567,6 +567,7 @@ typedef struct _HXR_SET_THREAD_FIELD {
 typedef struct _HXR_REGISTER_CALLBACK {
     HX_OBJECT_TYPE ObjectType;
     HANDLE EventHandle;
+    PVOID Memory;
 } HXR_REGISTER_CALLBACK, *PHXR_REGISTER_CALLBACK;
 
 typedef struct _HXR_UNREGISTER_CALLBACK {
@@ -771,10 +772,6 @@ typedef struct _HX_REQUEST_RESPONSE {
 
 DLL_EXPORT HX_RESULT HxpTrap(PHX_REQUEST_RESPONSE RequestResponse);
 
-DLL_EXPORT UINT32 HxReadAsyncResponseLength(UINT64 Offset);
-DLL_EXPORT PVOID HxReadAsyncResponseSlice(UINT64 Offset, PUINT32 Length);
-DLL_EXPORT PVOID HxReadAsyncResponseType(UINT64 Offset);
-
 DLL_EXPORT BOOL HxGetStatus(PHXS_STATUS Response);
 DLL_EXPORT HX_RESULT HxCloseObject(HX_SERVICE_FUNCTION Function, HX_OBJECT Object);
 DLL_EXPORT HX_RESULT HxOpenObject(HX_SERVICE_FUNCTION Function, PVOID AddrOrId, PHX_OBJECT Object);
@@ -793,8 +790,8 @@ GENERATE_HX_FUNC_SIGN(Process, Mitigation, PHX_PROCESS_MITIGATION_FLAGS)
 GENERATE_HX_FUNC_SIGN(Process, Signers, PHX_PROCESS_SIGNERS)
 GENERATE_HX_FUNC_SIGN(Process, Token, PUINT64)
 GENERATE_HX_FUNC_SIGN(Process, DirectoryTableBase, PUINT64)
-DLL_EXPORT HX_RESULT HxGetProcessNtPath(HX_PROCESS Process, PWCHAR* Name);
-DLL_EXPORT HX_RESULT HxGetProcessThreads(HX_PROCESS Process, PUINT32* Threads, PUINT32 Count);
+DLL_EXPORT HX_RESULT HxGetProcessNtPath(HX_PROCESS Process, PWCHAR Name, PSIZE_T CharCount);
+DLL_EXPORT HX_RESULT HxGetProcessThreads(HX_PROCESS Process, PUINT32 Threads, PSIZE_T Count);
 
 GENERATE_HX_FUNC_SIGN(Token, SourceName, PCHAR)
 GENERATE_HX_FUNC_SIGN(Token, Type, PHX_TOKEN_TYPE)
@@ -804,7 +801,7 @@ GENERATE_HX_FUNC_SIGN(Token, ImpersonationLevel, PHX_TOKEN_IMPERSONATION_LEVEL)
 GENERATE_HX_FUNC_SIGN(Token, PresentPrivileges, PHX_TOKEN_PRIVILEGES)
 GENERATE_HX_FUNC_SIGN(Token, EnabledPrivileges, PHX_TOKEN_PRIVILEGES)
 GENERATE_HX_FUNC_SIGN(Token, EnabledByDefaultPrivileges, PHX_TOKEN_PRIVILEGES)
-DLL_EXPORT HX_RESULT HxGetTokenAccountName(HX_PROCESS Process, PWCHAR* Name);
+DLL_EXPORT HX_RESULT HxGetTokenAccountName(HX_PROCESS Process, PWCHAR Name, PSIZE_T CharCount);
 
 GENERATE_HX_FUNC_SIGN(Thread, ActiveImpersonationInfo, PBOOL)
 GENERATE_HX_FUNC_SIGN(Thread, AdjustedClientToken, PHX_TOKEN)
@@ -827,7 +824,7 @@ DLL_EXPORT HX_RESULT HxMapDescriptor(HX_RMD Descriptor, HX_PROCESS AddressSpace,
 DLL_EXPORT HX_RESULT HxDescribeMemory(UINT64 PhysicalAddress, UINT32 Size, PHX_RMD Descriptor);
 DLL_EXPORT HX_RESULT HxTranslateAddress(PVOID VirtualAddress, HX_PROCESS AddressSpace, PUINT64 PhysicalAddress);
 
-DLL_EXPORT HX_RESULT HxRegisterCallback(HX_OBJECT_TYPE ObjectType, HANDLE EventHandle, PHX_CALLBACK CallbackObject);
+DLL_EXPORT HX_RESULT HxRegisterCallback(HX_OBJECT_TYPE ObjectType, HANDLE EventHandle, PVOID Memory, PHX_CALLBACK CallbackObject);
 DLL_EXPORT HX_RESULT HxUnregisterCallback(HX_CALLBACK CallbackObject);
 
 #endif // !HXPOSED

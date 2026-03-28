@@ -42,13 +42,13 @@ HxpTrap proc
 
 make_the_call:
 
-	mov rcx, 2009h	; we want our hypervisor to catch this trap
+	mov rax, 2009h	; we want our hypervisor to catch this syscall
 
-	cpuid	; where we were?
+	syscall	; where we were?
 
-	cmp rcx, 2009h	; the normal cpuid behavior resets the rcx. in this case, it should stay the same.
+	cmp rax, 2009h	; normal syscall would return STATUS_ACCESS_VIOLATION
 
-	je call_ok	
+	je call_ok
 	
 	mov rsi, 06		; HvNotLoaded
 
