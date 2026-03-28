@@ -44,8 +44,8 @@ unsafe extern "C" {
 
 #[repr(C)]
 pub struct HxFs {
-    pub logger: Box<HxLogger>,
     pub registers: Box<Registers>,
+    pub logger: Box<HxLogger>,
     pub stack: u64,
 }
 

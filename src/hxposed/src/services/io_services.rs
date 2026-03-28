@@ -30,20 +30,26 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HxResponse {
             asm!("mov cr8, {}", in(reg) cr8);
         },
         PrivilegedInstruction::MovToCr3(cr3) => unsafe {
-            asm!("mov cr3, {}", in(reg) cr3);
-        },
-        PrivilegedInstruction::MovFromCr8(_) => {
             return HxResponse::not_allowed(NotAllowedReason::Unknown);
+        },
+        PrivilegedInstruction::MovFromCr8(mut cr8) => {
+            unsafe {
+                asm!("mov {}, cr8", in(reg) cr8);
+            }
+            return PrivilegedInstructionResponse {
+                instruction: PrivilegedInstruction::MovFromCr8(cr8),
+            }
+            .into_raw();
         }
         // i think we should not support a direct mov to/from cr3
         PrivilegedInstruction::MovFromCr3(_) => {
             return HxResponse::not_allowed(NotAllowedReason::Unknown);
         }
         PrivilegedInstruction::Lgdt(gdt) => unsafe {
-            asm!("lgdt {}", in(reg) gdt);
+            asm!("lgdt [{}]", in(reg) gdt);
         },
         PrivilegedInstruction::Lidt(idt) => unsafe {
-            asm!("lidt {}", in(reg) idt);
+            asm!("lidt [{}]", in(reg) idt);
         },
         PrivilegedInstruction::Sgdt(_) => {
             let table = intrin::sgdt();

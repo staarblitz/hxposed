@@ -1,6 +1,7 @@
 use crate::win::{KeGetCurrentProcessorNumber, KeQuerySystemTime};
 use alloc::boxed::Box;
 use x86::io::outb;
+use crate::size_assert;
 
 #[repr(C)]
 pub struct HxLogger {
@@ -82,7 +83,7 @@ pub struct LogEntry {
     pub arg3: u64,
     pub arg4: u64,
 }
-const _: () = assert!(size_of::<LogEntry>() == 64);
+size_assert!(LogEntry, 64);
 
 impl LogEntry {
     pub fn new(log_type: LogType, event: LogEvent) -> Self {

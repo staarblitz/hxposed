@@ -17,7 +17,6 @@ hx_restore_context:
     mov r14, [rcx + r14_offset]
     mov r15, [rcx + r15_offset]
     mov rbp, [rcx + rbp_offset]
-    mov rcx, [rcx + rcx_offset]
 
     movdqu xmm0, [rcx + xmm0_offset]
     movdqu xmm1, [rcx + xmm1_offset]
@@ -25,6 +24,8 @@ hx_restore_context:
     movdqu xmm3, [rcx + xmm3_offset]
     movdqu xmm4, [rcx + xmm4_offset]
     movdqu xmm5, [rcx + xmm5_offset]
+
+    mov rcx, [rcx + rcx_offset]
     ret
 
 .align 16

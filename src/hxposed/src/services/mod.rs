@@ -90,8 +90,7 @@ static DISPATCH_TABLE: [[SyscallHandler; 16]; DISPATCH_TABLE_MAX] = [
 ];
 
 #[unsafe(no_mangle)]
-pub(crate) fn syscall_handler() -> bool {
-    let cpu = HxFs::get_current();
+pub(crate) fn syscall_handler(cpu: &mut HxFs) {
     let info = HxCall::from_bits(cpu.registers.rsi);
 
     let process = NtProcess::current();
@@ -100,7 +99,6 @@ pub(crate) fn syscall_handler() -> bool {
         true => {}
         false => {
             cpu.logger.warn(LogEvent::NoHxInfo);
-            return false;
         }
     }
 
@@ -131,14 +129,14 @@ pub(crate) fn syscall_handler() -> bool {
     const CATEGORY_MASK: usize = 0xF0;
     const FUNCTION_MASK: usize = 0x0F;
 
-    let category = function & CATEGORY_MASK;
+    let category = (function & CATEGORY_MASK) >> 4;
     let func = function & FUNCTION_MASK;
 
     if core::intrinsics::unlikely(category >= DISPATCH_TABLE_MAX) {
         cpu.write_response(HxResponse::not_found_what(
             NotFoundReason::ServiceFunction,
         ));
-        return true;
+        return;
     }
 
     let result = DISPATCH_TABLE[category][func](&request);
@@ -148,5 +146,4 @@ pub(crate) fn syscall_handler() -> bool {
         .trace(LogEvent::HyperResult(result.arg1, result.arg2, result.arg3));
 
     cpu.write_response(result);
-    true
 }

@@ -11,8 +11,7 @@ hx_syscall_entry:
     mov rsp, gs:[0x70]  # get our kernel stack
 
     push rcx            # save user rip
-    mov rcx, gs:[0x78]  # load HxFs ptr
-    mov rcx, [rcx]      # dereference it
+    mov rcx, gs:[0x78]  # load HxFs
     mov rcx, [rcx]      # get the registers inside
 
     call hx_capture_context
@@ -25,8 +24,7 @@ hx_syscall_entry:
 
     sti
 
-    mov rcx, gs:[0x78]
-    mov rcx, [rcx]          # set first arg to hxfs
+    mov rcx, gs:[0x78]          # set first arg to hxfs
 
     sub rsp, 32
 
@@ -36,7 +34,8 @@ hx_syscall_entry:
     call syscall_handler    # fresh air
     add rsp, 32
 
-    mov rcx, gs:[0x78]
+    mov rcx, gs:[0x78]  # load HxFs
+    mov rcx, [rcx]      # get the registers inside
     call hx_restore_context
 
     # rcx and r11 is already restored by hx_restore_context

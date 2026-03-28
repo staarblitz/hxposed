@@ -44,9 +44,9 @@ pub fn hijack_pcrs() {
         // TODO: make this version-neutral
         let hxfs = Box::into_raw(Box::new(HxFs::new()));
         unsafe {
-            pcr.byte_offset(0x68).write_volatile((*hxfs).stack as _);
-            pcr.byte_offset(0x70).write_volatile(hxfs as _);
-            pcr.byte_offset(0x78).write_volatile(pcr as _);
+            pcr.byte_offset(0x68).write_volatile(0);
+            pcr.byte_offset(0x70).write_volatile((*hxfs).stack as _);
+            pcr.byte_offset(0x78).write_volatile(hxfs as _);
         }
 
         // now redirect #GP for our purpose

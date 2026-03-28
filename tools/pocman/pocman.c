@@ -6,7 +6,7 @@
 int main()
 {
     HX_PROCESS sys;
-    HX_RESULT result = HxOpenObject(HxSvcOpenProcess, 680, &sys);
+    HX_RESULT result = HxOpenObject(HxSvcOpenProcess, 4, &sys);
     if (result.ErrorCode != 0) {
 
         return -1;
