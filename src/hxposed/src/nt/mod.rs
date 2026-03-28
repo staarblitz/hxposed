@@ -27,6 +27,7 @@ pub(crate) static mut NT_BUILD: u64 = 0;
 pub(crate) static mut NT_UBR: u64 = 0;
 pub(crate) static mut NT_BASE: u64 = 0;
 pub(crate) static mut SYSTEM_TOKEN: u64 = 0;
+pub(crate) static mut NT_KI_SYSTEM: u64 = 0;
 
 pub(crate) type PSEP_LOGON_SESSION_REFERENCES = *mut _SEP_LOGON_SESSION_REFERENCES;
 
@@ -90,6 +91,9 @@ pub(crate) fn get_nt_info() -> Result<(), ()> {
         NT_PS_TERMINATE_THREAD =
             get_nt_proc::<PsTerminateThreadType>(NtProcedure::PspTerminateThreadByPointer) as _;
 
+        NT_KI_SYSTEM_CALL64 = get_nt_proc::<u64>(NtProcedure::KiSystemCall64) as _;
+        NT_KI_GENERAL_PROTECTION_FAULT = get_nt_proc::<u64>(NtProcedure::KiGeneralProtectionFault) as _;
+
         scoped_log!(info, LogEvent::BuildOffset(0, NT_PS_TERMINATE_PROCESS));
         scoped_log!(info, LogEvent::BuildOffset(1, NT_EX_CREATE_HANDLE));
         scoped_log!(info, LogEvent::BuildOffset(2, NT_PS_TERMINATE_THREAD));
@@ -97,10 +101,16 @@ pub(crate) fn get_nt_info() -> Result<(), ()> {
             info,
             LogEvent::BuildOffset(3, NT_EXP_LOOKUP_HANDLE_TABLE_ENTRY)
         );
+        scoped_log!(
+            info,
+            LogEvent::BuildOffset(4, NT_KI_SYSTEM_CALL64)
+        );
     }
 
     Ok(())
 }
+
+
 pub(crate) fn get_nt_base() -> PVOID {
     unsafe {
         (**PsLoadedModuleList).DllBase
@@ -113,6 +123,19 @@ fn get_system_token() -> PVOID {
 
     // for some reason, cannot link external symbol PsInitialSystemProcess. huh
     unsafe { PsReferencePrimaryToken(system) }
+}
+
+pub(crate) unsafe fn get_pcr_field<T>(field: PcrField) -> *mut T {
+    unsafe {
+        (NT_BASE as *mut u8).add(match (NT_BUILD, NT_UBR) {
+            (26100, 6584) /* 25H2 */ => {
+                match field {
+                    PcrField::Unused =>0x40
+                }
+            }
+            _ => panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
+        }) as *mut T
+    }
 }
 
 ///
@@ -140,6 +163,8 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
                     NtProcedure::PspTerminateThreadByPointer => 0x8f48f0,
                     NtProcedure::ExpLookupHandleTableEntry => 0x850180,
                     NtProcedure::ExCreateHandle => 0xa1b200,
+                    NtProcedure::KiSystemCall64 => 0x6b2b40,
+                    NtProcedure::KiGeneralProtectionFault => 0x6ae4c0,
                 }
             }
             _ => panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
@@ -308,12 +333,26 @@ pub(crate) unsafe fn get_logon_session_field<T: 'static>(
     }
 }
 
-pub(crate) unsafe fn get_object_header(object: *mut u64) -> *mut u64 {
-    unsafe { object.byte_offset(-0x30) } // _OBJECT_HEADER is actually 0x38 bytes. But since the Body field is the object itself, we cut it down
+#[repr(transparent)]
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct ObjectHeader(pub *mut u64);
+
+#[repr(transparent)]
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct ObjectBody(pub *mut u64);
+
+pub(crate) unsafe fn get_object_header(object: ObjectBody) -> ObjectHeader {
+    // _OBJECT_HEADER is actually 0x38 bytes. but since the Body field is the object itself, we cut it down
+    ObjectHeader(unsafe { object.0.byte_offset(-0x30) })
 }
 
-pub(crate) unsafe fn get_object_body(object_header: *mut c_void) -> *mut c_void {
-    unsafe { object_header.byte_offset(0x30) as _ }
+pub(crate) unsafe fn get_object_body(object_header: ObjectHeader) -> ObjectBody {
+    // read the comment above
+    ObjectBody(unsafe { object_header.0.byte_offset(0x30) as _ })
+}
+
+pub enum PcrField {
+    Unused
 }
 
 pub enum NtProcedure {
@@ -323,6 +362,8 @@ pub enum NtProcedure {
     PspTerminateThreadByPointer,
     ExpLookupHandleTableEntry,
     ExCreateHandle,
+    KiSystemCall64,
+    KiGeneralProtectionFault
 }
 
 pub enum LogonSessionField {

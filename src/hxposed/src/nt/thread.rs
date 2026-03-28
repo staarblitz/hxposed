@@ -32,7 +32,7 @@ impl Drop for NtThread {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                NtObject::<u64>::decrement_ref_count(self.nt_thread as _);
+                NtObject::decrement_handle_count_raw(self.nt_thread as _);
             }
         }
     }
@@ -98,9 +98,9 @@ impl NtThread {
         };
 
         unsafe {
-            NtObject::<u64>::decrement_ref_count(*current_token as _);
+            NtObject::decrement_ref_count_raw(*current_token as _);
             //  its now being referenced by another process. we need to increase its reference count
-            NtObject::<u64>::increment_ref_count(token as _);
+            NtObject::increment_ref_count_raw(token as _);
         }
 
         unsafe {

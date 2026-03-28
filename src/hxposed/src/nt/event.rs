@@ -6,6 +6,7 @@ use crate::win::{
     PKEVENT, ProcessorMode, WaitReason,
 };
 use alloc::boxed::Box;
+use crate::nt::{get_object_header, ObjectBody};
 
 pub struct NtEvent {
     pub nt_event: PKEVENT,
@@ -20,7 +21,7 @@ impl Drop for NtEvent {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                NtObject::<u64>::decrement_ref_count(self.nt_event as _);
+                NtObject::decrement_handle_count_raw(self.nt_event);
             }
         }
     }
@@ -69,17 +70,17 @@ impl NtEvent {
 
     pub fn from_handle(handle: HANDLE) -> Result<NtEvent, ()> {
         let process = NtProcess::current();
-        let obj = match NtObject::<PKEVENT>::from_handle(handle, process.get_handle_table()) {
+        let obj = match NtObject::from_handle(handle, process.get_handle_table()) {
             Some(ptr) => ptr,
             None => return Err(()),
         };
 
-        Ok(Self::open_event(obj.object_addr as _, true))
+        Ok(Self::open_event(obj.object_addr.0 as _, true))
     }
 
     fn open_event(ptr: PKEVENT, owns: bool) -> Self {
         unsafe {
-            NtObject::<u64>::increment_ref_count(ptr as _);
+            NtObject::decrement_ref_count_raw(ptr);
         }
         Self {
             nt_event: ptr,

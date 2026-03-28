@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::nt::{get_object_body, get_object_header};
+use crate::nt::{get_object_body, get_object_header, ObjectBody, ObjectHeader};
 use crate::utils::intrin::{interlocked_decrement, interlocked_increment};
 use crate::win::HANDLE;
 use crate::win::{ExpLookupHandleTableEntry, PHANDLE_TABLE, _EXHANDLE};
@@ -9,18 +9,15 @@ use core::ffi::c_void;
 use hxposed_core::hxposed::Handle;
 
 /// This is not a trait, nor an abstraction layer. This is for general object functions.
-#[derive(Debug)]
-pub struct NtObject<T> {
-    pub object_addr: *mut T,
+pub struct NtObject {
+    pub object_addr: ObjectBody,
 }
 
 pub struct NtHandle;
 
 pub type HandleTableEntry = *mut u64;
-pub type ObjectHeader = *mut u64;
-pub type ObjectBody = *mut u64;
 
-impl<T> Drop for NtObject<T> {
+impl Drop for NtObject {
     fn drop(&mut self) {
         unsafe {
             Self::decrement_ref_count(get_object_header(self.object_addr as _) as _);
@@ -28,40 +25,56 @@ impl<T> Drop for NtObject<T> {
     }
 }
 
-impl<T> NtObject<T> {
-    pub fn from_ptr(ptr: *mut T) -> Self {
+impl NtObject {
+    pub fn from_ptr(ptr: ObjectBody) -> Self {
         unsafe {
-            Self::increment_ref_count(get_object_header(ptr as _) as _);
+            Self::increment_ref_count(get_object_header(ptr));
         }
         Self { object_addr: ptr }
     }
 
-    pub unsafe fn increment_ref_count(obj_header: *mut T) {
-        interlocked_increment(obj_header as _);
+    pub unsafe fn increment_ref_count(obj_header: ObjectHeader) {
+        interlocked_increment(obj_header.0);
     }
 
-    pub unsafe fn decrement_ref_count(obj_header: *mut T) {
-        interlocked_decrement(obj_header as _);
+    pub unsafe fn decrement_ref_count(obj_header: ObjectHeader) {
+        interlocked_decrement(obj_header.0);
     }
 
-    pub unsafe fn increment_handle_count(obj_header: *mut T) {
-        interlocked_increment(obj_header.byte_offset(8) as _);
+    pub unsafe fn increment_ref_count_raw(obj_body: *mut c_void) {
+        Self::increment_ref_count(get_object_header(ObjectBody(obj_body as _)));
     }
 
-    pub unsafe fn decrement_handle_count(obj_header: *mut T) {
-        interlocked_decrement(obj_header.byte_offset(8) as _);
+    pub unsafe fn decrement_ref_count_raw(obj_body: *mut c_void) {
+        Self::decrement_ref_count(get_object_header(ObjectBody(obj_body as _)));
     }
 
-    pub fn from_handle_entry(entry: HandleTableEntry) -> NtObject<T> {
+    pub unsafe fn increment_handle_count(obj_header: ObjectHeader) {
+        interlocked_increment(obj_header.0.byte_offset(8));
+    }
+
+    pub unsafe fn decrement_handle_count(obj_header: ObjectHeader) {
+        interlocked_decrement(obj_header.0.byte_offset(8));
+    }
+
+    pub unsafe fn increment_handle_count_raw(obj_body: *mut c_void) {
+        Self::increment_handle_count(get_object_header(ObjectBody(obj_body as _)));
+    }
+
+    pub unsafe fn decrement_handle_count_raw(obj_body: *mut c_void) {
+        Self::decrement_handle_count(get_object_header(ObjectBody(obj_body as _)));
+    }
+
+    pub fn from_handle_entry(entry: HandleTableEntry) -> NtObject {
         NtObject::from_ptr(NtHandle::get_object_ptr(entry))
     }
 
-    pub fn from_handle(handle: HANDLE, table: PHANDLE_TABLE) -> Option<NtObject<T>> {
+    pub fn from_handle(handle: HANDLE, table: PHANDLE_TABLE) -> Option<NtObject> {
         let entry = NtHandle::get_handle_entry(handle as _, table)?;
         Some(Self::from_handle_entry(entry))
     }
 
-    // cannot be used due to occuring apc issues
+    // cannot be used due to occurring apc issues. deprecated
     /*pub fn create_handle(object: *mut T, table: PHANDLE_TABLE) -> Result<HANDLE, ()> {
         let handle = unsafe { ExCreateHandle(table, get_object_header(object as _) as _) };
 
@@ -86,35 +99,35 @@ impl<T> NtObject<T> {
 }
 
 impl NtHandle {
-    pub fn get_object_ptr<T>(entry: HandleTableEntry) -> *mut T {
+    pub fn get_object_ptr(entry: HandleTableEntry) -> ObjectBody {
         let object_pointer = unsafe { *entry }.get_bits(20..64);
         let object_header = (object_pointer << 4 | 0xffff000000000000) as *mut c_void; // decode bitmask to get real ptr
 
         // object body is always after object header. so we add sizeof(OBJECT_HEADER) (and -8) which is 0x30 to get object itself
-        (unsafe { get_object_body(object_header) } as *mut T)
+        unsafe { get_object_body(ObjectHeader(object_header as _)) }
     }
 
     pub fn get_granted_access(entry: HandleTableEntry) -> u32 {
         unsafe { entry.add(1).read_unaligned() }.get_bits(0..25) as _
     }
 
-    pub fn set_object_ptr<T>(entry: HandleTableEntry, ptr: *mut T) {
-        let header = unsafe { get_object_header(ptr as _) as *mut T };
-        let old_object = unsafe {get_object_header(Self::get_object_ptr::<T>(entry) as _) as *mut T};
+    pub fn set_object_ptr(entry: HandleTableEntry, ptr: ObjectBody) {
+        let header = unsafe { get_object_header(ptr as _) };
+        let old_object = unsafe { get_object_header(Self::get_object_ptr(entry) as _) };
         unsafe {
-            NtObject::<T>::increment_ref_count(header);
+            NtObject::increment_ref_count(header);
 
             // no. we cannot simply increment or decrement handle count. we have to invoke OpenProcedure and CloseProcedure
             // like the object manager does. or we fuck up. like i currently do
-            NtObject::<T>::increment_handle_count(header);
+            NtObject::increment_handle_count(header);
 
             // then dereference the actual object this handle points to
-            NtObject::<T>::decrement_handle_count(old_object);
-            NtObject::<T>::decrement_ref_count(old_object);
+            NtObject::decrement_handle_count(old_object);
+            NtObject::decrement_ref_count(old_object);
         }
 
-        let compressed = ((header as u64) & 0x0000ffffffffffff) >> 4;
-        let mut old = unsafe{*entry}; // copy the value locally
+        let compressed = ((header.0 as u64) & 0x0000ffffffffffff) >> 4;
+        let mut old = unsafe { *entry }; // copy the value locally
         let new_value = old.set_bits(20..64, compressed);
         unsafe {
             entry.write_unaligned(*new_value) // write to it

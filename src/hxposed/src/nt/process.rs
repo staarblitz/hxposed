@@ -3,7 +3,6 @@ use crate::nt::lock::pushlock::PushLock;
 use crate::nt::object::NtObject;
 use crate::nt::{EProcessField, EThreadField, get_eprocess_field, get_ethread_field};
 use crate::objects::ObjectTracker;
-use crate::objects::async_obj::AsyncState;
 use crate::utils::danger::DangerPtr;
 use crate::utils::handlebox::HandleBox;
 use crate::win::unicode_string::UnicodeString;
@@ -61,7 +60,7 @@ impl Drop for NtProcess {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                NtObject::<u64>::decrement_ref_count(self.nt_process as _);
+                NtObject::decrement_ref_count_raw(self.nt_process as _);
             }
         }
     }
@@ -89,7 +88,7 @@ impl NtProcess {
 
     pub fn from_ptr_owning(process: PEPROCESS) -> Self {
         let me = Self::open_process(process, true);
-        unsafe { NtObject::<()>::increment_ref_count(me.nt_process as _) };
+        unsafe { NtObject::increment_ref_count_raw(me.nt_process as _) };
         me
     }
 
@@ -108,18 +107,6 @@ impl NtProcess {
     }
 
     pub fn free_hx_info(&self) {
-        let state_ptr =
-            unsafe { *get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
-
-        if !state_ptr.is_null() {
-            let state = unsafe { Box::from_raw(state_ptr) };
-            drop(state);
-
-            unsafe {
-                (state_ptr as *mut u64).write(0);
-            }
-        }
-
         let tracker_ptr = unsafe {
             *get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process)
                 .byte_offset(8)
@@ -136,7 +123,7 @@ impl NtProcess {
     }
 
     pub fn is_hx_info_present(&self) -> bool {
-        unsafe { *get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) }
+        unsafe { *get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process).byte_offset(8) }
             .is_null()
             == false
     }
@@ -145,17 +132,6 @@ impl NtProcess {
         if self.is_hx_info_present() {
             return Err(NtStatus::Unsuccessful);
         }
-        let state = match AsyncState::alloc_new(NtProcess::from_ptr_owning(self.nt_process)) {
-            Ok(x) => x,
-            Err(err) => {
-                let mut logger = GLOBAL_LOGGER.lock();
-                logger.error(LogEvent::FailedToAllocate);
-                return Err(err);
-            }
-        };
-
-        let state_ptr =
-            unsafe { get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
 
         let tracker_ptr = unsafe {
             get_eprocess_field::<*mut ObjectTracker>(EProcessField::Pad, self.nt_process)
@@ -166,10 +142,7 @@ impl NtProcess {
             get_eprocess_field::<u64>(EProcessField::Pad, self.nt_process).byte_offset(16)
         };
 
-        let state = Box::into_raw(state);
-
         unsafe {
-            (state_ptr as *mut u64).write(state.addr() as _);
             (tracker_ptr as *mut u64).write(ObjectTracker::alloc_new() as _);
             hash_ptr.write(Self::get_path_hash(self))
         };
@@ -205,23 +178,8 @@ impl NtProcess {
         }
     }
 
-    pub fn get_hx_async_state(&self) -> Option<&mut AsyncState> {
-        if !self.is_hx_info_present() {
-            return None;
-        }
-
-        let state_ptr =
-            unsafe { get_eprocess_field::<*mut AsyncState>(EProcessField::Pad, self.nt_process) };
-
-        Some(unsafe { &mut **state_ptr })
-    }
-
     pub fn get_object_tracker_unchecked(&self) -> &mut ObjectTracker {
         Self::get_object_tracker(self).unwrap()
-    }
-
-    pub fn get_hx_async_state_unchecked(&self) -> &mut AsyncState {
-        Self::get_hx_async_state(self).unwrap()
     }
 
     pub fn get_object_tracker(&self) -> Option<&mut ObjectTracker> {
@@ -330,8 +288,8 @@ impl NtProcess {
         let ptr = unsafe { get_eprocess_field::<u64>(EProcessField::Token, self.nt_process) };
 
         unsafe {
-            NtObject::<u64>::decrement_ref_count(*ptr as _);
-            NtObject::<u64>::increment_ref_count(token as _);
+            NtObject::decrement_ref_count_raw(*ptr as _);
+            NtObject::increment_ref_count_raw(token as _);
         }
 
         unsafe { ptr.write(token as _) }
