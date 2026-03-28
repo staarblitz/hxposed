@@ -9,6 +9,7 @@ pub(crate) mod rtl_utils;
 pub(crate) mod unicode_string;
 pub(crate) mod winalloc;
 
+use crate::nt::{get_ethread_field, EThreadField};
 use crate::utils::danger::DangerPtr;
 use ::alloc::boxed::Box;
 use ::alloc::vec::Vec;
@@ -16,11 +17,10 @@ use bitfield_struct::bitfield;
 use core::arch::{asm, naked_asm};
 use core::ffi::{c_char, c_void};
 use core::fmt::{Display, Formatter, LowerHex, Write};
-use core::{mem, ptr};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
+use core::{mem, ptr};
 use hxposed_core::services::types::security_fields::TokenPrivilege;
-use crate::nt::{get_ethread_field, EThreadField};
 
 pub type PEPROCESS = *mut c_void;
 pub type PKEVENT = *mut c_void;
@@ -207,7 +207,15 @@ pub enum MemoryCacheType {
 }
 
 #[repr(u32)]
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
+pub enum LockOperation {
+    IoReadAccess = 0,
+    IoWriteAccess = 1,
+    IoModifyAccess = 2,
+}
+
+#[repr(u32)]
+#[derive(Copy, Clone, Default, Debug)]
 pub enum MdlFlags {
     #[default]
     None = 0,
@@ -241,6 +249,10 @@ pub(crate) type ExpLookupHandleTableEntryType =
     unsafe extern "C" fn(PHANDLE_TABLE, _EXHANDLE) -> *mut u64;
 pub(crate) type ExCreateHandleType = unsafe extern "C" fn(PHANDLE_TABLE, PVOID) -> *mut u64;
 
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_KI_SYSTEM_CALL64: u64 = 0;
+#[unsafe(no_mangle)]
+pub(crate) static mut NT_KI_GENERAL_PROTECTION_FAULT: u64 = 0;
 #[unsafe(no_mangle)]
 pub(crate) static mut NT_PS_TERMINATE_PROCESS: u64 = 0;
 #[unsafe(no_mangle)]
@@ -361,9 +373,15 @@ unsafe extern "C" {
         Irp: PVOID,
     ) -> *mut MDL;
 
+    pub fn MmUnlockPages(Mdl: *mut MDL);
     pub fn MmFreePagesFromMdl(Mdl: *mut MDL);
     pub fn MmUnmapLockedPages(Va: PVOID, Mdl: *mut MDL);
     pub fn MmBuildMdlForNonPagedPool(Mdl: *mut MDL);
+    pub fn MmProbeAndLockPages(
+        Mdl: *mut MDL,
+        AccessMode: ProcessorMode,
+        Operation: LockOperation
+    ) -> c_void;
     pub fn MmAllocatePagesForMdlEx(
         Low: i64,
         High: i64,
@@ -387,9 +405,14 @@ unsafe extern "C" {
     pub fn MmGetPhysicalAddress(Va: PVOID) -> u64;
     pub fn MmGetVirtualForPhysical(Pa: u64) -> PVOID;
 
-
     pub fn KeDelayExecutionThread(WaitMode: ProcessorMode, Alertable: Boolean, interval: *mut i64);
-    pub fn KeRegisterBugCheckCallback(CallbackRecord: &mut KBUGCHECK_CALLBACK_RECORD, CallbackRoutine: PVOID, Buffer: PVOID, Length: PVOID, Component: PUCHAR) ->Boolean;
+    pub fn KeRegisterBugCheckCallback(
+        CallbackRecord: &mut KBUGCHECK_CALLBACK_RECORD,
+        CallbackRoutine: PVOID,
+        Buffer: PVOID,
+        Length: PVOID,
+        Component: PUCHAR,
+    ) -> Boolean;
     pub fn KeBugCheckEx(Code: u64, Param1: u64, Param2: u64, Param3: u64, Param4: u64) -> !;
     pub fn KeStackAttachProcess(Process: PEPROCESS, ApcState: *mut KAPC_STATE);
     pub fn KeUnstackDetachProcess(ApcState: *mut KAPC_STATE);
@@ -448,7 +471,7 @@ pub struct KBUGCHECK_CALLBACK_RECORD {
     pub Length: u32,
     pub Component: PUCHAR,
     pub Checksum: PVOID,
-    pub State: *mut u8
+    pub State: *mut u8,
 }
 
 #[repr(C)]
@@ -542,7 +565,7 @@ pub struct LDR_DATA_TABLE_ENTRY {
     pub NonPagedDebugInfo: *mut c_void,
     pub DllBase: *mut c_void,
     pub EntryPoint: *mut c_void,
-    pub SizeOfImage: u32
+    pub SizeOfImage: u32,
 }
 
 #[repr(u32)]
