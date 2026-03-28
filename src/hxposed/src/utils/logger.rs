@@ -3,13 +3,13 @@ use alloc::boxed::Box;
 use x86::io::outb;
 
 #[repr(C)]
-pub struct HvLogger {
+pub struct HxLogger {
     buffer: Box<[LogEntry; 4096 * 8]>,
     cursor: usize,
     cycle: u32
 }
 
-impl HvLogger {
+impl HxLogger {
     pub fn new() -> Self {
         Self {
             buffer: unsafe { Box::new_zeroed().assume_init() },
