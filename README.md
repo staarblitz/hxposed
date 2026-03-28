@@ -1,4 +1,4 @@
-# HxPosed - Your kernel eXposed.
+# HxPosed - Kernel eXposed.
 A syscall-based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
 
 Demo: [YouTube](https://www.youtube.com/watch?v=EzxZ9oxnZNE)
