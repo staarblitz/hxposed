@@ -12,7 +12,6 @@ use hashbrown::HashMap;
 use hxposed_core::hxposed::*;
 use spin::mutex::SpinMutex;
 
-pub(crate) mod async_obj;
 
 pub static CALLER_PROCESSES: SpinMutex<Vec<NtProcess>> = SpinMutex::new(Vec::new());
 

@@ -9,10 +9,11 @@ use crate::win::{
 };
 use core::hash::{Hash, Hasher};
 use hxposed_core::hxposed::requests::notify::ObjectState;
-use hxposed_core::hxposed::responses::VmcallResponse;
+use hxposed_core::hxposed::responses::SyscallResponse;
 use hxposed_core::hxposed::responses::notify::CallbackInformation;
 use hxposed_core::hxposed::{CallbackObject, ObjectType};
 use spin::Mutex;
+use crate::nt::mm::mdl::MemoryDescriptor;
 
 static RNG: Mutex<SimpleCounter> = Mutex::new(SimpleCounter { state: 1 });
 
@@ -21,6 +22,7 @@ pub struct NtCallback {
     pub active: bool,
     pub callback: CallbackObject,
     pub event: NtEvent,
+    pub memory: MemoryDescriptor
 }
 
 impl Hash for NtCallback {
@@ -33,12 +35,14 @@ unsafe impl Send for NtCallback {}
 unsafe impl Sync for NtCallback {}
 
 impl NtCallback {
-    pub fn new(object_type: ObjectType, event: NtEvent) -> Self {
+    /// memory must be locked!
+    pub fn new(object_type: ObjectType, event: NtEvent, memory: MemoryDescriptor) -> Self {
         Self {
             object_type,
             active: true,
             callback: RNG.lock().next_u32() as _,
             event,
+            memory
         }
     }
 
@@ -82,7 +86,6 @@ impl NtCallback {
 
         CALLER_PROCESSES.lock().iter_mut().for_each(|nt| {
             let object_tracker = nt.get_object_tracker_unchecked();
-            let async_state = nt.get_hx_async_state_unchecked();
 
             for (_, callback) in &mut object_tracker.callbacks {
                 if callback.object_type != ObjectType::Process(0) {
@@ -99,9 +102,16 @@ impl NtCallback {
                     },
                 };
 
-                let offset = async_state.write_type(callback_info);
-                async_state.write_type_no_ring(0, offset as u32);
-
+                unsafe {
+                    let ptr = match callback.memory.get_system_address_safe() {
+                        Ok(ptr) => ptr as *mut CallbackInformation,
+                        Err(_) => {
+                            // log?
+                            continue
+                        }
+                    };
+                    ptr.write_volatile(callback_info);
+                }
                 callback.event.signal();
             }
         })
@@ -110,7 +120,6 @@ impl NtCallback {
     unsafe extern "C" fn thread_callback(_process_id: HANDLE, thread_id: HANDLE, create: Boolean) {
         CALLER_PROCESSES.lock().iter_mut().for_each(|nt| {
             let object_tracker = nt.get_object_tracker_unchecked();
-            let async_state = nt.get_hx_async_state_unchecked();
 
             for (_, callback) in &mut object_tracker.callbacks {
                 if callback.object_type != ObjectType::Thread(0) {
@@ -127,8 +136,16 @@ impl NtCallback {
                     },
                 };
 
-                let offset = async_state.write_type(callback_info);
-                async_state.write_type_no_ring(0, offset as u32);
+                unsafe {
+                    let ptr = match callback.memory.get_system_address_safe() {
+                        Ok(ptr) => ptr as *mut CallbackInformation,
+                        Err(_) => {
+                            // log?
+                            continue
+                        }
+                    };
+                    ptr.write_volatile(callback_info);
+                }
 
                 callback.event.signal();
             }
