@@ -8,20 +8,20 @@ use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::requests::memory::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::memory::*;
-use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
+use hxposed_core::hxposed::responses::{HxResponse, SyscallResponse};
 
 // I hate this so much
-pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorResponse {
+pub fn get_set_page_attribute(request: PageAttributeRequest) -> HxResponse {
     let cr = NtProcess::from_ptr(request.addr_space as _).get_user_directory_table_base();
     let _ctx = Cr3Context::begin(cr.into());
 
     let resp = match request.paging_type {
-        PagingType::Unknown => return HypervisorResponse::invalid_params(0),
+        PagingType::Unknown => return HxResponse::invalid_params(0),
         PagingType::Pml5(_) => unreachable!("No elegant way to choose between pml5 and 4 yet"),
         PagingType::Pml4(va) => unsafe {
             let field = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
             match request.operation {
                 PageAttributeOperation::Set => {
@@ -34,15 +34,15 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
         PagingType::Pdp(va) => unsafe {
             let pml4 = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
                 Ok(field) if !(*field).present() => {
-                    return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
+                    return HxResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
 
             let field = match (*pml4).walk_down(va.get_pdp_index()) {
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
             match request.operation {
                 PageAttributeOperation::Set => {
@@ -55,23 +55,23 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
         PagingType::Pd(va) => unsafe {
             let pml4 = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
                 Ok(field) if !(*field).present() => {
-                    return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
+                    return HxResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
 
             let pdp = match (*pml4).walk_down(va.get_pdp_index()) {
                 Ok(field) if !(*field).present() => {
-                    return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
+                    return HxResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
 
             let field = match (*pdp).walk_down(va.get_pd_index()) {
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
             match request.operation {
                 PageAttributeOperation::Set => {
@@ -84,31 +84,31 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
         PagingType::Pt(va) => unsafe {
             let pdp = match PageMapLevel4::from_phys(cr, va.get_pml4_index()) {
                 Ok(field) if !(*field).present() => {
-                    return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
+                    return HxResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
 
             let pdp = match (*pdp).walk_down(va.get_pdp_index()) {
                 Ok(field) if !(*field).present() => {
-                    return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
+                    return HxResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
 
             let pd = match (*pdp).walk_down(va.get_pd_index()) {
                 Ok(field) if !(*field).present() => {
-                    return HypervisorResponse::not_found_what(NotFoundReason::Mdl);
+                    return HxResponse::not_found_what(NotFoundReason::Mdl);
                 }
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
 
             let field = match (*pd).walk_down(va.get_pt_index()) {
                 Ok(field) => field,
-                Err(_) => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+                Err(_) => return HxResponse::not_found_what(NotFoundReason::Mdl),
             };
             match request.operation {
                 PageAttributeOperation::Set => {
@@ -127,14 +127,14 @@ pub fn get_set_page_attribute(request: PageAttributeRequest) -> HypervisorRespon
     }
 }
 
-pub fn translate_address(request: TranslateAddressRequest) -> HypervisorResponse {
+pub fn translate_address(request: TranslateAddressRequest) -> HxResponse {
     let current = NtProcess::current();
     let process = match current
         .get_object_tracker_unchecked()
         .get_open_process(request.addr_space)
     {
         Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+        None => return HxResponse::not_found_what(NotFoundReason::Process),
     };
 
     let _cr3 = Cr3Context::begin(process.get_user_directory_table_base().into());
@@ -145,39 +145,39 @@ pub fn translate_address(request: TranslateAddressRequest) -> HypervisorResponse
             match PageMapLevel4::from_phys(Pa::from(request.addr_space), virt.get_pml4_index()) {
                 Ok(x) => x,
                 Err(_) => {
-                    return HypervisorResponse::invalid_params(0);
+                    return HxResponse::invalid_params(0);
                 }
             };
         if !(*pml4).present() {
-            return HypervisorResponse::invalid_params(1);
+            return HxResponse::invalid_params(1);
         }
         let pdp = match (*pml4).walk_down(virt.get_pdp_index()) {
             Ok(x) => x,
             Err(_) => {
-                return HypervisorResponse::invalid_params(2);
+                return HxResponse::invalid_params(2);
             }
         };
         if !(*pdp).present() {
-            return HypervisorResponse::invalid_params(3);
+            return HxResponse::invalid_params(3);
         }
         let pd = match (*pdp).walk_down(virt.get_pd_index()) {
             Ok(x) => x,
             Err(_) => {
-                return HypervisorResponse::invalid_params(4);
+                return HxResponse::invalid_params(4);
             }
         };
         if !(*pd).present() {
-            return HypervisorResponse::invalid_params(5);
+            return HxResponse::invalid_params(5);
         }
 
         let pt = match (*pd).walk_down(virt.get_pt_index()) {
             Ok(x) => x,
             Err(_) => {
-                return HypervisorResponse::invalid_params(7);
+                return HxResponse::invalid_params(7);
             }
         };
         if !(*pt).present() {
-            return HypervisorResponse::invalid_params(7);
+            return HxResponse::invalid_params(7);
         }
 
         TranslateAddressResponse {
@@ -188,7 +188,7 @@ pub fn translate_address(request: TranslateAddressRequest) -> HypervisorResponse
     }
 }
 
-pub fn map_va_to_pa(request: MapRmdRequest) -> HypervisorResponse {
+pub fn map_va_to_pa(request: MapRmdRequest) -> HxResponse {
     // that's lame.
     // should I add a dispatcher?
     match request.operation {
@@ -199,34 +199,34 @@ pub fn map_va_to_pa(request: MapRmdRequest) -> HypervisorResponse {
     let process = NtProcess::from_ptr(request.addr_space as _);
     let tracker = process.get_object_tracker_unchecked();
     let rmd = match tracker.get_rmd(request.object) {
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+        None => return HxResponse::not_found_what(NotFoundReason::Mdl),
         Some(x) => x,
     };
 
     match rmd.map(process.clone(), request.map_addr) {
         Ok(_) => EmptyResponse::default(),
-        Err(_) => HypervisorResponse::not_allowed(NotAllowedReason::MappingsExist),
+        Err(_) => HxResponse::not_allowed(NotAllowedReason::MappingsExist),
     }
 }
 
-pub fn unmap_va(request: MapRmdRequest) -> HypervisorResponse {
+pub fn unmap_va(request: MapRmdRequest) -> HxResponse {
     let process = NtProcess::from_ptr(request.addr_space as _);
     let tracker = process.get_object_tracker_unchecked();
     let rmd = match tracker.get_rmd(request.object) {
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+        None => return HxResponse::not_found_what(NotFoundReason::Mdl),
         Some(x) => x,
     };
 
     match rmd.find_map(&process, request.map_addr) {
-        None => HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+        None => HxResponse::not_found_what(NotFoundReason::Mdl),
         Some(x) => match rmd.unmap(&x) {
             Ok(_) => EmptyResponse::default(),
-            Err(_) => HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+            Err(_) => HxResponse::not_found_what(NotFoundReason::Mdl),
         },
     }
 }
 
-pub fn describe_memory(request: DescribeMemoryRequest) -> HypervisorResponse {
+pub fn describe_memory(request: DescribeMemoryRequest) -> HxResponse {
     let process = NtProcess::current();
     let tracker = process.get_object_tracker_unchecked();
     tracker.add_rmd(RawMemoryDescriptor::describe_physical(
@@ -237,7 +237,7 @@ pub fn describe_memory(request: DescribeMemoryRequest) -> HypervisorResponse {
     DescribeMemoryResponse { rmd: request.pa }.into_raw()
 }
 
-pub fn allocate_memory(request: AllocateMemoryRequest) -> HypervisorResponse {
+pub fn allocate_memory(request: AllocateMemoryRequest) -> HxResponse {
     let rmd = RawMemoryDescriptor::new_alloc(request.size, request.memory_type);
     let ptr: u64 = rmd.pa.into();
     NtProcess::current()
@@ -247,17 +247,17 @@ pub fn allocate_memory(request: AllocateMemoryRequest) -> HypervisorResponse {
     AllocateMemoryResponse { rmd: ptr }.into_raw()
 }
 
-pub fn free_memory(request: FreeMemoryRequest) -> HypervisorResponse {
+pub fn free_memory(request: FreeMemoryRequest) -> HxResponse {
     let process = NtProcess::current();
     let tracker = process.get_object_tracker_unchecked();
     match tracker.pop_rmd(request.obj) {
-        None => HypervisorResponse::not_found_what(NotFoundReason::Mdl),
+        None => HxResponse::not_found_what(NotFoundReason::Mdl),
         Some(x) => match x.free() {
             Ok(_) => EmptyResponse::default(),
             Err(_) => {
                 // add it back
                 tracker.add_rmd(x);
-                HypervisorResponse::not_allowed(NotAllowedReason::MappingsExist)
+                HxResponse::not_allowed(NotAllowedReason::MappingsExist)
             }
         },
     }

@@ -4,19 +4,19 @@ use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::requests::thread::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::thread::*;
-use hxposed_core::hxposed::responses::{HypervisorResponse, OpenObjectResponse, VmcallResponse};
+use hxposed_core::hxposed::responses::{HxResponse, OpenObjectResponse, SyscallResponse};
 use hxposed_core::hxposed::ObjectType;
 
-pub(crate) fn get_thread_field_sync(request: GetThreadFieldRequest) -> HypervisorResponse {
+pub(crate) fn get_thread_field_sync(request: GetThreadFieldRequest) -> HxResponse {
     let process = NtProcess::current();
     let tracker = process.get_object_tracker_unchecked();
     let thread = match tracker.get_open_thread(request.thread) {
         Some(thread) => thread,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+        None => return HxResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.field {
-        ThreadField::Unknown => return HypervisorResponse::invalid_params(0),
+        ThreadField::Unknown => return HxResponse::invalid_params(0),
         ThreadField::ActiveImpersonationInfo(_) => {
             GetThreadFieldResponse::ActiveImpersonationInfo(thread.get_impersonation_info())
         }
@@ -27,28 +27,28 @@ pub(crate) fn get_thread_field_sync(request: GetThreadFieldRequest) -> Hyperviso
     .into_raw()
 }
 
-pub(crate) fn set_thread_field_sync(request: SetThreadFieldRequest) -> HypervisorResponse {
+pub(crate) fn set_thread_field_sync(request: SetThreadFieldRequest) -> HxResponse {
     let process = NtProcess::current();
     let thread = match process
         .get_object_tracker_unchecked()
         .get_open_thread(request.thread)
     {
         Some(thread) => thread,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+        None => return HxResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.field {
         ThreadField::AdjustedClientToken(token) => {
             let token = match process.get_object_tracker_unchecked().get_open_token(token) {
                 Some(x) => x,
-                None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
+                None => return HxResponse::not_found_what(NotFoundReason::Token),
             };
 
             thread.set_adjusted_client_token(token.nt_token);
 
             EmptyResponse::default()
         }
-        _ => HypervisorResponse::invalid_params(0),
+        _ => HxResponse::invalid_params(0),
     }
 }
 
@@ -58,14 +58,14 @@ pub(crate) fn set_thread_field_sync(request: SetThreadFieldRequest) -> Hyperviso
 /// References `_ETHREAD` to plugin's virtual object table.
 ///
 /// ## Return
-/// * [`HypervisorResponse::not_found_what`] - Not found.
-/// * [`HypervisorResponse::nt_error`] - NT side error.
+/// * [`HxResponse::not_found_what`] - Not found.
+/// * [`HxResponse::nt_error`] - NT side error.
 /// * [`OpenObjectResponse`] - Object's address (or handle)
-pub(crate) fn open_thread_sync(request: OpenThreadRequest) -> HypervisorResponse {
+pub(crate) fn open_thread_sync(request: OpenThreadRequest) -> HxResponse {
     let process = NtProcess::current();
     let thread = match NtThread::from_id(request.tid) {
         Some(x) => x,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+        None => return HxResponse::not_found_what(NotFoundReason::Thread),
     };
 
     let rep = OpenObjectResponse {
@@ -84,14 +84,14 @@ pub(crate) fn open_thread_sync(request: OpenThreadRequest) -> HypervisorResponse
 ///
 /// ## Return
 /// * [`EmptyResponse`] - OK.
-/// * [`HypervisorResponse::not_found`] - Thread was not found.
-pub(crate) fn close_thread_sync(request: CloseThreadRequest) -> HypervisorResponse {
+/// * [`HxResponse::not_found`] - Thread was not found.
+pub(crate) fn close_thread_sync(request: CloseThreadRequest) -> HxResponse {
     let process = NtProcess::current();
     match process
         .get_object_tracker_unchecked()
         .pop_open_thread(request.thread)
     {
-        None => HypervisorResponse::not_found_what(NotFoundReason::Thread),
+        None => HxResponse::not_found_what(NotFoundReason::Thread),
         Some(x) => {
             drop(x);
             EmptyResponse::default()

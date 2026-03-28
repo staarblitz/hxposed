@@ -1,4 +1,3 @@
-use crate::hypervisor::vcpu::Vmcs;
 use crate::utils::intrin::{rdmsr_failsafe, wrmsr_failsafe};
 use core::arch::asm;
 use bit_field::BitField;
@@ -10,29 +9,25 @@ use hxposed_core::hxposed::requests::io::{
 };
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::io::{MsrIoResponse, PrivilegedInstructionResponse};
-use hxposed_core::hxposed::responses::{HypervisorResponse, VmcallResponse};
-use crate::hypervisor::vmfs::HvFs;
-use crate::utils;
+use hxposed_core::hxposed::responses::{HxResponse, SyscallResponse};
 
-pub fn rw_msr(request: MsrIoRequest) -> HypervisorResponse {
+pub fn rw_msr(request: MsrIoRequest) -> HxResponse {
     match request.operation {
         MsrOperation::Read => match rdmsr_failsafe(request.msr) {
             Some(value) => MsrIoResponse { value }.into_raw(),
-            None => HypervisorResponse::not_allowed(NotAllowedReason::AccessViolation),
+            None => HxResponse::not_allowed(NotAllowedReason::AccessViolation),
         },
         MsrOperation::Write => match wrmsr_failsafe(request.msr, request.value) {
             Some(_) => EmptyResponse::default(),
-            None => HypervisorResponse::not_allowed(NotAllowedReason::AccessViolation),
+            None => HxResponse::not_allowed(NotAllowedReason::AccessViolation),
         },
     }
 }
 
-pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HypervisorResponse {
-    match request.instruction {
+pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HxResponse {
+    /*match request.instruction {
         PrivilegedInstruction::Hlt => {
-            const ACTIVITY_STATE_HLT: u64 = 2;
-            // set the guest activity state to HLT
-            Vmcs::vmwrite(vmcs::guest::ACTIVITY_STATE, ACTIVITY_STATE_HLT);
+
         },
         PrivilegedInstruction::MovToCr8(cr8) => {
             unsafe {
@@ -84,7 +79,7 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HypervisorRespo
             (*HvFs::get_current()).registers.rflags = rflags;
         },
         PrivilegedInstruction::Unknown => return HypervisorResponse::invalid_params(0)
-    };
+    };*/
 
     EmptyResponse::default()
 }

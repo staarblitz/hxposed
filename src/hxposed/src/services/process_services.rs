@@ -1,10 +1,10 @@
 use crate::nt::process::NtProcess;
-use hxposed_core::hxposed::error::NotFoundReason;
+use hxposed_core::hxposed::ObjectType;
+use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::*;
-use hxposed_core::hxposed::responses::{HypervisorResponse, OpenObjectResponse, VmcallResponse};
-use hxposed_core::hxposed::ObjectType;
+use hxposed_core::hxposed::responses::{HxResponse, OpenObjectResponse, SyscallResponse};
 
 ///
 /// # Set Process Field (Sync)
@@ -18,18 +18,18 @@ use hxposed_core::hxposed::ObjectType;
 /// - Caller must signal the request *after* calling this function.
 ///
 /// ## Return
-/// * [`HypervisorResponse::nt_error`] - An error occurred writing to the user buffer.
-/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
-/// * [`HypervisorResponse::invalid_params`] - Invalid buffer.
+/// * [`HxResponse::nt_error`] - An error occurred writing to the user buffer.
+/// * [`HxResponse::not_allowed_perms`] - The plugin lacks the required permissions.
+/// * [`HxResponse::invalid_params`] - Invalid buffer.
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
-pub(crate) fn set_process_field_sync(request: SetProcessFieldRequest) -> HypervisorResponse {
+pub(crate) fn set_process_field_sync(request: SetProcessFieldRequest) -> HxResponse {
     let process = NtProcess::current();
     let mut process = match process
         .get_object_tracker_unchecked()
         .get_open_process(request.process as _)
     {
         Some(process) => process,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+        None => return HxResponse::not_found_what(NotFoundReason::Thread),
     };
 
     match request.field {
@@ -56,14 +56,14 @@ pub(crate) fn set_process_field_sync(request: SetProcessFieldRequest) -> Hypervi
         ProcessField::Token(token) => {
             let token = match process.get_object_tracker_unchecked().get_open_token(token) {
                 Some(x) => x,
-                None => return HypervisorResponse::not_found_what(NotFoundReason::Token),
+                None => return HxResponse::not_found_what(NotFoundReason::Token),
             };
 
             process.set_token(token.nt_token);
 
             EmptyResponse::default()
         }
-        _ => HypervisorResponse::not_found_what(NotFoundReason::Field),
+        _ => HxResponse::not_found_what(NotFoundReason::Field),
     }
 }
 
@@ -79,27 +79,30 @@ pub(crate) fn set_process_field_sync(request: SetProcessFieldRequest) -> Hypervi
 /// - Caller must signal the request *after* calling this function.
 ///
 /// ## Return
-/// * [`HypervisorResponse::nt_error`] - An error occurred writing to the user buffer.
-/// * [`HypervisorResponse::not_allowed_perms`] - The plugin lacks the required permissions.
+/// * [`HxResponse::nt_error`] - An error occurred writing to the user buffer.
+/// * [`HxResponse::not_allowed_perms`] - The plugin lacks the required permissions.
 /// * [`GetProcessFieldResponse::NtPath`] - Number of bytes for the name. Also, depending on if the caller allocated the buffer, name is written to buffer.
 ///
-pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> HypervisorResponse {
+pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> HxResponse {
     let process = NtProcess::current();
-    let state = process.get_hx_async_state_unchecked();
     let process = match process
         .get_object_tracker_unchecked()
         .get_open_process(request.process as _)
     {
         Some(process) => process,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Thread),
+        None => return HxResponse::not_found_what(NotFoundReason::Thread),
     };
 
     let field = match request.field {
-        ProcessField::NtPath(_) => {
-            let field = process.get_nt_path();
-            let raw_string = field.get_raw_bytes();
-            let offset = state.write_result(raw_string);
-            ProcessField::NtPath(offset)
+        ProcessField::NtPath(ptr) => {
+            let path = process.get_nt_path();
+            match microseh::try_seh(|| unsafe {
+                core::ptr::copy_nonoverlapping(path.as_ptr(), ptr as *mut u16, path.len())
+            }) {
+                Ok(_) => {}
+                Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
+            };
+            ProcessField::NtPath(path.len() as _)
         }
         ProcessField::Protection(_) => ProcessField::Protection(process.get_protection()),
         ProcessField::Signers(_) => ProcessField::Signers(process.get_signers()),
@@ -107,10 +110,15 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
             ProcessField::MitigationFlags(process.get_mitigations())
         }
         ProcessField::Token(_) => ProcessField::Token(process.get_token() as _),
-        ProcessField::Threads(_) => {
-            let thread_numbers = process.get_threads();
-            let offset = state.write_result(thread_numbers.as_slice());
-            ProcessField::Threads(offset)
+        ProcessField::Threads(ptr) => {
+            let threads = process.get_threads();
+            match microseh::try_seh(|| unsafe {
+                core::ptr::copy_nonoverlapping(threads.as_ptr(), ptr as *mut u32, threads.len())
+            }) {
+                Ok(_) => {}
+                Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
+            };
+            ProcessField::Threads(threads.len() as _)
         }
         ProcessField::DirectoryTableBase(_) => {
             ProcessField::DirectoryTableBase(process.get_directory_table_base().into())
@@ -135,14 +143,14 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> Hypervi
 /// * `plugin` - [`Plugin`]
 ///
 /// ## Return
-/// * [`HypervisorResponse::ok`] - Process was closed.
-/// * [`HypervisorResponse::not_allowed`] - Something went very wrong.
-pub(crate) fn close_process(request: CloseProcessRequest) -> HypervisorResponse {
+/// * [`HxResponse::ok`] - Process was closed.
+/// * [`HxResponse::not_allowed`] - Something went very wrong.
+pub(crate) fn close_process(request: CloseProcessRequest) -> HxResponse {
     match NtProcess::current()
         .get_object_tracker_unchecked()
         .pop_open_process(request.process as _)
     {
-        None => HypervisorResponse::not_found_what(NotFoundReason::Process),
+        None => HxResponse::not_found_what(NotFoundReason::Process),
         Some(process) => {
             drop(process);
             EmptyResponse::default()
@@ -150,12 +158,12 @@ pub(crate) fn close_process(request: CloseProcessRequest) -> HypervisorResponse 
     }
 }
 
-pub(crate) fn open_process(request: OpenProcessRequest) -> HypervisorResponse {
+pub(crate) fn open_process(request: OpenProcessRequest) -> HxResponse {
     let caller = NtProcess::current();
 
     let process = match NtProcess::from_id(request.process_id) {
         Some(process) => process,
-        None => return HypervisorResponse::not_found_what(NotFoundReason::Process),
+        None => return HxResponse::not_found_what(NotFoundReason::Process),
     };
     let uid = process.nt_process as u64;
     caller
