@@ -29,6 +29,10 @@ hx_syscall_entry:
     mov rcx, [rcx]          # set first arg to hxfs
 
     sub rsp, 32
+
+    # kpti is assumed to be OFF! otherwise we would load real kernel CR3 from gs:0B000h
+    # disable kpti through setting FeatureSettingsOverrideMask to 3 in HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management
+
     call syscall_handler    # fresh air
     add rsp, 32
 
