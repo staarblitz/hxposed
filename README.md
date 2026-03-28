@@ -1,9 +1,9 @@
-# HxPosed - Hypervisor eXposed.
-A hypervisor based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
+# HxPosed - Your kernel eXposed.
+A syscall-based service provider aiming to expose depths of NT kernel to user mode. In a safe way.
 
 Demo: [YouTube](https://www.youtube.com/watch?v=EzxZ9oxnZNE)
 
-HxPosed grants you hypervisor and kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
+HxPosed grants you kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
 
 And yes, we mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
 - A safe API written in Rust (available for C/C# too),
@@ -173,168 +173,54 @@ HxPosed utilizes object reference counting just like Windows NT does to keep sta
 
 #### Opening/creating handles:
 ```rust
-impl<T> NtObject<T> {
-    pub fn from_ptr(ptr: *mut T) -> Self {
+pub struct NtObject {
+    pub object_addr: ObjectBody,
+}
+
+impl Drop for NtObject {
+    fn drop(&mut self) {
         unsafe {
-            Self::increment_ref_count(ptr as _);
+            Self::decrement_ref_count(get_object_header(self.object_addr as _) as _);
+        }
+    }
+}
+
+impl NtObject {
+    pub fn from_ptr(ptr: ObjectBody) -> Self {
+        unsafe {
+            Self::increment_ref_count(get_object_header(ptr));
         }
         Self { object_addr: ptr }
     }
 
-    pub unsafe fn increment_ref_count(object: *mut c_void) {
-        let header = unsafe { object.byte_offset(-0x30) };
-        interlocked_increment(header as _);
+    pub unsafe fn increment_ref_count(obj_header: ObjectHeader) {
+        interlocked_increment(obj_header.0);
     }
 
-    pub unsafe fn decrement_ref_count(object: *mut c_void) {
-        let header = unsafe { object.byte_offset(-0x30) };
-        interlocked_decrement(header as _);
+    pub unsafe fn increment_handle_count(obj_header: ObjectHeader) {
+        interlocked_increment(obj_header.0.byte_offset(8));
     }
 
-    pub unsafe fn increment_handle_count(object: *mut c_void) {
-        let header = unsafe { object.byte_offset(-0x28) };
-        interlocked_increment(header as _);
+    pub unsafe fn increment_ref_count_raw(obj_body: *mut c_void) {
+        Self::increment_ref_count(get_object_header(ObjectBody(obj_body as _)));
     }
 
-    pub unsafe fn decrement_handle_count(object: *mut c_void) {
-        let header = unsafe { object.byte_offset(-0x28) };
-        interlocked_decrement(header as _);
-    }
-
-    pub fn from_handle(handle: HANDLE, table: PHANDLE_TABLE) -> Result<NtObject<T>, ()> {
-        let handle = handle as u64;
-        let exhandle = _EXHANDLE { Value: handle };
-        let handle_table_entry = unsafe { ExpLookupHandleTableEntry(table, exhandle) };
-        if handle_table_entry.is_null() {
-            return Err(());
-        }
-
-        let object_pointer = unsafe { *(handle_table_entry) }.get_bits(20..64);
-        let object_header = (object_pointer << 4 | 0xffff000000000000) as *mut c_void; // decode bitmask to get real ptr
-
-        // object body is always after object header. so we add sizeof(OBJECT_HEADER) which is 0x30 to get object itself
-        let object_body = unsafe { get_object_body(object_header) } as *mut T;
-
-        // increment ref count manually so when handle is closed, the object won't be dropped.
-
-        Ok(Self::from_ptr(object_body))
-    }
-
-    pub fn create_handle(object: *mut T, table: PHANDLE_TABLE) -> Result<HANDLE, ()> {
-        let handle = unsafe { ExCreateHandle(table, get_object_header(object as _) as _) };
-
-        let exhandle = _EXHANDLE { Value: handle as _ };
-
-        // so we need to look up the entry again, because ExCreateHandle grants 0 accesses.
-        let entry = unsafe { ExpLookupHandleTableEntry(table, exhandle) };
-        if entry.is_null() {
-            return Err(());
-        }
-
-        let entry = unsafe { &mut *entry };
-
-        // give all access
-        entry.set_bits(0..25, 0x1FFFFFF);
-
-        let object_pointer = entry.get_bits(20..64);
-        let object_header = (object_pointer << 4 | 0xffff000000000000) as *mut c_void;
-        let object = unsafe { get_object_body(object_header) };
-
-        // we have to increment BOTH handle and pointer count since ExCreateHandle does none of that
-        unsafe {
-            Self::increment_handle_count(object);
-            Self::increment_ref_count(object);
-        }
-
-        Ok(handle as _)
+    pub unsafe fn increment_handle_count_raw(obj_body: *mut c_void) {
+        Self::increment_handle_count(get_object_header(ObjectBody(obj_body as _)));
     }
 }
-```
 
-#### Using registry
-```rust
-impl NtKey {
-    pub fn open(path: &str) -> Result<NtKey, NtStatus> {
-        let unicode_string = UnicodeString::new(path);
-        let mut str = unicode_string.to_unicode_string();
-        let mut attr = init_object_attributes(
-            &mut str,
-            ObjectAttributes::KernelHandle,
-            Default::default(),
-            Default::default(),
-        );
-        let mut handle = HANDLE::default();
+impl NtHandle {
+    pub fn get_object_ptr(entry: HandleTableEntry) -> ObjectBody {
+        let object_pointer = unsafe { *entry }.get_bits(20..64);
+        let object_header = (object_pointer << 4 | 0xffff000000000000) as *mut c_void; // decode bitmask to get real ptr
 
-        match unsafe { ZwOpenKey(&mut handle, KeyAccessRights::All, &mut attr) } {
-            NtStatus::Success => {}
-            err => return Err(err),
-        }
-
-        let mut return_size = u32::default();
-        let mut info = KEY_FULL_INFORMATION::alloc_sized(512);
-
-        match unsafe {
-            ZwQueryKey(
-                handle,
-                KeyInformationClass::KeyFullInformation,
-                as_pvoid!(info),
-                512,
-                &mut return_size,
-            )
-        } {
-            NtStatus::Success => {}
-            err => return Err(err),
-        }
-
-        Ok(Self {
-            path: String::from_str(path).unwrap(),
-            handle: HandleBox::new(handle),
-            num_values: info.Values as _,
-        })
+        // object body is always after object header. so we add sizeof(OBJECT_HEADER) (and -8) which is 0x30 to get object itself
+        unsafe { get_object_body(ObjectHeader(object_header as _)) }
     }
 
-    pub fn get_value_string(&self, value: &str) -> Result<UnicodeString, NtStatus> {
-        let value_ptr = self.get_value::<u16>(value)?;
-        Ok(UnicodeString::from_raw(value_ptr))
-    }
-
-    pub fn get_value<T>(&self, value: &str) -> Result<&mut T, NtStatus> {
-        let mut return_size = u32::default();
-        let mut info: Box<KEY_VALUE_FULL_INFORMATION>;
-        let string = UnicodeString::new(value);
-        let mut value_name = string.to_unicode_string();
-
-        match unsafe {
-            ZwQueryValueKey(
-                self.handle.get_danger(),
-                &mut value_name,
-                KeyValueInformationClass::KeyValueFullInformation,
-                null_mut(),
-                0,
-                &mut return_size,
-            )
-        } {
-            NtStatus::BufferTooSmall => {}
-            err => return Err(err),
-        };
-
-        info = KEY_VALUE_FULL_INFORMATION::alloc_sized(return_size as usize);
-
-        match unsafe {
-            ZwQueryValueKey(
-                self.handle.get_danger(),
-                &mut value_name,
-                KeyValueInformationClass::KeyValueFullInformation,
-                as_pvoid!(info),
-                return_size,
-                &mut return_size,
-            )
-        } {
-            NtStatus::Success => {}
-            err => return Err(err),
-        };
-
-        Ok(unsafe { &mut *get_data!(info, T) })
+    pub fn get_granted_access(entry: HandleTableEntry) -> u32 {
+        unsafe { entry.add(1).read_unaligned() }.get_bits(0..25) as _
     }
 }
 ```
@@ -478,7 +364,7 @@ HxPosed is not just a framework. It's a knowledge base you can learn Windows int
 `src` contains the code written in Rust.
 - `hxloader` a "bootkit" that patches the Windows boot process so you can load HxPosed.
 - `hxposed_core` core API providing access to hypervisor.
-- `hxposed` the kernel driver and hypervisor.
+- `hxposed` the kernel driver.
 
 `tools` contains the tools for using HxPosed.
 - `HxPosed.Core` wrapper over libhxposed providing C# layer access to hypervisor.
