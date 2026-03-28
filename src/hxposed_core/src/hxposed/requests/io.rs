@@ -14,42 +14,42 @@ pub enum PrivilegedInstruction {
     MovToCr3(u64),
     MovFromCr8(u64),
     MovFromCr3(u64),
-    Lgdt(u64, u16),
-    Lidt(u64, u16),
-    Sgdt(u64, u16),
-    Sidt(u64, u16),
+    Lgdt(u64),
+    Lidt(u64),
+    Sgdt(u64),
+    Sidt(u64),
     MovToRFlags(u64),
     Unknown
 }
 
 impl PrivilegedInstruction {
-    pub const fn into_raw(self) -> (u64, u64, u16) {
+    pub const fn into_raw(self) -> (u64, u64) {
         match self {
-            PrivilegedInstruction::Hlt => (0, 0, 0),
-            PrivilegedInstruction::MovToCr8(x) => (1, x, 0),
-            PrivilegedInstruction::MovToCr3(x) => (2, x, 0),
-            PrivilegedInstruction::MovFromCr8(x) => (3, x, 0),
-            PrivilegedInstruction::MovFromCr3(x) => (4, x, 0),
-            PrivilegedInstruction::Lgdt(x, y) => (5, x,y),
-            PrivilegedInstruction::Lidt(x,y) => (6, x,y),
-            PrivilegedInstruction::Sgdt(x,y) => (7, x, y),
-            PrivilegedInstruction::Sidt(x,y) => (8, x, y),
-            PrivilegedInstruction::MovToRFlags(x) => (9, x, 0),
-            PrivilegedInstruction::Unknown => (u64::MAX, u64::MAX, u16::MAX),
+            PrivilegedInstruction::Hlt => (0, 0),
+            PrivilegedInstruction::MovToCr8(x) => (1, x),
+            PrivilegedInstruction::MovToCr3(x) => (2, x),
+            PrivilegedInstruction::MovFromCr8(x) => (3, x),
+            PrivilegedInstruction::MovFromCr3(x) => (4, x),
+            PrivilegedInstruction::Lgdt(x,) => (5, x),
+            PrivilegedInstruction::Lidt(x) => (6, x),
+            PrivilegedInstruction::Sgdt(x) => (7, x),
+            PrivilegedInstruction::Sidt(x) => (8, x),
+            PrivilegedInstruction::MovToRFlags(x) => (9, x),
+            PrivilegedInstruction::Unknown => (u64::MAX, u64::MAX),
         }
     }
 
-    pub const fn from_bits(mnemonic: u64, arg: u64, arg2: u16) -> Self {
+    pub const fn from_bits(mnemonic: u64, arg: u64) -> Self {
         match mnemonic {
             0 => PrivilegedInstruction::Hlt,
             1 => PrivilegedInstruction::MovToCr8(arg),
             2 => PrivilegedInstruction::MovToCr3(arg),
             3 => PrivilegedInstruction::MovFromCr8(arg),
             4 => PrivilegedInstruction::MovFromCr3(arg),
-            5 => PrivilegedInstruction::Lgdt(arg, arg2),
-            6 => PrivilegedInstruction::Lidt(arg, arg2),
-            7 => PrivilegedInstruction::Sgdt(arg, arg2),
-            8 => PrivilegedInstruction::Sidt(arg, arg2),
+            5 => PrivilegedInstruction::Lgdt(arg),
+            6 => PrivilegedInstruction::Lidt(arg),
+            7 => PrivilegedInstruction::Sgdt(arg),
+            8 => PrivilegedInstruction::Sidt(arg),
             _ => Self::Unknown,
         }
     }
@@ -94,14 +94,13 @@ impl SyscallRequest for PrivilegedInstructionRequest {
             call: HxCall::exec_priv(),
             arg1: args.0,
             arg2: args.1,
-            arg3: args.2 as u64,
             ..Default::default()
         }
     }
 
     fn from_raw(request: &HxRequest) -> Self {
         Self {
-            instruction: PrivilegedInstruction::from_bits(request.arg1, request.arg2, request.arg3 as _)
+            instruction: PrivilegedInstruction::from_bits(request.arg1, request.arg2)
         }
     }
 }

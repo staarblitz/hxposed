@@ -15,7 +15,7 @@ pub struct MsrIoResponse {
 impl SyscallResponse for PrivilegedInstructionResponse {
     fn from_raw(raw: HxResponse) -> Self {
         Self {
-            instruction: PrivilegedInstruction::from_bits(raw.arg1, raw.arg2, raw.arg3 as _)
+            instruction: PrivilegedInstruction::from_bits(raw.arg1, raw.arg2)
         }
     }
 
@@ -25,7 +25,6 @@ impl SyscallResponse for PrivilegedInstructionResponse {
             result: HxResult::ok(),
             arg1: args.0,
             arg2: args.1,
-            arg3: args.2 as _,
             ..Default::default()
         }
     }
