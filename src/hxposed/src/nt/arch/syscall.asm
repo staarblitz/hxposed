@@ -1,49 +1,71 @@
 .align 16
+.global hx_shadow_syscall_entry
+hx_shadow_syscall_entry:
+    mov gs:[0x0B010], rsp
+    mov rsp, gs:[0x0B000]
+    bt dword ptr gs:[0x0B018], 1
+    jb no_swap
+
+    mov cr3, rsp
+no_swap:
+    mov rsp, gs:[0x0B008]
+
+.align 16
 .global hx_syscall_entry
 hx_syscall_entry:
     cmp rax, 0x2009
     jne nt_entry
 
-    cli     # we dont want to be interrupted
+    # cmp byte ptr [rip + KiKvaShadow], 1
+    # je hx_shadow_syscall_entry
+
     swapgs
 
-    mov gs:[0x68], rsp  # put user stack to _KPCR's Unused
-    mov rsp, gs:[0x70]  # get our kernel stack
+    cli     # we dont want to be interrupted
+
+    mov gs:[0x10], rsp  # save user stack
+    mov rsp, gs:[0x1A8] # get kernel stack
+
+    push gs:[0x10]      # save user stack
 
     push rcx            # save user rip
-    mov rcx, gs:[0x78]  # load HxFs
-    mov rcx, [rcx]      # get the registers inside
 
+    sub rsp, 240        # allocate space for Registers structure
+    mov rcx, rsp
     call hx_capture_context
-    pop rbx
-    mov [rcx + rcx_offset], rbx     # load the actual rcx
-    mov [rcx + rflags_offset], r11  # r11 is the rflags
 
-    mov rax, gs:[0x68]
-    mov [rcx + rsp_offset], rax     # set the old guest rsp
+    mov rcx, [rsp + 240]        # "pop" rip back
+    mov [rsp + rcx_offset], rcx # save it to our structure
+    mov [rsp + r11_offset], r11 # rflags is important as well
 
-    sti
+    mov rcx, rsp    # set rcx to Registers structure
 
-    mov rcx, gs:[0x78]          # set first arg to hxfs
+    sub rsp, 32     # shadow space for msx64 abi
 
-    sub rsp, 32
-
-    # kpti is assumed to be OFF! otherwise we would load real kernel CR3 from gs:0B000h
-    # disable kpti through setting FeatureSettingsOverrideMask to 3 in HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management
+    # kpti is assumed to be OFF! otherwise we would load real kernel CR3
+    sti # enable interrupts. we want to be in PASSIVE_LEVEL
+    stac    # allow user-mode acceess since SMAP is probably on
 
     call syscall_handler    # fresh air
+
+    clac    # unallow
+    cli
+
     add rsp, 32
 
-    mov rcx, gs:[0x78]  # load HxFs
-    mov rcx, [rcx]      # get the registers inside
+    mov rcx, rsp
     call hx_restore_context
 
     # rcx and r11 is already restored by hx_restore_context
     # rsp must be restored manually
-    mov rsp, gs:[0x68]
+    add rsp, 248
+    pop rsp     # get user stack back
 
     swapgs
-    sysretq
+
+    mov rax, 0x2009     # right here
+
+    sysretq     # where we were?
 
 .align 16
 nt_entry:

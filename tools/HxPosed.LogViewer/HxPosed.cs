@@ -2925,6 +2925,9 @@ namespace HxPosed.PInvoke
         HxSvcMsrIo = 0x60,
         HxSvcExecutePrivilegedInstruction = 0x61,
         HxSvcInterProcessorInterrupt = 0x62,
+        HxSvcUpgradeHandle = 0x70,
+        HxSvcGetHandleObject = 0x71,
+        HxSvcSwapHandleObject = 0x72,
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

@@ -23,19 +23,16 @@ static _fltused: u32 = 0;
 static GLOBAL_ALLOC: WdkAllocator = WdkAllocator;
 
 use crate::boot::HX_LOADER_PARAMETER_BLOCK;
-use crate::nt::NT_BUILD;
 use crate::nt::guard::hxguard::HxGuard;
-use crate::nt::thread::NtThread;
 use crate::utils::logger::{HxLogger, LogEvent};
 use crate::win::winalloc::WdkAllocator;
 use crate::win::{
-    Boolean, KeBugCheckEx, KeDelayExecutionThread, KeGetCurrentProcessorNumber, NtStatus, PVOID,
-    ProcessorMode,
+    Boolean, KeBugCheckEx, KeDelayExecutionThread, KeGetCurrentProcessorNumber, NtStatus, ProcessorMode,
+    PVOID,
 };
 use alloc::format;
 use core::ops::DerefMut;
 use core::ptr;
-use core::ptr::null_mut;
 use spin::{Lazy, Mutex};
 
 static mut HX_GUARD: HxGuard = HxGuard::new();
@@ -52,6 +49,17 @@ extern "C" fn driver_entry(_driver: PVOID, _registry_path: PVOID) -> NtStatus {
         // must use read_volatile so rust compiler doesn't assume things.
         ptr::read_volatile(&HX_LOADER_PARAMETER_BLOCK)
     };
+
+    if cfg.booted_from_hxloader {
+        // for callbacks!
+        unsafe {
+            KeDelayExecutionThread(
+                ProcessorMode::KernelMode,
+                Boolean::False,
+                &mut utils::timing::relative(utils::timing::seconds(20)),
+            )
+        }
+    }
 
     unsafe {
         let mut locked = GLOBAL_LOGGER.lock();
@@ -98,7 +106,7 @@ pub fn panic(info: &core::panic::PanicInfo) -> ! {
             msg.as_ptr() as _,
             KeGetCurrentProcessorNumber() as _,
             &HX_LOADER_PARAMETER_BLOCK as *const _ as _,
-            0
+            0,
         );
     };
 }

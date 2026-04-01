@@ -11,4 +11,8 @@
     <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\HxPosed.Core\HxPosed.Core.csproj" />
+  </ItemGroup>
+
 </Project>

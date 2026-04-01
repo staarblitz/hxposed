@@ -1,12 +1,14 @@
 use crate::win::{
-    GROUP_AFFINITY, KeGetProcessorNumberFromIndex, KeQueryActiveProcessorCountEx,
-    KeRevertToUserGroupAffinityThread, KeSetSystemGroupAffinityThread,
-    PROCESSOR_NUMBER,
+    KeGetProcessorNumberFromIndex, KeQueryActiveProcessorCountEx, KeRevertToUserGroupAffinityThread,
+    KeSetSystemGroupAffinityThread, GROUP_AFFINITY, PROCESSOR_NUMBER,
 };
 
 pub(crate) struct PlatformOps;
 
 impl PlatformOps {
+    pub fn get_processor_count() -> u32 {
+        unsafe { KeQueryActiveProcessorCountEx(0xffff) }
+    }
     pub fn run_on_all_processors(mut callback: impl FnMut(u32)) {
         for index in 0..unsafe { KeQueryActiveProcessorCountEx(0xffff) } {
             let mut processor_number = PROCESSOR_NUMBER::default();

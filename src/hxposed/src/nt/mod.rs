@@ -29,10 +29,6 @@ pub(crate) static mut NT_BASE: u64 = 0;
 pub(crate) static mut SYSTEM_TOKEN: u64 = 0;
 pub(crate) static mut NT_KI_SYSTEM: u64 = 0;
 
-pub(crate) type PSEP_LOGON_SESSION_REFERENCES = *mut _SEP_LOGON_SESSION_REFERENCES;
-
-pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
-
 ///
 /// # Get NT Info
 ///
@@ -125,15 +121,29 @@ fn get_system_token() -> PVOID {
     unsafe { PsReferencePrimaryToken(system) }
 }
 
-pub(crate) unsafe fn get_pcr_field<T>(field: PcrField) -> *mut T {
+pub(crate) unsafe fn get_prcb_field<T>(field: PrcbField, prcb: *mut _KPRCB) -> *mut T {
     unsafe {
-        (NT_BASE as *mut u8).add(match (NT_BUILD, NT_UBR) {
+        (prcb as *mut u8).add(match (NT_BUILD, NT_UBR) {
             (26100, 6584) /* 25H2 */ => {
                 match field {
-                    PcrField::Unused =>0x40
+                    PrcbField::RspBase => 0x28
                 }
             }
-            _ => panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
+            _ => unreachable!(),
+        }) as *mut T
+    }
+}
+
+pub(crate) unsafe fn get_pcr_field<T>(field: PcrField, pcr: *mut _KPCR) -> *mut T {
+    unsafe {
+        (pcr as *mut u8).add(match (NT_BUILD, NT_UBR) {
+            (26100, 6584) /* 25H2 */ => {
+                match field {
+                    PcrField::Unused =>0x40,
+                    PcrField::Kprcb => 0x180
+                }
+            }
+            _ => unreachable!(),
         }) as *mut T
     }
 }
@@ -167,7 +177,7 @@ pub(crate) unsafe fn get_nt_proc<T>(proc: NtProcedure) -> *mut T {
                     NtProcedure::KiGeneralProtectionFault => 0x6ae4c0,
                 }
             }
-            _ => panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
+            _ => unreachable!(),
         }) as *mut T
     }
 }
@@ -215,9 +225,7 @@ pub(crate) unsafe fn get_eprocess_field<T: 'static>(
                     EProcessField::UserDirectoryTableBase => 0x158,
                 }
             }
-            _ => {
-                panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
-            }
+            _ => unreachable!(),
         }) as *mut T
     }
 }
@@ -249,12 +257,11 @@ pub(crate) unsafe fn get_ethread_field<T: 'static>(
                     EThreadField::ClientId => 0x508,
                     EThreadField::CrossThreadFlags => 0x5a0,
                     EThreadField::AdjustedClientToken => 0x648,
-                    EThreadField::KernelApcDisable => 0x1e4
+                    EThreadField::KernelApcDisable => 0x1e4,
+                    EThreadField::FirstArgument => 0x88,
                 }
             }
-            _ => {
-                panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
-            }
+            _ => unreachable!(),
         }) as *mut T
     }
 }
@@ -290,9 +297,7 @@ pub(crate) unsafe fn get_access_token_field<T: 'static>(
                     AccessTokenField::Privileges => 0x40,
                 }
             }
-            _ => {
-                panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
-            }
+            _ => unreachable!(),
         }) as *mut T
     }
 }
@@ -326,9 +331,7 @@ pub(crate) unsafe fn get_logon_session_field<T: 'static>(
                     LogonSessionField::AuthorityName => 0x48,
                 }
             }
-            _ => {
-                panic!("Unknown NT build {}, {}", NT_BUILD, NT_UBR)
-            }
+            _ => unreachable!(),
         }) as *mut T
     }
 }
@@ -351,8 +354,13 @@ pub(crate) unsafe fn get_object_body(object_header: ObjectHeader) -> ObjectBody 
     ObjectBody(unsafe { object_header.0.byte_offset(0x30) as _ })
 }
 
+pub enum PrcbField {
+    RspBase
+}
+
 pub enum PcrField {
-    Unused
+    Unused,
+    Kprcb
 }
 
 pub enum NtProcedure {
@@ -390,7 +398,8 @@ pub enum EThreadField {
     ClientId,
     CrossThreadFlags,
     AdjustedClientToken,
-    KernelApcDisable
+    KernelApcDisable,
+    FirstArgument
 }
 
 /// TODO: Document what those return

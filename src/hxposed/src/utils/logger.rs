@@ -11,6 +11,7 @@ pub struct HxLogger {
 }
 
 impl HxLogger {
+
     pub fn new() -> Self {
         Self {
             buffer: unsafe { Box::new_zeroed().assume_init() },
@@ -39,6 +40,10 @@ impl HxLogger {
         for i in 0..self.cursor {
             Self::serial_out(&self.buffer[i]);
         }
+    }
+
+    pub fn serial_log(log_type:LogType, event: LogEvent) {
+        Self::serial_out(&LogEntry::new(log_type, event))
     }
 
     pub fn log(&mut self, log_type: LogType, event: LogEvent) {

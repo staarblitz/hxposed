@@ -1,9 +1,11 @@
+use crate::nt::{PcrField, PrcbField, get_pcr_field, get_prcb_field};
 use crate::size_assert;
 use crate::utils::logger::HxLogger;
+use crate::win::{_KPCR, _KPRCB};
 use alloc::boxed::Box;
 use core::ops::Add;
-use x86::msr::{IA32_FS_BASE, rdmsr, IA32_GS_BASE};
 use hxposed_core::hxposed::responses::HxResponse;
+use x86::msr::{IA32_FS_BASE, IA32_GS_BASE, rdmsr};
 
 #[repr(C, align(16))]
 #[derive(Default, Clone, Debug)]
@@ -42,30 +44,36 @@ unsafe extern "C" {
     pub unsafe fn hx_capture_context(regs: &mut Registers);
 }
 
+impl Registers {
+    pub fn write_response(&mut self, response: HxResponse) {
+        self.rsi = response.result.into_bits();
+        self.r8 = response.arg1;
+        self.r9 = response.arg2;
+        self.r10 = response.arg3;
+    }
+}
+
 #[repr(C)]
 pub struct HxFs {
     pub registers: Box<Registers>,
     pub logger: Box<HxLogger>,
     pub stack: u64,
+    pub user_stack: u64,
 }
+size_assert!(HxFs, 32);
 
 impl HxFs {
     pub fn new() -> Self {
-       Self {
+        Self {
             logger: Box::new(HxLogger::new()),
-            registers: unsafe {Box::new_zeroed().assume_init()},
-            stack: Box::into_raw(Box::<[u8;4096]>::new_zeroed()) as _,
-        }
-    }
+            registers: unsafe { Box::new_zeroed().assume_init() },
+            stack: {
+                let pcr = unsafe { rdmsr(IA32_GS_BASE) as *mut _KPCR };
 
-    pub fn write_response(&mut self, response: HxResponse) {
-        self.registers.rsi = response.result.into_bits();
-        self.registers.r8 = response.arg1;
-        self.registers.r9 = response.arg2;
-        self.registers.r10 = response.arg3;
-    }
-    
-    pub fn get_current() -> &'static mut Self {
-        unsafe { &mut *(rdmsr(IA32_GS_BASE).add(0x78) as *mut Self) }
+                let prcb = unsafe { get_pcr_field::<_KPRCB>(PcrField::Kprcb, pcr) };
+                unsafe { *get_prcb_field::<u64>(PrcbField::RspBase, prcb) }
+            },
+            user_stack: 0,
+        }
     }
 }

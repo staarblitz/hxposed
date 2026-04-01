@@ -66,7 +66,7 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HxResponse {
             .into_raw();
         }
         PrivilegedInstruction::MovToRFlags(rflags) => unsafe {
-            (*HxFs::get_current()).registers.rflags = rflags;
+            //(*HxFs::get_current()).registers.rflags = rflags;
         },
         PrivilegedInstruction::Unknown => return HxResponse::invalid_params(0),
     };

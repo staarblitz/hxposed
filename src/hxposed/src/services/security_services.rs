@@ -53,12 +53,14 @@ pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HxResponse 
         TokenField::SourceName(_) => GetTokenFieldResponse::SourceName(token.get_source_name()),
         TokenField::AccountName(ptr) => {
             let field = token.get_account_name();
-            match microseh::try_seh(|| unsafe {
-                core::ptr::copy_nonoverlapping(field.as_ptr(), ptr as _, field.len())
-            }) {
-                Ok(_) => {}
-                Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
-            };
+            if ptr != 0 {
+                match microseh::try_seh(|| unsafe {
+                    core::ptr::copy_nonoverlapping(field.as_ptr(), ptr as _, field.len())
+                }) {
+                    Ok(_) => {}
+                    Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
+                };
+            }
             GetTokenFieldResponse::AccountName(field.len() as _)
         }
         TokenField::Type(_) => GetTokenFieldResponse::Type(token.get_type()),

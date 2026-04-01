@@ -5,9 +5,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace HxPosed.Tests
+namespace HxPosed.Core
 {
-    internal static class Win32
+    public static class Win32
     {
         public const int HANDLE_ALL_ACCESS = 0x1FFFFFF;
         public const int PROCESS_QUERY_INFORMATION = 0x400;

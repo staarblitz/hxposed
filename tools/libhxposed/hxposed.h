@@ -10,8 +10,6 @@
 //  HXR Stands for HxRequest.
 //  HXS Stands for HxResponse.
 
-#define HX_ASYNC_BASE 0x20090000
-#define HX_CALLBACK_RESERVED_OFFSET 0
 #define DLL_EXPORT __declspec(dllexport)
 
 typedef UINT64 HX_OBJECT;
@@ -102,10 +100,10 @@ typedef union _HX_TOKEN_PRIVILEGES {
 
 
 typedef enum _HX_TOKEN_IMPERSONATION_LEVEL {
-    Anonymous = 0,
-    Identification = 1,
-    Impersonation = 2,
-    Delegation = 3,
+    ImpersonationLevelAnonymous = 0,
+    ImpersonationLevelIdentification = 1,
+    ImpersonationLevelImpersonation = 2,
+    ImpersonationLevelDelegation = 3,
 } HX_TOKEN_IMPERSONATION_LEVEL, *PHX_TOKEN_IMPERSONATION_LEVEL;
 
 typedef enum _HX_TOKEN_TYPE {

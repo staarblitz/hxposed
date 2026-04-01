@@ -82,8 +82,8 @@ DLL_EXPORT HX_RESULT HxGetProcessThreads(HX_PROCESS Process, PUINT32 Threads, PS
 	return HxpGetObjectFieldEx(HxSvcGetProcessField, Process, HxProcessFieldThreads, Count, Threads);
 }
 
-DLL_EXPORT HX_RESULT HxGetTokenAccountName(HX_PROCESS Process, PWCHAR Name, PSIZE_T CharCount) {
-	return HxpGetObjectFieldEx(HxSvcGetProcessField, Process, HxProcessFieldThreads, CharCount, Name);
+DLL_EXPORT HX_RESULT HxGetTokenAccountName(HX_TOKEN Token, PWCHAR Name, PSIZE_T CharCount) {
+	return HxpGetObjectFieldEx(HxSvcGetTokenField, Token, HxTokenFieldAccountName, CharCount, Name);
 }
 
 DLL_EXPORT HX_RESULT HxReadMsr(UINT64 Msr, PUINT64 Value) {

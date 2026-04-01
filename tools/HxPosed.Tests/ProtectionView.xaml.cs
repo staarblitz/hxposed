@@ -1,4 +1,4 @@
-﻿using HxPosed.PInvoke;
+﻿using HxPosed.Core.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,17 +21,17 @@ namespace HxPosed.Tests
     public partial class ProtectionView : Window
     {
         // we could have moved those to constructor. but then we would need to expose them again since we have to somehow return from a Close().
-        public _HX_PROCESS_PROTECTION_TYPE ProtectionType;
-        public _HX_PROCESS_PROTECTION_SIGNER ProtectionSigner;
+        public ProcessProtectionType ProtectionType;
+        public ProcessProtectionSigner ProtectionSigner;
         public bool Audit;
 
         public ProtectionView()
         {
             InitializeComponent();
             DataContext = this;
-            typeBox.ItemsSource = Enum.GetValues<_HX_PROCESS_PROTECTION_TYPE>().Cast<_HX_PROCESS_PROTECTION_TYPE>();
+            typeBox.ItemsSource = Enum.GetValues<ProcessProtectionType>().Cast<ProcessProtectionType>();
             typeBox.SelectedValue = ProtectionType;
-            signBox.ItemsSource = Enum.GetValues<_HX_PROCESS_PROTECTION_SIGNER>().Cast<_HX_PROCESS_PROTECTION_SIGNER>();
+            signBox.ItemsSource = Enum.GetValues<ProcessProtectionSigner>().Cast<ProcessProtectionSigner>();
             signBox.SelectedValue = ProtectionSigner;
             auditBox.IsChecked = Audit;
         }
@@ -39,8 +39,8 @@ namespace HxPosed.Tests
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             Audit = auditBox.IsChecked ?? false;
-            ProtectionType = (_HX_PROCESS_PROTECTION_TYPE)typeBox.SelectedItem;
-            ProtectionSigner = (_HX_PROCESS_PROTECTION_SIGNER)signBox.SelectedItem;
+            ProtectionType = (ProcessProtectionType)typeBox.SelectedItem;
+            ProtectionSigner = (ProcessProtectionSigner)signBox.SelectedItem;
             DialogResult = true;
             Close();
         }

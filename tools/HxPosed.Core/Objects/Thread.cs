@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace HxPosed.Core.PInvoke
+namespace HxPosed.Core.Objects
 {
-    public enum HxExResult : int
+    public class Thread
     {
-        Catched = 0,
-        NotCatched = -1
+        public int Id { get; set; }
+        public int ProcessId { get; set; }
     }
 }

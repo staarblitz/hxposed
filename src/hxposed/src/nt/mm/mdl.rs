@@ -1,14 +1,8 @@
-use crate::GLOBAL_LOGGER;
 use crate::utils::danger::DangerPtr;
 use crate::utils::logger::LogEvent;
-use crate::win::{
-    Boolean, ExAllocatePool2, IoAllocateMdl, IoFreeMdl, LockOperation, MDL, MdlFlags,
-    MemoryCacheType, MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl,
-    MmMapLockedPagesSpecifyCache, MmProbeAndLockPages, MmProtectMdlSystemAddress, MmUnlockPages,
-    MmUnmapLockedPages, NtStatus, PVOID, PagePriority, PoolFlags, ProcessorMode,
-};
+use crate::win::{Boolean, ExAllocatePool2, ExFreePool, IoAllocateMdl, IoFreeMdl, LockOperation, MdlFlags, MemoryCacheType, MmAllocatePagesForMdlEx, MmBuildMdlForNonPagedPool, MmFreePagesFromMdl, MmMapLockedPagesSpecifyCache, MmProbeAndLockPages, MmProtectMdlSystemAddress, MmUnlockPages, MmUnmapLockedPages, NtStatus, PagePriority, PoolFlags, ProcessorMode, MDL, PVOID};
+use crate::GLOBAL_LOGGER;
 use alloc::boxed::Box;
-use core::ffi::c_void;
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
 
@@ -49,7 +43,7 @@ pub enum MapStatus {
 impl Drop for MemoryDescriptor {
     fn drop(&mut self) {
         match self.owns {
-            OwnType::NonPaged(addr) => unsafe { drop(Box::from_raw(addr as *mut [u8; 4096])) },
+            OwnType::NonPaged(addr) => unsafe { ExFreePool(addr as _) },
             OwnType::MmAllocatePages => unsafe { MmFreePagesFromMdl(self.mdl.ptr) },
             OwnType::Locked => unsafe {
                 MmUnlockPages(self.mdl.ptr);

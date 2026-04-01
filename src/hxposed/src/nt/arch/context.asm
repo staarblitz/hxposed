@@ -33,6 +33,8 @@ hx_restore_context:
 # ms x64 calling convention
 # rcx is `&mut Registers`
 hx_capture_context:
+    push rax
+
     mov [rcx + rax_offset], rax
     mov [rcx + rbx_offset], rbx
     mov [rcx + rcx_offset], rcx
@@ -70,4 +72,5 @@ hx_capture_context:
     mov rax, [rsp]
     mov [rcx + rip_offset], rax
 
+    pop rax
     ret

@@ -327,6 +327,8 @@ pub unsafe fn KeQuerySystemTime() -> u64 {
 #[link(name = "ntoskrnl")]
 unsafe extern "C" {
     pub static PsLoadedModuleList: *mut *mut LDR_DATA_TABLE_ENTRY;
+    #[unsafe(no_mangle)]
+    pub static KiKvaShadow: u8;
 
     pub fn DbgPrint(Str: *const c_char, ...);
 
@@ -461,6 +463,12 @@ unsafe extern "C" {
 
     pub fn ZwClose(Handle: HANDLE) -> NtStatus;
 }
+
+pub(crate) type PSEP_LOGON_SESSION_REFERENCES = *mut _SEP_LOGON_SESSION_REFERENCES;
+
+pub(crate) type _SEP_LOGON_SESSION_REFERENCES = u64;
+pub(crate) type _KPRCB = u64;
+pub(crate) type _KPCR = u64;
 
 #[repr(C)]
 #[derive(Default, Clone)]

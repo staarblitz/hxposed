@@ -1,10 +1,10 @@
 use crate::nt::process::NtProcess;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
 use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::*;
 use hxposed_core::hxposed::responses::{HxResponse, OpenObjectResponse, SyscallResponse};
+use hxposed_core::hxposed::ObjectType;
 
 ///
 /// # Set Process Field (Sync)
@@ -96,12 +96,15 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> HxRespo
     let field = match request.field {
         ProcessField::NtPath(ptr) => {
             let path = process.get_nt_path();
-            match microseh::try_seh(|| unsafe {
-                core::ptr::copy_nonoverlapping(path.as_ptr(), ptr as *mut u16, path.len())
-            }) {
-                Ok(_) => {}
-                Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
-            };
+            if ptr != 0 {
+                match microseh::try_seh(|| unsafe {
+                    core::ptr::copy_nonoverlapping(path.as_ptr(), ptr as *mut u16, path.len())
+                }) {
+                    Ok(_) => {}
+                    Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
+                }
+            }
+
             ProcessField::NtPath(path.len() as _)
         }
         ProcessField::Protection(_) => ProcessField::Protection(process.get_protection()),
@@ -112,12 +115,15 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> HxRespo
         ProcessField::Token(_) => ProcessField::Token(process.get_token() as _),
         ProcessField::Threads(ptr) => {
             let threads = process.get_threads();
-            match microseh::try_seh(|| unsafe {
-                core::ptr::copy_nonoverlapping(threads.as_ptr(), ptr as *mut u32, threads.len())
-            }) {
-                Ok(_) => {}
-                Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
-            };
+            if ptr != 0 {
+                match microseh::try_seh(|| unsafe {
+                    core::ptr::copy_nonoverlapping(threads.as_ptr(), ptr as *mut u32, threads.len())
+                }) {
+                    Ok(_) => {}
+                    Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
+                };
+            }
+
             ProcessField::Threads(threads.len() as _)
         }
         ProcessField::DirectoryTableBase(_) => {

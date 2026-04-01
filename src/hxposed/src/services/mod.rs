@@ -12,9 +12,9 @@ use hxposed_core::hxposed::responses::{HxResponse, SyscallResponse};
 use hxposed_core::hxposed::responses::status::StatusResponse;
 use hxposed_core::hxposed::status::HypervisorStatus;
 use crate::hyper_row;
-use crate::nt::arch::hxfs::HxFs;
+use crate::nt::arch::hxfs::{HxFs, Registers};
 use crate::nt::process::NtProcess;
-use crate::utils::logger::LogEvent;
+use crate::utils::logger::{HxLogger, LogEvent, LogType};
 
 pub mod callback_services;
 pub mod io_services;
@@ -90,28 +90,28 @@ static DISPATCH_TABLE: [[SyscallHandler; 16]; DISPATCH_TABLE_MAX] = [
 ];
 
 #[unsafe(no_mangle)]
-pub(crate) fn syscall_handler(cpu: &mut HxFs) {
-    let info = HxCall::from_bits(cpu.registers.rsi);
+pub(crate) fn syscall_handler(registers: &mut Registers) {
+    let info = HxCall::from_bits(registers.rsi);
 
     let process = NtProcess::current();
 
     match process.is_hx_info_present() {
         true => {}
         false => {
-            cpu.logger.warn(LogEvent::NoHxInfo);
+            HxLogger::serial_log(LogType::Warn, LogEvent::NoHxInfo);
         }
     }
 
     // partial uninit for performance??
     let mut request = HxRequest {
         call: info,
-        arg1: cpu.registers.r8,
-        arg2: cpu.registers.r9,
-        arg3: cpu.registers.r10,
+        arg1: registers.r8,
+        arg2: registers.r9,
+        arg3: registers.r10,
         ..Default::default()
     };
 
-    cpu.logger.trace(LogEvent::HyperCall(
+    HxLogger::serial_log(LogType::Trace, LogEvent::HyperCall(
         request.call.into_bits(),
         request.arg1,
         request.arg2,
@@ -119,10 +119,10 @@ pub(crate) fn syscall_handler(cpu: &mut HxFs) {
     ));
 
     if request.call.extended_args_present() {
-        request.extended_arg1 = cpu.registers.xmm0;
-        request.extended_arg2 = cpu.registers.xmm1;
-        request.extended_arg3 = cpu.registers.xmm2;
-        request.extended_arg4 = cpu.registers.xmm3;
+        request.extended_arg1 = registers.xmm0;
+        request.extended_arg2 = registers.xmm1;
+        request.extended_arg3 = registers.xmm2;
+        request.extended_arg4 = registers.xmm3;
     }
 
     let function = info.func().into_bits() as usize;
@@ -133,7 +133,7 @@ pub(crate) fn syscall_handler(cpu: &mut HxFs) {
     let func = function & FUNCTION_MASK;
 
     if core::intrinsics::unlikely(category >= DISPATCH_TABLE_MAX) {
-        cpu.write_response(HxResponse::not_found_what(
+        registers.write_response(HxResponse::not_found_what(
             NotFoundReason::ServiceFunction,
         ));
         return;
@@ -141,9 +141,7 @@ pub(crate) fn syscall_handler(cpu: &mut HxFs) {
 
     let result = DISPATCH_TABLE[category][func](&request);
 
-    cpu
-        .logger
-        .trace(LogEvent::HyperResult(result.arg1, result.arg2, result.arg3));
+    HxLogger::serial_log(LogType::Trace, LogEvent::HyperResult(result.arg1, result.arg2, result.arg3));
 
-    cpu.write_response(result);
+    registers.write_response(result);
 }

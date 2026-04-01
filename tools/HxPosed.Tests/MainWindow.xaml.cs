@@ -1,5 +1,4 @@
-﻿using HxPosed.PInvoke;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
@@ -11,7 +10,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-
+using HxPosed.Core.Objects;
+using HxPosed.Core;
+using HxPosed.Core.Types;
 
 namespace HxPosed.Tests
 {
@@ -20,7 +21,7 @@ namespace HxPosed.Tests
     /// </summary>
     public partial class MainWindow : Window
     {
-        public ObservableCollection<ProcessModel> Processes { get; } = [];
+        public ObservableCollection<Process> Processes { get; } = [];
 
         public MainWindow()
         {
@@ -61,10 +62,17 @@ namespace HxPosed.Tests
                 var spi = (Win32.SYSTEM_PROCESS_INFORMATION*)ptr;
                 do
                 {
-                    var process = ProcessModel.FromId((int)spi->UniqueProcessId);
-                    if (process is not null)
+                    try
                     {
-                        Processes.Add(process);
+                        var process = Process.FromId((int)spi->UniqueProcessId);
+                        if (process is not null)
+                        {
+                            Processes.Add(process);
+                        }
+                    }
+                    catch
+                    {
+
                     }
 
                     spi = (Win32.SYSTEM_PROCESS_INFORMATION*)nint.Add((nint)spi, (int)spi->NextEntryOffset);
@@ -76,7 +84,7 @@ namespace HxPosed.Tests
 
         private void MenuItem_Click(object sender, RoutedEventArgs e)
         {
-            var selectedItem = (ProcessModel)processesList.SelectedItem;
+            var selectedItem = (Process)processesList.SelectedItem;
 
             selectedItem.Kill();
             MessageBox.Show("Process killed");
@@ -86,19 +94,19 @@ namespace HxPosed.Tests
 
         private void MenuItem_Click_1(object sender, RoutedEventArgs e)
         {
-            var selectedItem = (ProcessModel)processesList.SelectedItem;
+            var selectedItem = (Process)processesList.SelectedItem;
 
             var dlg = new ProtectionView
             {
-                ProtectionSigner = (_HX_PROCESS_PROTECTION_SIGNER)selectedItem.Protection.Signer,
-                ProtectionType = (_HX_PROCESS_PROTECTION_TYPE)selectedItem.Protection.Signer,
+                ProtectionSigner = (ProcessProtectionSigner)selectedItem.Protection.Signer,
+                ProtectionType = (ProcessProtectionType)selectedItem.Protection.Signer,
                 Audit = selectedItem.Protection.Audit == 1
             };
 
             if (dlg.ShowDialog() == true)
             {
                 // pattern matching
-                selectedItem.Protection = new _HX_PROCESS_PROTECTION
+                selectedItem.Protection = new ProcessProtection
                 {
                     Audit = (byte)(dlg.Audit ? 1 : 0),
                     Signer = (byte)dlg.ProtectionSigner,

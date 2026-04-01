@@ -1,5 +1,6 @@
 use crate::nt::event::NtEvent;
 use crate::nt::guard::hxguard::HxGuard;
+use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
 use crate::objects::{CALLER_PROCESSES, ObjectTracker};
 use crate::utils::rng::SimpleCounter;
@@ -7,13 +8,13 @@ use crate::win::{
     Boolean, CreateThreadNotifType, HANDLE, NtStatus, PEPROCESS, PVOID,
     PsSetCreateProcessNotifyRoutineEx, PsSetCreateThreadNotifyRoutineEx,
 };
+use alloc::boxed::Box;
 use core::hash::{Hash, Hasher};
 use hxposed_core::hxposed::requests::notify::ObjectState;
 use hxposed_core::hxposed::responses::SyscallResponse;
 use hxposed_core::hxposed::responses::notify::CallbackInformation;
 use hxposed_core::hxposed::{CallbackObject, ObjectType};
 use spin::Mutex;
-use crate::nt::mm::mdl::MemoryDescriptor;
 
 static RNG: Mutex<SimpleCounter> = Mutex::new(SimpleCounter { state: 1 });
 
@@ -22,7 +23,7 @@ pub struct NtCallback {
     pub active: bool,
     pub callback: CallbackObject,
     pub event: NtEvent,
-    pub memory: MemoryDescriptor
+    pub memory: MemoryDescriptor,
 }
 
 impl Hash for NtCallback {
@@ -42,7 +43,7 @@ impl NtCallback {
             active: true,
             callback: RNG.lock().next_u32() as _,
             event,
-            memory
+            memory,
         }
     }
 
@@ -107,7 +108,7 @@ impl NtCallback {
                         Ok(ptr) => ptr as *mut CallbackInformation,
                         Err(_) => {
                             // log?
-                            continue
+                            continue;
                         }
                     };
                     ptr.write_volatile(callback_info);
@@ -141,7 +142,7 @@ impl NtCallback {
                         Ok(ptr) => ptr as *mut CallbackInformation,
                         Err(_) => {
                             // log?
-                            continue
+                            continue;
                         }
                     };
                     ptr.write_volatile(callback_info);
