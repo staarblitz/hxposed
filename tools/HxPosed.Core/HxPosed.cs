@@ -55,16 +55,16 @@ namespace HxPosed.Core
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         private static extern HxResult HxGetProcessNtPath(HxProcess process, nint name, ref long size);
 
-        public static Span<uint> GetProcessThreaads(HxProcess process)
+        public static Span<int> GetProcessThreaads(HxProcess process)
         {
-            Span<uint> span = new uint[256];
+            Span<int> span = new int[256];
             var size = 0L;
             HxGetProcessThreads(process, ref MemoryMarshal.GetReference(span), ref size).ThrowIfError();
             return span[..(int)size];
         }
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        private static extern HxResult HxGetProcessThreads(HxProcess process, ref uint threads, ref long size);
+        private static extern HxResult HxGetProcessThreads(HxProcess process, ref int threads, ref long size);
 
         public static string GetTokenAccountName(HxToken token)
         {
@@ -155,16 +155,16 @@ namespace HxPosed.Core
         public static extern HxResult HxSetTokenEnabledByDefaultPrivileges(HxToken token, ref TokenPrivileges EnabledByDefaultPrivileges);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxGetThreadActiveImpersonationInfo(ulong Thread, ref bool ActiveImpersonationInfo);
+        public static extern HxResult HxGetThreadActiveImpersonationInfo(HxThread Thread, ref bool ActiveImpersonationInfo);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxSetThreadActiveImpersonationInfo(ulong Thread, ref bool ActiveImpersonationInfo);
+        public static extern HxResult HxSetThreadActiveImpersonationInfo(HxThread Thread, ref bool ActiveImpersonationInfo);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxGetThreadAdjustedClientToken(ulong Thread, ref ulong AdjustedClientToken);
+        public static extern HxResult HxGetThreadAdjustedClientToken(HxThread Thread, ref ulong AdjustedClientToken);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxSetThreadAdjustedClientToken(ulong Thread, ref ulong AdjustedClientToken);
+        public static extern HxResult HxSetThreadAdjustedClientToken(HxThread Thread, ref ulong AdjustedClientToken);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern HxResult HxReadMsr(ulong Msr, ref ulong Value);
