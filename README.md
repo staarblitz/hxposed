@@ -98,6 +98,17 @@ It works for C, too.
 
     TerminateProcess(hProcess, 0); // or whatever. reminder that System is protected and you have to use HxSetProcessProtection to lift it
 ```
+And C#.
+- Dispose pattern.
+- Idiomatic C# (-ish).
+```csharp
+using var process = Process.FromId(123);
+process.Protection = new ProcessProtection {
+    Type = (byte)ProcessProtectionType.Protected,
+    Audit = (byte)false,
+    Signer = (byte)ProcessProtectionSigner.WinTcb
+};
+```
 
 Hope you got our point. We are trying to make things easier, not harder.
 From now on, you'll never worry about:
