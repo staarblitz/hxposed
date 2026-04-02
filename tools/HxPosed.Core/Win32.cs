@@ -11,9 +11,12 @@ namespace HxPosed.Core
     {
         public const int HANDLE_ALL_ACCESS = 0x1FFFFFF;
         public const int PROCESS_QUERY_INFORMATION = 0x400;
+        public const int THREAD_QUERY_INFORMATION = 0x0040;
 
         [DllImport("kernel32.dll")]
-        public static extern uint GetCurrentProcessId();
+        public static extern int GetCurrentProcessId();
+        [DllImport("kernel32.dll")]
+        public static extern int GetCurrentThreadId();
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern nint OpenProcess(
@@ -21,6 +24,13 @@ namespace HxPosed.Core
         bool bInheritHandle,
         int processId
     );
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern nint OpenThread(
+uint threadAccess,
+bool bInheritHandle,
+int threadId
+);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CloseHandle(nint handle);

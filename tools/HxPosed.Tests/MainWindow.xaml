@@ -37,7 +37,15 @@
                 </ListView>
             </TabItem>
             <TabItem Header="Threads">
-
+                <ListView x:Name="threadsList" ItemsSource="{Binding SelectedItem.Threads, ElementName=processesList}">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="ID" Width="60" DisplayMemberBinding="{Binding Id}"/>
+                            <GridViewColumn Header="PID" Width="60" DisplayMemberBinding="{Binding ProcessId}"/>
+                            <GridViewColumn Header="Is Impersonating" Width="120" DisplayMemberBinding="{Binding IsImpersonating}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
             </TabItem>
             <TabItem Header="Security">
 

@@ -22,6 +22,7 @@ namespace HxPosed.Tests
     public partial class MainWindow : Window
     {
         public ObservableCollection<Process> Processes { get; } = [];
+        public Process? SelectedProcess => processesList.SelectedItem as Process;
 
         public MainWindow()
         {
