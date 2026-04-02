@@ -11,7 +11,7 @@ namespace HxPosed.Core.Types
     {
         public _Anonymous_e__Union Anonymous;
 
-        public override string ToString() => $"{(ProcessProtectionType)Type} - {(ProcessSignatureLevel)Signer}";
+        public override string ToString() => $"{(ProcessProtectionType)Type} - {(ProcessProtectionSigner)Signer}";
 
         public ref byte Level
         {
@@ -1028,22 +1028,22 @@ namespace HxPosed.Core.Types
 
     public enum ProcessProtectionType
     {
-        TypeNone = 0,
-        TypeLight = 1,
-        TypeProtected = 2,
-        TypeMax = 3,
+        None = 0,
+        Light = 1,
+        Protected = 2,
+        Max = 3,
     }
 
     public enum ProcessProtectionSigner
     {
-        SigNone = 0,
-        SigAuthenticode = 1,
-        SigCodeGen = 2,
-        SigAntiMalware = 3,
-        SigLsa = 4,
-        SigWindows = 5,
-        SigWinTcb = 6,
-        SigMax = 7,
+        None = 0,
+        Authenticode = 1,
+        CodeGen = 2,
+        AntiMalware = 3,
+        Lsa = 4,
+        Windows = 5,
+        WinTcb = 6,
+        Max = 7,
     }
 
     public enum ProcessSignatureLevel
