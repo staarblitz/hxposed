@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -21,27 +22,30 @@ namespace HxPosed.Core.Objects
         {
             var me = new Process();
 
-            me.Object = HxPosed.OpenObject(ServiceFunction.OpenProcess, id);
-
-            var tempMe = Win32.OpenProcess(Win32.PROCESS_QUERY_INFORMATION, false, (int)Win32.GetCurrentProcessId());
-            var result = HxPosed.HxSwapHandleObject((ulong)tempMe, 0, me.Object);
-            if (result.ErrorCode != 0) goto cleanup;
-            result = HxPosed.HxUpgradeHandle((ulong)tempMe, 0, Win32.HANDLE_ALL_ACCESS);
-            if (result.ErrorCode != 0) goto cleanup;
-
-            me.Handle = tempMe;
+            try
+            {
+                me.Object = HxPosed.OpenObject(ServiceFunction.OpenProcess, id);
+            }
+            catch
+            {
+                GC.SuppressFinalize(me); // otherwise it will be finalized with wrong object addrs etc.
+                return null;
+            }
 
             me.ExeName = HxPosed.GetProcessNtPath(me.Object);
 
             foreach (var thread in HxPosed.GetProcessThreaads(me.Object))
             {
-                me.Threads.Add(new Thread
-                {
-                    Id = (int)thread,
-                    ProcessId = me.Id,
-                });
+                me.Threads.Add(Thread.FromId(thread, id));
             }
 
+            var handle = Win32.OpenProcess(Win32.PROCESS_QUERY_INFORMATION, false, Win32.GetCurrentProcessId());
+            me.Handle = handle;
+
+            if (!Objects.Handle.TrySwapAndUpgrade(handle, me.Object))
+                goto cleanup;
+
+            me.Handle = handle;
 
             return me;
 
@@ -70,11 +74,7 @@ namespace HxPosed.Core.Objects
 
             _disposed = true;
 
-            // possible in early init
-            if (Handle != 0)
-            {
-                Win32.CloseHandle(Handle);
-            }
+            Win32.CloseHandle(Handle);
             HxPosed.CloseObject(ServiceFunction.CloseProcess, Object);
 
             // c# best practices
