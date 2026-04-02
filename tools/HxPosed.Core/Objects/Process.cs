@@ -18,6 +18,8 @@ namespace HxPosed.Core.Objects
 
         private bool _disposed = false;
 
+        // maybe use SafeHandles?
+
         public static Process? FromId(int id)
         {
             var me = new Process();
@@ -61,25 +63,22 @@ namespace HxPosed.Core.Objects
         {
             var result = Win32.TerminateProcess(Handle, 0);
             Dispose();
-            if (result)
-            {
+            if (!result)
                 throw new Win32Exception(Marshal.GetLastWin32Error());
-            }
-            Dispose();
         }
 
         public void Dispose()
         {
             if (_disposed) return;
 
+            // c# best practices
+            // best practices are boilerplate in this language
+            GC.SuppressFinalize(this);
+
             _disposed = true;
 
             Win32.CloseHandle(Handle);
             HxPosed.CloseObject(ServiceFunction.CloseProcess, Object);
-
-            // c# best practices
-            // best practices are boilerplate in this language
-            GC.SuppressFinalize(this);
         }
 
         ~Process()
