@@ -1,3 +1,4 @@
+use crate::nt::arch::hxfs::Registers;
 use crate::nt::lock::pushlock::PushLock;
 use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
@@ -70,6 +71,20 @@ impl NtThread {
     pub fn get_impersonation_info(&self) -> bool {
         unsafe { *get_ethread_field::<u32>(EThreadField::CrossThreadFlags, self.nt_thread) }
             .get_bit(3)
+    }
+
+    pub fn set_syscall_frame(&self, registers: &Registers) {
+        unsafe {
+            get_ethread_field::<*mut Registers>(EThreadField::FirstArgument, self.nt_thread)
+                .write(registers as *const _ as _);
+        }
+    }
+
+    pub fn get_syscall_frame(&self) -> &mut Registers {
+        unsafe {
+            &mut *get_ethread_field::<*mut Registers>(EThreadField::FirstArgument, self.nt_thread)
+                .read()
+        }
     }
 
     pub fn get_adjusted_client_token(&self) -> PACCESS_TOKEN {

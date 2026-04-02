@@ -9,6 +9,7 @@ use hxposed_core::hxposed::requests::io::{
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::io::{MsrIoResponse, PrivilegedInstructionResponse};
 use hxposed_core::hxposed::responses::{HxResponse, SyscallResponse};
+use crate::nt::thread::NtThread;
 
 pub fn rw_msr(request: MsrIoRequest) -> HxResponse {
     match request.operation {
@@ -20,6 +21,7 @@ pub fn rw_msr(request: MsrIoRequest) -> HxResponse {
             Some(_) => EmptyResponse::default(),
             None => HxResponse::not_allowed(NotAllowedReason::AccessViolation),
         },
+        MsrOperation::Unknown => HxResponse::invalid_params(0)
     }
 }
 
@@ -29,10 +31,7 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HxResponse {
         PrivilegedInstruction::MovToCr8(cr8) => unsafe {
             asm!("mov cr8, {}", in(reg) cr8);
         },
-        PrivilegedInstruction::MovToCr3(cr3) => unsafe {
-            return HxResponse::not_allowed(NotAllowedReason::Unknown);
-        },
-        PrivilegedInstruction::MovFromCr8(mut cr8) => {
+        PrivilegedInstruction::MovFromCr8(cr8) => {
             unsafe {
                 asm!("mov {}, cr8", in(reg) cr8);
             }
@@ -40,10 +39,6 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HxResponse {
                 instruction: PrivilegedInstruction::MovFromCr8(cr8),
             }
             .into_raw();
-        }
-        // i think we should not support a direct mov to/from cr3
-        PrivilegedInstruction::MovFromCr3(_) => {
-            return HxResponse::not_allowed(NotAllowedReason::Unknown);
         }
         PrivilegedInstruction::Lgdt(gdt) => unsafe {
             asm!("lgdt [{}]", in(reg) gdt);
@@ -66,9 +61,11 @@ pub fn exec_privileged(request: PrivilegedInstructionRequest) -> HxResponse {
             .into_raw();
         }
         PrivilegedInstruction::MovToRFlags(rflags) => unsafe {
-            //(*HxFs::get_current()).registers.rflags = rflags;
+            let thread = NtThread::current();
+            let frame = thread.get_syscall_frame();
+            frame.rflags = rflags;
         },
-        PrivilegedInstruction::Unknown => return HxResponse::invalid_params(0),
+        _ => return HxResponse::invalid_params(0),
     };
 
     EmptyResponse::default()

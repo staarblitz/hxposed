@@ -10,6 +10,8 @@ pub struct PrivilegedInstructionRequest {
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum PrivilegedInstruction {
     Hlt,
+    /// # Extremely dangerous
+    /// HxPosed expects to be in PASSIVE_LEVEL. If you make another call without setting it to PASSIVE_LEVEL first, we have a problem.
     MovToCr8(u64),
     MovToCr3(u64),
     MovFromCr8(u64),
@@ -65,7 +67,8 @@ pub struct MsrIoRequest {
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum MsrOperation {
     Read,
-    Write
+    Write,
+    Unknown
 }
 
 impl MsrOperation {
@@ -73,6 +76,7 @@ impl MsrOperation {
         match self {
             MsrOperation::Read => 0,
             MsrOperation::Write => 1,
+            MsrOperation::Unknown => u64::MAX
         }
     }
 
@@ -80,7 +84,7 @@ impl MsrOperation {
         match bits {
             0 => MsrOperation::Read,
             1 => MsrOperation::Write,
-            _ => unreachable!()
+            _ => MsrOperation::Unknown
         }
     }
 }

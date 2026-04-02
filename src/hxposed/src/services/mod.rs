@@ -14,6 +14,7 @@ use hxposed_core::hxposed::status::HypervisorStatus;
 use crate::hyper_row;
 use crate::nt::arch::hxfs::{HxFs, Registers};
 use crate::nt::process::NtProcess;
+use crate::nt::thread::NtThread;
 use crate::utils::logger::{HxLogger, LogEvent, LogType};
 
 pub mod callback_services;
@@ -93,14 +94,11 @@ static DISPATCH_TABLE: [[SyscallHandler; 16]; DISPATCH_TABLE_MAX] = [
 pub(crate) fn syscall_handler(registers: &mut Registers) {
     let info = HxCall::from_bits(registers.rsi);
 
-    let process = NtProcess::current();
-
-    match process.is_hx_info_present() {
-        true => {}
-        false => {
-            HxLogger::serial_log(LogType::Warn, LogEvent::NoHxInfo);
-        }
-    }
+    let process = NtThread::current();
+    // SAFETY: very unsafe(ish)
+    // we use the registers pointer because we know it lives longer than this function (its allocated by previous caller on stack).
+    // when we ret and dispatch, the lifetime of registers end. until then, the lifetime is correct.
+    process.set_syscall_frame(registers);
 
     // partial uninit for performance??
     let mut request = HxRequest {
@@ -138,7 +136,7 @@ pub(crate) fn syscall_handler(registers: &mut Registers) {
         ));
         return;
     }
-
+    
     let result = DISPATCH_TABLE[category][func](&request);
 
     HxLogger::serial_log(LogType::Trace, LogEvent::HyperResult(result.arg1, result.arg2, result.arg3));
