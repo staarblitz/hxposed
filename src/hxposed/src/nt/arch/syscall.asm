@@ -26,7 +26,7 @@ hx_syscall_entry:
     mov gs:[0x10], rsp  # save user stack
     mov rsp, gs:[0x1A8] # get kernel stack
 
-    push gs:[0x10]      # save user stack
+    push gs:[0x10]      # save user stack again, since gs:[0x10] is volatile
 
     push rcx            # save user rip
 
