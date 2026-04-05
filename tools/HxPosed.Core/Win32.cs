@@ -12,11 +12,14 @@ namespace HxPosed.Core
         public const int HANDLE_ALL_ACCESS = 0x1FFFFFF;
         public const int PROCESS_QUERY_INFORMATION = 0x400;
         public const int THREAD_QUERY_INFORMATION = 0x0040;
+        public const uint TOKEN_QUERY = 0x0008;
 
         [DllImport("kernel32.dll")]
         public static extern int GetCurrentProcessId();
         [DllImport("kernel32.dll")]
         public static extern int GetCurrentThreadId();
+
+        // we need to use associated functiosn for ObHeadedCookie to be correct. or bugcheck.
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern nint OpenProcess(
@@ -24,6 +27,13 @@ namespace HxPosed.Core
         bool bInheritHandle,
         int processId
     );
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern bool OpenProcessToken(
+    nint processHandle,
+    uint desiredAccess,
+    out nint tokenHandle
+);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern nint OpenThread(
