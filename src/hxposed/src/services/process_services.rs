@@ -1,5 +1,6 @@
 use crate::nt::process::NtProcess;
-use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
+use crate::utils::logger::{HxLogger, LogEvent, LogType};
+use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::requests::process::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::process::*;
@@ -95,17 +96,14 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> HxRespo
 
     let field = match request.field {
         ProcessField::NtPath(ptr) => {
-            let path = process.get_nt_path();
+            let field = process.get_nt_path();
             if ptr != 0 {
-                match microseh::try_seh(|| unsafe {
-                    core::ptr::copy_nonoverlapping(path.as_ptr(), ptr as *mut u16, path.len())
-                }) {
-                    Ok(_) => {}
-                    Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
-                }
+                let _ = microseh::try_seh(|| unsafe {
+                    core::ptr::copy_nonoverlapping(field.as_ptr(), ptr as _, field.len())
+                });
             }
 
-            ProcessField::NtPath(path.len() as _)
+            ProcessField::NtPath(field.len() as _)
         }
         ProcessField::Protection(_) => ProcessField::Protection(process.get_protection()),
         ProcessField::Signers(_) => ProcessField::Signers(process.get_signers()),
@@ -114,17 +112,14 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> HxRespo
         }
         ProcessField::Token(_) => ProcessField::Token(process.get_token() as _),
         ProcessField::Threads(ptr) => {
-            let threads = process.get_threads();
+            let field = process.get_threads();
             if ptr != 0 {
-                match microseh::try_seh(|| unsafe {
-                    core::ptr::copy_nonoverlapping(threads.as_ptr(), ptr as *mut u32, threads.len())
-                }) {
-                    Ok(_) => {}
-                    Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
-                };
+                let _ = microseh::try_seh(|| unsafe {
+                    core::ptr::copy_nonoverlapping(field.as_ptr(), ptr as _, field.len())
+                });
             }
 
-            ProcessField::Threads(threads.len() as _)
+            ProcessField::Threads(field.len() as _)
         }
         ProcessField::DirectoryTableBase(_) => {
             ProcessField::DirectoryTableBase(process.get_directory_table_base().into())
@@ -152,12 +147,17 @@ pub(crate) fn get_process_field_sync(request: GetProcessFieldRequest) -> HxRespo
 /// * [`HxResponse::ok`] - Process was closed.
 /// * [`HxResponse::not_allowed`] - Something went very wrong.
 pub(crate) fn close_process(request: CloseProcessRequest) -> HxResponse {
-    match NtProcess::current()
+    let current = NtProcess::current();
+    match current
         .get_object_tracker_unchecked()
         .pop_open_process(request.process as _)
     {
         None => HxResponse::not_found_what(NotFoundReason::Process),
         Some(process) => {
+            HxLogger::serial_log(
+                LogType::Trace,
+                LogEvent::TrackObject(process.nt_process as _, current.nt_process as _),
+            );
             drop(process);
             EmptyResponse::default()
         }
@@ -165,20 +165,24 @@ pub(crate) fn close_process(request: CloseProcessRequest) -> HxResponse {
 }
 
 pub(crate) fn open_process(request: OpenProcessRequest) -> HxResponse {
-    let caller = NtProcess::current();
+    let current = NtProcess::current();
 
     let process = match NtProcess::from_id(request.process_id) {
         Some(process) => process,
         None => return HxResponse::not_found_what(NotFoundReason::Process),
     };
-    let uid = process.nt_process as u64;
-    caller
-        .get_object_tracker()
-        .unwrap()
-        .add_open_process(process);
+
+    HxLogger::serial_log(
+        LogType::Trace,
+        LogEvent::TrackObject(process.nt_process as _, current.nt_process as _),
+    );
 
     OpenObjectResponse {
-        object: ObjectType::Process(uid) as _,
+        object: ObjectType::Process(
+            current
+                .get_object_tracker_unchecked()
+                .add_open_process(process),
+        ),
     }
     .into_raw()
 }

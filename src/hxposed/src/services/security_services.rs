@@ -1,21 +1,16 @@
 use crate::nt;
-use crate::nt::object::NtObject;
 use crate::nt::process::NtProcess;
 use crate::nt::token::NtToken;
-use crate::win::PACCESS_TOKEN;
-use core::sync::atomic::Ordering;
-use hxposed_core::hxposed::error::{NotAllowedReason, NotFoundReason};
-use hxposed_core::hxposed::func::ServiceFunction;
-use hxposed_core::hxposed::requests::process::ObjectOpenType;
+use crate::utils::logger::{HxLogger, LogEvent, LogType};
+use hxposed_core::hxposed::error::NotFoundReason;
 use hxposed_core::hxposed::requests::security::*;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
 use hxposed_core::hxposed::responses::security::*;
-use hxposed_core::hxposed::responses::{HxResponse, SyscallResponse};
+use hxposed_core::hxposed::responses::{HxResponse, OpenObjectResponse, SyscallResponse};
 use hxposed_core::hxposed::{ObjectType, TokenObject};
 
 pub(crate) fn set_token_field_sync(request: SetTokenFieldRequest) -> HxResponse {
     let process = NtProcess::current();
-
     let token = match process
         .get_object_tracker_unchecked()
         .get_open_token(request.token)
@@ -54,12 +49,9 @@ pub(crate) fn get_token_field_sync(request: GetTokenFieldRequest) -> HxResponse 
         TokenField::AccountName(ptr) => {
             let field = token.get_account_name();
             if ptr != 0 {
-                match microseh::try_seh(|| unsafe {
+                let _ = microseh::try_seh(|| unsafe {
                     core::ptr::copy_nonoverlapping(field.as_ptr(), ptr as _, field.len())
-                }) {
-                    Ok(_) => {}
-                    Err(_) => return HxResponse::not_allowed(NotAllowedReason::AccessViolation),
-                };
+                });
             }
             GetTokenFieldResponse::AccountName(field.len() as _)
         }
@@ -94,17 +86,33 @@ pub(crate) fn open_token_sync(request: OpenTokenRequest) -> HxResponse {
         true => unsafe { nt::SYSTEM_TOKEN as TokenObject },
         false => request.token,
     };
-    process
-        .get_object_tracker_unchecked()
-        .add_open_token(NtToken::from_ptr_owned(token as _));
-    EmptyResponse::default()
+    HxLogger::serial_log(
+        LogType::Trace,
+        LogEvent::TrackObject(token, process.nt_process as _),
+    );
+
+    OpenObjectResponse {
+        object: ObjectType::Token(
+            process
+                .get_object_tracker_unchecked()
+                .add_open_token(NtToken::from_ptr_owning(request.token as _)),
+        ),
+    }
+    .into_raw()
 }
 
 pub(crate) fn close_token_sync(request: CloseTokenRequest) -> HxResponse {
     let process = NtProcess::current();
-    process
+    match process
         .get_object_tracker_unchecked()
-        .pop_open_token(request.token as _);
-
+        .pop_open_token(request.token as _)
+    {
+        None => return HxResponse::not_found_what(NotFoundReason::Token),
+        Some(_) => {}
+    }
+    HxLogger::serial_log(
+        LogType::Trace,
+        LogEvent::DetrackObject(request.token, process.nt_process as _),
+    );
     EmptyResponse::default()
 }
