@@ -229,22 +229,22 @@ pub fn unmap_va(request: MapRmdRequest) -> HxResponse {
 pub fn describe_memory(request: DescribeMemoryRequest) -> HxResponse {
     let process = NtProcess::current();
     let tracker = process.get_object_tracker_unchecked();
-    tracker.add_rmd(RawMemoryDescriptor::describe_physical(
+    let handle = tracker.add_rmd(RawMemoryDescriptor::describe_physical(
         Pa::from(request.pa),
         request.size,
     ));
 
-    DescribeMemoryResponse { rmd: request.pa }.into_raw()
+    DescribeMemoryResponse { rmd: handle }.into_raw()
 }
 
 pub fn allocate_memory(request: AllocateMemoryRequest) -> HxResponse {
     let rmd = RawMemoryDescriptor::new_alloc(request.size, request.memory_type);
-    let ptr: u64 = rmd.pa.into();
-    NtProcess::current()
+
+    let handle = NtProcess::current()
         .get_object_tracker_unchecked()
         .add_rmd(rmd);
 
-    AllocateMemoryResponse { rmd: ptr }.into_raw()
+    AllocateMemoryResponse { rmd: handle }.into_raw()
 }
 
 pub fn free_memory(request: FreeMemoryRequest) -> HxResponse {

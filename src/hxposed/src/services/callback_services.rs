@@ -1,16 +1,17 @@
 use crate::nt::callback::NtCallback;
 use crate::nt::event::NtEvent;
+use crate::nt::mm::mdl::MemoryDescriptor;
 use crate::nt::process::NtProcess;
-use hxposed_core::hxposed::ObjectType;
 use hxposed_core::hxposed::error::NotFoundReason;
-use hxposed_core::hxposed::func::ServiceFunction;
 use hxposed_core::hxposed::requests::notify::{
     RegisterNotifyHandlerRequest, UnregisterNotifyHandlerRequest,
 };
-use hxposed_core::hxposed::responses::HxResponse;
 use hxposed_core::hxposed::responses::empty::EmptyResponse;
-use hxposed_core::hxposed::responses::notify::CallbackInformation;
-use crate::nt::mm::mdl::MemoryDescriptor;
+use hxposed_core::hxposed::responses::notify::{
+    CallbackInformation, RegisterNotifyHandlerResponse,
+};
+use hxposed_core::hxposed::responses::{HxResponse, SyscallResponse};
+use hxposed_core::hxposed::ObjectType;
 
 pub fn register_callback_receiver(request: RegisterNotifyHandlerRequest) -> HxResponse {
     match request.target_object {
@@ -26,13 +27,17 @@ pub fn register_callback_receiver(request: RegisterNotifyHandlerRequest) -> HxRe
 
     let process = NtProcess::current();
     let tracker = process.get_object_tracker_unchecked();
-    let descriptor = match MemoryDescriptor::lock_pages(request.memory as _, size_of::<CallbackInformation>() as _) {
+    let descriptor = match MemoryDescriptor::lock_pages(
+        request.memory as _,
+        size_of::<CallbackInformation>() as _,
+    ) {
         Some(x) => x,
-        None => return HxResponse::invalid_params(1)
+        None => return HxResponse::invalid_params(1),
     };
-    tracker.add_callback(NtCallback::new(request.target_object, event, descriptor));
-
-    EmptyResponse::default()
+    RegisterNotifyHandlerResponse {
+        callback: tracker.add_callback(NtCallback::new(request.target_object, event, descriptor)),
+    }
+    .into_raw()
 }
 
 pub fn unregister_callback_receiver(request: UnregisterNotifyHandlerRequest) -> HxResponse {
