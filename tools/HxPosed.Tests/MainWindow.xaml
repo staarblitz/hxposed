@@ -32,6 +32,8 @@
                             <GridViewColumn Header="PID" Width="60" DisplayMemberBinding="{Binding Id}"/>
                             <GridViewColumn Header="Threads" Width="80" DisplayMemberBinding="{Binding Threads.Count}"/>
                             <GridViewColumn Header="Protection" Width="200" DisplayMemberBinding="{Binding Protection}"/>
+                            <GridViewColumn Header="Signers" Width="80" DisplayMemberBinding="{Binding Signers}"/>
+                            <GridViewColumn Header="Primary Token" Width="200" DisplayMemberBinding="{Binding PrimaryToken}"/>
                         </GridView>
                     </ListView.View>
                 </ListView>
@@ -42,12 +44,42 @@
                         <GridView>
                             <GridViewColumn Header="ID" Width="60" DisplayMemberBinding="{Binding Id}"/>
                             <GridViewColumn Header="PID" Width="60" DisplayMemberBinding="{Binding ProcessId}"/>
-                            <GridViewColumn Header="Is Impersonating" Width="120" DisplayMemberBinding="{Binding IsImpersonating}"/>
+                            <GridViewColumn Header="Is Impersonating?" Width="120" DisplayMemberBinding="{Binding IsImpersonating}"/>
+                            <GridViewColumn Header="Token" Width="200" DisplayMemberBinding="{Binding ImpersonationToken}"/>
                         </GridView>
                     </ListView.View>
                 </ListView>
             </TabItem>
             <TabItem Header="Security">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ListView Grid.Column="1" ItemsSource="{Binding Privileges}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Privilege Name" DisplayMemberBinding="{Binding Name}" Width="200"/>
+                                <GridViewColumn Header="Present" DisplayMemberBinding="{Binding IsPresent}" Width="80"/>
+                                <GridViewColumn Header="Enabled" DisplayMemberBinding="{Binding IsEnabled}" Width="80"/>
+                                <GridViewColumn Header="Default Enabled" DisplayMemberBinding="{Binding IsDefault}" Width="100"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                    <StackPanel>
+                        <Label>Token name:</Label>
+                        <Label>Token source:</Label>
+                        <GroupBox Header="Properties">
+                            <UniformGrid Columns="2">
+                                <Label>Integrity Level Index</Label>
+                                <ComboBox HorizontalContentAlignment="Stretch"></ComboBox>
+                                <Label>Impersonation Level</Label>
+                                <ComboBox HorizontalContentAlignment="Stretch"></ComboBox>
+                            </UniformGrid>
+
+                        </GroupBox>
+                    </StackPanel>
+                </Grid>
 
             </TabItem>
             <TabItem Header="Memory">

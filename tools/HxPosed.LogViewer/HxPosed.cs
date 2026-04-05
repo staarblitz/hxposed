@@ -2,6 +2,7 @@ using Microsoft.Win32.SafeHandles;
 using System;
 using System.Runtime.InteropServices;
 using System.Security.Policy;
+using static HxPosed.PInvoke._HX_REQUEST_RESPONSE;
 
 namespace HxPosed.PInvoke
 {
@@ -2363,7 +2364,7 @@ namespace HxPosed.PInvoke
     public partial struct _HXS_GET_PROCESS_FIELD
     {
         [NativeTypeName("HX_PROCESS_FIELD")]
-        public ulong Field;
+        public HxProcessField Field;
 
         [NativeTypeName("__AnonymousRecord_hxposed_L380_C5")]
         public _Anonymous_e__Union Anonymous;
@@ -3472,6 +3473,39 @@ namespace HxPosed.PInvoke
                 public UInt128 ExtendedArg4;
             }
         }
+
+        public enum HxThreadField : ulong
+        {
+            ActiveImpersonationInfo = 1,
+            AdjustedClientToken = 2
+        }
+
+        public enum HxTokenField : ulong
+        {
+            Unknown = 0,
+            SourceName = 1,
+            AccountName = 2,
+            Type = 3,
+            IntegrityLevelIndex = 4,
+            MandatoryPolicy = 5,
+            ImpersonationLevel = 6,
+            PresentPrivileges = 7,
+            EnabledPrivileges = 8,
+            EnabledByDefaultPrivileges = 9
+        }
+
+        public enum HxProcessField : ulong
+        {
+            Unknown = 0,
+            NtPath = 1,
+            Protection = 2,
+            Signers = 3,
+            MitigationFlags = 4,
+            Token = 5,
+            Threads = 6,
+            DirectoryTableBase = 7,
+            UserDirectoryTableBase = 8
+        }
     }
 
     public static unsafe partial class Methods
@@ -3485,30 +3519,6 @@ namespace HxPosed.PInvoke
 
         public const int HxOpenHandle = 0;
         public const int HxOpenHypervisor = 1;
-
-        public const int HxThreadFieldActiveImpersonationInfo = 1;
-        public const int HxThreadFieldAdjustedClientToken = 2;
-
-        public const int HxTokenFieldUnknown = 0;
-        public const int HxTokenFieldSourceName = 1;
-        public const int HxTokenFieldAccountName = 2;
-        public const int HxTokenFieldType = 3;
-        public const int HxTokenFieldIntegrityLevelIndex = 4;
-        public const int HxTokenFieldMandatoryPolicy = 5;
-        public const int HxTokenFieldImpersonationLevel = 6;
-        public const int HxTokenFieldPresentPrivileges = 7;
-        public const int HxTokenFieldEnabledPrivileges = 8;
-        public const int HxTokenFieldEnabledByDefaultPrivileges = 9;
-
-        public const int HxProcFieldUnknown = 0;
-        public const int HxProcFieldNtPath = 1;
-        public const int HxProcFieldProtection = 2;
-        public const int HxProcFieldSigners = 3;
-        public const int HxProcFieldMitigationFlags = 4;
-        public const int HxProcFieldToken = 5;
-        public const int HxProcFieldThreads = 6;
-        public const int HxProcFieldDirectoryTableBase = 7;
-        public const int HxProcFieldUserDirectoryTableBase = 8;
 
         public const int HxMemMap = 0;
         public const int HxMemUnMap = 1;

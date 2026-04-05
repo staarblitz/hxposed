@@ -638,8 +638,8 @@ typedef enum _HX_SERVICE_FUNCTION {
 
     HxSvcOpenToken = 0x50,
     HxSvcCloseToken = 0x51,
-    HxSvcGetTokenField = 0x53,
-    HxSvcSetTokenField = 0x54,
+    HxSvcGetTokenField = 0x52,
+    HxSvcSetTokenField = 0x53,
 
     HxSvcMsrIo = 0x60,
     HxSvcExecutePrivilegedInstruction = 0x61,

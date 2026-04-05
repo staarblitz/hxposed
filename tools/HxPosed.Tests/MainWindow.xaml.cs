@@ -87,8 +87,8 @@ namespace HxPosed.Tests
         {
             var selectedItem = (Process)processesList.SelectedItem;
 
-            selectedItem.Kill();
-            MessageBox.Show("Process killed");
+
+            MessageBox.Show("Process not killed on purpose");
 
             ReloadProcesses();
         }

@@ -31,6 +31,9 @@
             components = new System.ComponentModel.Container();
             textBox1 = new TextBox();
             groupBox1 = new GroupBox();
+            checkBox8 = new CheckBox();
+            checkBox7 = new CheckBox();
+            checkBox6 = new CheckBox();
             checkBox5 = new CheckBox();
             checkBox4 = new CheckBox();
             checkBox3 = new CheckBox();
@@ -56,6 +59,8 @@
             toolStripStatusLabel8 = new ToolStripStatusLabel();
             toolStripStatusLabel9 = new ToolStripStatusLabel();
             toolStripStatusLabel10 = new ToolStripStatusLabel();
+            toolStripStatusLabel11 = new ToolStripStatusLabel();
+            toolStripSplitButton1 = new ToolStripSplitButton();
             groupBox1.SuspendLayout();
             contextMenuStrip1.SuspendLayout();
             statusStrip1.SuspendLayout();
@@ -66,12 +71,15 @@
             textBox1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             textBox1.Location = new Point(6, 22);
             textBox1.Name = "textBox1";
-            textBox1.Size = new Size(831, 23);
+            textBox1.Size = new Size(845, 23);
             textBox1.TabIndex = 0;
             // 
             // groupBox1
             // 
             groupBox1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            groupBox1.Controls.Add(checkBox8);
+            groupBox1.Controls.Add(checkBox7);
+            groupBox1.Controls.Add(checkBox6);
             groupBox1.Controls.Add(checkBox5);
             groupBox1.Controls.Add(checkBox4);
             groupBox1.Controls.Add(checkBox3);
@@ -81,10 +89,49 @@
             groupBox1.Controls.Add(textBox1);
             groupBox1.Location = new Point(12, 12);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(905, 73);
+            groupBox1.Size = new Size(919, 73);
             groupBox1.TabIndex = 1;
             groupBox1.TabStop = false;
             groupBox1.Text = "Log binary";
+            // 
+            // checkBox8
+            // 
+            checkBox8.Anchor = AnchorStyles.Right;
+            checkBox8.AutoSize = true;
+            checkBox8.Checked = true;
+            checkBox8.CheckState = CheckState.Checked;
+            checkBox8.Location = new Point(661, 48);
+            checkBox8.Name = "checkBox8";
+            checkBox8.Size = new Size(102, 19);
+            checkBox8.TabIndex = 9;
+            checkBox8.Text = "Object Tracker";
+            checkBox8.UseVisualStyleBackColor = true;
+            // 
+            // checkBox7
+            // 
+            checkBox7.Anchor = AnchorStyles.Right;
+            checkBox7.AutoSize = true;
+            checkBox7.Checked = true;
+            checkBox7.CheckState = CheckState.Checked;
+            checkBox7.Location = new Point(769, 48);
+            checkBox7.Name = "checkBox7";
+            checkBox7.Size = new Size(51, 19);
+            checkBox7.TabIndex = 8;
+            checkBox7.Text = "Calls";
+            checkBox7.UseVisualStyleBackColor = true;
+            // 
+            // checkBox6
+            // 
+            checkBox6.Anchor = AnchorStyles.Right;
+            checkBox6.AutoSize = true;
+            checkBox6.Checked = true;
+            checkBox6.CheckState = CheckState.Checked;
+            checkBox6.Location = new Point(826, 48);
+            checkBox6.Name = "checkBox6";
+            checkBox6.Size = new Size(87, 19);
+            checkBox6.TabIndex = 7;
+            checkBox6.Text = "Diagnostics";
+            checkBox6.UseVisualStyleBackColor = true;
             // 
             // checkBox5
             // 
@@ -149,7 +196,7 @@
             // button1
             // 
             button1.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            button1.Location = new Point(843, 22);
+            button1.Location = new Point(857, 22);
             button1.Name = "button1";
             button1.Size = new Size(56, 23);
             button1.TabIndex = 1;
@@ -166,7 +213,7 @@
             listView1.GridLines = true;
             listView1.Location = new Point(12, 91);
             listView1.Name = "listView1";
-            listView1.Size = new Size(905, 400);
+            listView1.Size = new Size(919, 400);
             listView1.TabIndex = 2;
             listView1.UseCompatibleStateImageBehavior = false;
             listView1.View = View.Details;
@@ -212,10 +259,10 @@
             // 
             // statusStrip1
             // 
-            statusStrip1.Items.AddRange(new ToolStripItem[] { toolStripStatusLabel1, toolStripStatusLabel2, toolStripStatusLabel3, toolStripStatusLabel4, toolStripStatusLabel5, toolStripStatusLabel6, toolStripStatusLabel7, toolStripStatusLabel8, toolStripStatusLabel9, toolStripStatusLabel10 });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { toolStripStatusLabel1, toolStripStatusLabel2, toolStripStatusLabel3, toolStripStatusLabel4, toolStripStatusLabel5, toolStripStatusLabel6, toolStripStatusLabel7, toolStripStatusLabel8, toolStripStatusLabel9, toolStripStatusLabel10, toolStripStatusLabel11, toolStripSplitButton1 });
             statusStrip1.Location = new Point(0, 494);
             statusStrip1.Name = "statusStrip1";
-            statusStrip1.Size = new Size(929, 22);
+            statusStrip1.Size = new Size(943, 22);
             statusStrip1.TabIndex = 3;
             statusStrip1.Text = "statusStrip1";
             // 
@@ -279,11 +326,26 @@
             toolStripStatusLabel10.Size = new Size(13, 17);
             toolStripStatusLabel10.Text = "0";
             // 
+            // toolStripStatusLabel11
+            // 
+            toolStripStatusLabel11.Name = "toolStripStatusLabel11";
+            toolStripStatusLabel11.Size = new Size(531, 17);
+            toolStripStatusLabel11.Spring = true;
+            // 
+            // toolStripSplitButton1
+            // 
+            toolStripSplitButton1.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            toolStripSplitButton1.ImageTransparentColor = Color.Magenta;
+            toolStripSplitButton1.Name = "toolStripSplitButton1";
+            toolStripSplitButton1.Size = new Size(84, 20);
+            toolStripSplitButton1.Text = "Diagnostics";
+            toolStripSplitButton1.ButtonClick += toolStripSplitButton1_ButtonClick;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(929, 516);
+            ClientSize = new Size(943, 516);
             Controls.Add(statusStrip1);
             Controls.Add(listView1);
             Controls.Add(groupBox1);
@@ -327,5 +389,10 @@
         private CheckBox checkBox4;
         private CheckBox checkBox3;
         private CheckBox checkBox2;
+        private ToolStripStatusLabel toolStripStatusLabel11;
+        private ToolStripSplitButton toolStripSplitButton1;
+        private CheckBox checkBox7;
+        private CheckBox checkBox6;
+        private CheckBox checkBox8;
     }
 }

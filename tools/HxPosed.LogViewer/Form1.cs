@@ -2,6 +2,7 @@ using HxPosed.PInvoke;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using static HxPosed.PInvoke._HX_REQUEST_RESPONSE;
 
 namespace HxPosed.LogViewer
 {
@@ -33,6 +34,17 @@ namespace HxPosed.LogViewer
                 if (log.LogType == LogType.Warn && !checkBox4.Checked) continue;
                 if (log.LogType == LogType.Info && !checkBox3.Checked) continue;
                 if (log.LogType == LogType.Trace && !checkBox2.Checked) continue;
+                if ((log.LogEvent == LogEventTag.AcquireObject
+                    || log.LogEvent == LogEventTag.FreeObject
+                    || log.LogEvent == LogEventTag.IncrementRefCount
+                    || log.LogEvent == LogEventTag.DecrementRefCount
+                    || log.LogEvent == LogEventTag.IncrementHandleCount
+                    || log.LogEvent == LogEventTag.DecrementHandleCount) && !checkBox6.Checked) continue;
+                if ((log.LogEvent == LogEventTag.HyperCall
+                    || log.LogEvent == LogEventTag.HyperResult) && !checkBox7.Checked) continue;
+                if ((log.LogEvent == LogEventTag.QueryObject
+                    || log.LogEvent == LogEventTag.TrackObject
+                    || log.LogEvent == LogEventTag.DetrackObject) && !checkBox8.Checked) continue;
 
                 try
                 {
@@ -45,154 +57,177 @@ namespace HxPosed.LogViewer
 
                     switch (log.LogEvent)
                     {
-                        case LogEventTag.None:
+                        case LogEventTag.AcquireObject:
                             {
-                                eventString = "Invalid event";
+                                item.BackColor = Color.Cyan;
+                                eventString = $"Acquiring internal reference to object: 0x{log.Arg1:x}, is owned: {(log.Arg2 == 0 ? false : true)}";
                                 break;
                             }
-                        case LogEventTag.VmxExitReason:
+                        case LogEventTag.FreeObject:
                             {
-                                eventString = $"VmExit with reason: 0x{log.Arg1:x}";
+                                item.BackColor = Color.Cyan;
+                                eventString = $"Releasing internal reference to object: 0x{log.Arg1:x}";
                                 break;
                             }
-                        case LogEventTag.RIP:
+                        case LogEventTag.QueryObject:
                             {
-                                eventString = $"VmExit RIP: 0x{log.Arg1:x}, Next RIP: 0x{log.Arg2:x}";
+                                item.BackColor = Color.Cyan;
+                                eventString = $"Querying object 0x{log.Arg1:x} for caller: 0x{log.Arg2:x}";
                                 break;
                             }
-                        case LogEventTag.VCPU:
+                        case LogEventTag.TrackObject:
                             {
-                                eventString = $"VCPU structure address: 0x{log.Arg1:x}";
+                                item.BackColor = Color.Cyan;
+                                eventString = $"Tracking object 0x{log.Arg1:x} for caller: 0x{log.Arg2:x}";
                                 break;
                             }
-                        case LogEventTag.UnknownExitReason:
+                        case LogEventTag.DetrackObject:
                             {
-                                eventString = $"HxPosed encountered an unhandled exit reason {log.Arg1}.";
+                                item.BackColor = Color.Cyan;
+                                eventString = $"Untracking object 0x{log.Arg1:x} for caller: 0x{log.Arg2:x}";
                                 break;
                             }
                         case LogEventTag.NoHxInfo:
                             {
+                                item.BackColor = Color.Yellow;
                                 eventString = "The caller doesn't have HxInfo structure";
                                 break;
                             }
                         case LogEventTag.HyperCall:
                             {
+                                item.BackColor = Color.LightBlue;
                                 var call = new _HX_CALL
                                 {
                                     _bitfield = log.Arg1
                                 };
 
-                                eventString = $"Hypercall was requested: {(_HX_SERVICE_FUNCTION)call.ServiceFunction} 0x{log.Arg2:x} 0x{log.Arg3:x} 0x{log.Arg4:x}";
+                                switch ((_HX_SERVICE_FUNCTION)call.ServiceFunction)
+                                {
+                                    case _HX_SERVICE_FUNCTION.HxSvcGetProcessField:
+                                        {
+                                            eventString = $"Hypercall to get process (0x{log.Arg2:x}) field: ({(HxProcessField)log.Arg3})";
+                                            break;
+                                        }
+                                    case _HX_SERVICE_FUNCTION.HxSvcSetProcessField:
+                                        {
+                                            eventString = $"Hypercall to set process (0x{log.Arg2:x}) field: ({(HxProcessField)log.Arg3}) to: {log.Arg4}";
+                                            break;
+                                        }
+                                    case _HX_SERVICE_FUNCTION.HxSvcGetTokenField:
+                                        {
+                                            eventString = $"Hypercall to get token (0x{log.Arg2:x}) field: ({(HxTokenField)log.Arg3})";
+                                            break;
+                                        }
+                                    case _HX_SERVICE_FUNCTION.HxSvcSetTokenField:
+                                        {
+                                            eventString = $"Hypercall to set token (0x{log.Arg2:x}) field: ({(HxTokenField)log.Arg3})";
+                                            break;
+                                        }
+                                    case _HX_SERVICE_FUNCTION.HxSvcGetThreadField:
+                                        {
+                                            eventString = $"Hypercall to get thread (0x{log.Arg2:x}) field: ({(HxThreadField)log.Arg3})";
+                                            break;
+                                        }
+                                    case _HX_SERVICE_FUNCTION.HxSvcSetThreadField:
+                                        {
+                                            eventString = $"Hypercall to set thread (0x{log.Arg2:x}) field: ({(HxThreadField)log.Arg3}) to: {log.Arg4}";
+                                            break;
+                                        }
+                                    default:
+                                        eventString = $"Hypercall was requested: {(_HX_SERVICE_FUNCTION)call.ServiceFunction} 0x{log.Arg2:x} 0x{log.Arg3:x} 0x{log.Arg4:x}";
+                                        break;
+                                }
                                 break;
                             }
                         case LogEventTag.HcDispatch:
                             {
+                                item.BackColor = Color.AliceBlue;
                                 eventString = $"Dispatching hypercall with category: 0x{log.Arg1:x}, function: 0x{log.Arg2:x}";
-                                break;
-                            }
-                        case LogEventTag.CallError:
-                            {
-                                eventString = "Dispatch ended";
                                 break;
                             }
                         case LogEventTag.HyperResult:
                             {
+                                item.BackColor = Color.AliceBlue;
                                 var result = Unsafe.BitCast<ulong, _HX_RESULT>(log.Arg1);
                                 eventString = $"Result of hypercall: {result.ErrorCode} - {result.ErrorReason} 0x{log.Arg2:x} 0x{log.Arg3:x} 0x{log.Arg4:x}";
                                 break;
                             }
-                        case LogEventTag.VirtualizingProcessor:
-                            {
-                                eventString = $"Processor {log.Arg1} is being virtualized";
-                                break;
-                            }
-                        case LogEventTag.ProcessorVirtualized:
-                            {
-                                eventString = $"Processor {log.Arg1} virtualized";
-                                break;
-                            }
                         case LogEventTag.FailedToMap:
                             {
+                                item.BackColor = Color.IndianRed;
                                 eventString = "Failed to map virtual address";
-                                break;
-                            }
-                        case LogEventTag.DelayedStart:
-                            {
-                                eventString = "Loaded from HxLoader. Delaying start...";
                                 break;
                             }
                         case LogEventTag.HxPosedInit:
                             {
+                                item.BackColor = Color.LightCyan;
                                 eventString = $"HxPosed base: 0x{log.Arg1:x}, size: 0x{log.Arg2:x}";
                                 break;
                             }
                         case LogEventTag.WindowsVersion:
                             {
+                                item.BackColor = Color.LightCyan;
                                 eventString = $"NT build: {log.Arg1}, UBR: {log.Arg2}";
                                 break;
                             }
                         case LogEventTag.FailedToAllocate:
                             {
+                                item.BackColor = Color.IndianRed;
                                 eventString = "Failed to make allocation";
                                 break;
                             }
                         case LogEventTag.Exception:
                             {
+                                item.BackColor = Color.OrangeRed;
                                 eventString = $"Excecption with code {log.Arg1} occured";
                                 break;
                             }
                         case LogEventTag.Catastrophic:
                             {
+                                item.BackColor = Color.DarkRed;
                                 eventString = $"Catastrophic failure. Registers: 0x{log.Arg1:x}, vector: 0x{log.Arg2:x}, code: 0x{log.Arg3:x}";
                                 break;
                             }
-                        case LogEventTag.ProcessorReady:
+                        case LogEventTag.IncrementHandleCount:
                             {
-                                eventString = $"Processor {log.Arg1} is ready with HvFs virtual address: 0x{log.Arg2:x}";
+                                item.BackColor = Color.Gold;
+                                eventString = $"Incrementing handle count of object header 0x{log.Arg1:x} old count: {log.Arg2}";
                                 break;
                             }
-                        case LogEventTag.LaunchingProcessor:
+                        case LogEventTag.DecrementHandleCount:
                             {
-                                eventString = "Launching processor...";
+                                item.BackColor = Color.PaleGoldenrod;
+                                eventString = $"Decrementing handle count of object header 0x{log.Arg1:x} old count: {log.Arg2}";
                                 break;
                             }
-                        case LogEventTag.Vmclear:
+                        case LogEventTag.DecrementRefCount:
                             {
-                                eventString = $"Executing VMCLEAR physical: 0x{log.Arg1:x}, virtual: 0x{log.Arg2:x}";
+                                item.BackColor = Color.DarkGoldenrod;
+                                eventString = $"Decrementing reference count of object header 0x{log.Arg1:x} old count: {log.Arg2}";
                                 break;
                             }
-                        case LogEventTag.Vmptrld:
+                        case LogEventTag.IncrementRefCount:
                             {
-                                eventString = $"Executing VMPTRLD physical: 0x{log.Arg1:x}, virtual: 0x{log.Arg2:x}";
-                                break;
-                            }
-                        case LogEventTag.Vmxon:
-                            {
-                                eventString = $"Executing VMXON physical: 0x{log.Arg1:x}, virtual: 0x{log.Arg2:x}";
+                                item.BackColor = Color.PaleGoldenrod;
+                                eventString = $"Incrementing reference count of object header 0x{log.Arg1:x} old count: {log.Arg2}";
                                 break;
                             }
                         case LogEventTag.Panic:
                             {
-                                eventString = $"Panic occured. VMCS dump: 0x{log.Arg1:x}, panic info: 0x{log.Arg2:x}";
+                                item.BackColor = Color.DarkRed;
+                                eventString = $"Panic occured. Panic info 0x{log.Arg1:x}, HxLoader info: 0x{log.Arg2:x}";
                                 break;
                             }
-                        case LogEventTag.WritingAsyncBuffer:
-                            {
-                                eventString = $"Writing async buffer to 0x{log.Arg1:x}, with length {log.Arg2}";
-                                break;
-                            }
-                        case LogEventTag.WrittenAsyncBuffer:
-                            {
-                                eventString = $"Written async buffer to 0x{log.Arg1:x}, ended at 0x{log.Arg2:x}";
-                                break;
-                            }
+
                         case LogEventTag.NtInfo:
                             {
+                                item.BackColor = Color.LightCyan;
                                 eventString = $"NT build: {log.Arg1}, UBR: {log.Arg2}, base: 0x{log.Arg3:x}";
                                 break;
                             }
                         case LogEventTag.BuildOffset:
                             {
+                                item.BackColor = Color.LightCyan;
                                 var name = log.Arg1 switch
                                 {
                                     0 => "PsTerminateProcess",
@@ -206,27 +241,21 @@ namespace HxPosed.LogViewer
                             }
                         default:
                             {
-                                eventString = "Unknown event";
+                                eventString = $"Unknown event: {(int)log.LogEvent}";
                                 break;
                             }
                     }
 
                     item.SubItems.Add(eventString);
 
-                    if (checkBox1.Checked)
+                    if (!checkBox1.Checked)
                     {
-                        item.BackColor = log.LogType switch
-                        {
-                            LogType.Trace => item.BackColor,
-                            LogType.Info => Color.CadetBlue,
-                            LogType.Warn => Color.DarkGoldenrod,
-                            LogType.Error => Color.IndianRed
-                        };
+                        item.BackColor = Color.White;
                     }
 
                     listView1.Items.Add(item);
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
 
                 }
@@ -300,5 +329,16 @@ namespace HxPosed.LogViewer
 
             copyCellToolStripMenuItem.Enabled = true;
         }
+
+        private void referenceDiagnosticsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void toolStripSplitButton1_ButtonClick(object sender, EventArgs e)
+        {
+            new Diagnostic(_logs).Show();
+        }
+
     }
 }
