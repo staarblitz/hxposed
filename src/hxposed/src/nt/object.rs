@@ -7,6 +7,7 @@ use crate::win::{ExpLookupHandleTableEntry, PHANDLE_TABLE, _EXHANDLE};
 use bit_field::BitField;
 use core::ffi::c_void;
 use hxposed_core::hxposed::Handle;
+use crate::utils::logger::{HxLogger, LogEvent, LogType};
 
 /// This is not a trait, nor an abstraction layer. This is for general object functions.
 pub struct NtObject {
@@ -34,10 +35,13 @@ impl NtObject {
     }
 
     pub unsafe fn increment_ref_count(obj_header: ObjectHeader) {
+        // actually, fetch should be interlocked too
+        HxLogger::serial_log(LogType::Trace, LogEvent::IncrementRefCount(obj_header.0 as _, *obj_header.0));
         interlocked_increment(obj_header.0);
     }
 
     pub unsafe fn decrement_ref_count(obj_header: ObjectHeader) {
+        HxLogger::serial_log(LogType::Trace, LogEvent::DecrementRefCount(obj_header.0 as _, *obj_header.0));
         interlocked_decrement(obj_header.0);
     }
 
@@ -50,10 +54,12 @@ impl NtObject {
     }
 
     pub unsafe fn increment_handle_count(obj_header: ObjectHeader) {
+        HxLogger::serial_log(LogType::Trace, LogEvent::IncrementHandleCount(obj_header.0 as _, *obj_header.0.byte_offset(8)));
         interlocked_increment(obj_header.0.byte_offset(8));
     }
 
     pub unsafe fn decrement_handle_count(obj_header: ObjectHeader) {
+        HxLogger::serial_log(LogType::Trace, LogEvent::DecrementHandleCount(obj_header.0 as _, *obj_header.0.byte_offset(8)));
         interlocked_decrement(obj_header.0.byte_offset(8));
     }
 

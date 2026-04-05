@@ -13,12 +13,12 @@ use crate::win::{
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
+use core::ops::BitAnd;
 use hxposed_core::hxposed::requests::memory::Pa;
 use hxposed_core::services::types::process_fields::{
     MitigationOptions, ProcessProtection, ProcessSignatureLevels,
 };
-use crate::GLOBAL_LOGGER;
-use crate::utils::logger::LogEvent;
+use crate::utils::logger::{HxLogger, LogEvent, LogType};
 
 ///
 /// # Kernel Process
@@ -36,6 +36,7 @@ pub struct NtProcess {
 impl Hash for NtProcess {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64(self.nt_process as _);
+        state.write_u32(self.id as _);
     }
 }
 
@@ -60,6 +61,7 @@ impl Drop for NtProcess {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
+                HxLogger::serial_log(LogType::Trace, LogEvent::FreeObject(self.nt_process as _, if self.owns {1} else {0}));
                 NtObject::decrement_ref_count_raw(self.nt_process as _);
             }
         }
@@ -93,6 +95,7 @@ impl NtProcess {
     }
 
     fn open_process(ptr: PEPROCESS, owns: bool) -> Self {
+        HxLogger::serial_log(LogType::Trace, LogEvent::AcquireObject(ptr as _, if owns {1} else {0}));
         Self {
             nt_process: ptr,
             id: unsafe { PsGetProcessId(ptr) } as _,
@@ -179,7 +182,7 @@ impl NtProcess {
     }
 
     pub fn get_object_tracker_unchecked(&self) -> &mut ObjectTracker {
-        Self::get_object_tracker(self).unwrap()
+        self.get_object_tracker().unwrap()
     }
 
     pub fn get_object_tracker(&self) -> Option<&mut ObjectTracker> {
@@ -251,7 +254,8 @@ impl NtProcess {
     }
 
     pub fn get_token(&self) -> PACCESS_TOKEN {
-        unsafe { *get_eprocess_field::<u64>(EProcessField::Token, self.nt_process) as _ }
+        // 0xF to clear EX_FAST_REF reference count
+        unsafe { *get_eprocess_field::<u64>(EProcessField::Token, self.nt_process)}.bitand(!0xF) as _
     }
 
     pub fn set_protection(&mut self, protection: ProcessProtection) {

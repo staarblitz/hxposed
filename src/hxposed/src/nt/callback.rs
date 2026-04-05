@@ -26,12 +26,6 @@ pub struct NtCallback {
     pub memory: MemoryDescriptor,
 }
 
-impl Hash for NtCallback {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.callback)
-    }
-}
-
 unsafe impl Send for NtCallback {}
 unsafe impl Sync for NtCallback {}
 
@@ -88,7 +82,7 @@ impl NtCallback {
         CALLER_PROCESSES.lock().iter_mut().for_each(|nt| {
             let object_tracker = nt.get_object_tracker_unchecked();
 
-            for (_, callback) in &mut object_tracker.callbacks {
+            for callback in &mut object_tracker.callbacks {
                 if callback.object_type != ObjectType::Process(0) {
                     continue;
                 }
@@ -122,7 +116,7 @@ impl NtCallback {
         CALLER_PROCESSES.lock().iter_mut().for_each(|nt| {
             let object_tracker = nt.get_object_tracker_unchecked();
 
-            for (_, callback) in &mut object_tracker.callbacks {
+            for callback in &mut object_tracker.callbacks {
                 if callback.object_type != ObjectType::Thread(0) {
                     continue;
                 }

@@ -12,6 +12,7 @@ use crate::win::{
 use bit_field::BitField;
 use core::hash::{Hash, Hasher};
 use core::ptr::null_mut;
+use crate::utils::logger::{HxLogger, LogEvent, LogType};
 
 pub struct NtThread {
     pub nt_thread: PETHREAD,
@@ -33,7 +34,8 @@ impl Drop for NtThread {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
-                NtObject::decrement_handle_count_raw(self.nt_thread as _);
+                HxLogger::serial_log(LogType::Trace, LogEvent::FreeObject(self.nt_thread as _, if self.owns {1} else {0}));
+                NtObject::decrement_ref_count_raw(self.nt_thread as _);
             }
         }
     }
@@ -52,14 +54,20 @@ impl NtThread {
     }
 
     pub fn current() -> NtThread {
-        Self::open_thread(unsafe { KeGetCurrentThread() }, true)
+        Self::open_thread(unsafe { KeGetCurrentThread() }, false)
     }
 
     pub fn from_ptr(process: PETHREAD) -> Self {
         Self::open_thread(process, false)
     }
+    pub fn from_ptr_owning(thread: PETHREAD) -> Self {
+        let me = Self::open_thread(thread, true);
+        unsafe { NtObject::increment_ref_count_raw(me.nt_thread as _) };
+        me
+    }
 
     fn open_thread(ptr: PETHREAD, owns: bool) -> Self {
+        HxLogger::serial_log(LogType::Trace, LogEvent::AcquireObject(ptr as _, if owns {1} else {0}));
         Self {
             nt_thread: ptr,
             id: unsafe { PsGetThreadId(ptr) } as _,

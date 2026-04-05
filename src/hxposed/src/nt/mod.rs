@@ -344,11 +344,12 @@ pub struct ObjectHeader(pub *mut u64);
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct ObjectBody(pub *mut u64);
 
+#[inline(always)]
 pub(crate) unsafe fn get_object_header(object: ObjectBody) -> ObjectHeader {
     // _OBJECT_HEADER is actually 0x38 bytes. but since the Body field is the object itself, we cut it down
     ObjectHeader(unsafe { object.0.byte_offset(-0x30) })
 }
-
+#[inline(always)]
 pub(crate) unsafe fn get_object_body(object_header: ObjectHeader) -> ObjectBody {
     // read the comment above
     ObjectBody(unsafe { object_header.0.byte_offset(0x30) as _ })

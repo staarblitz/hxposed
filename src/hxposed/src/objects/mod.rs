@@ -7,27 +7,26 @@ use crate::nt::token::NtToken;
 use crate::utils::alloc::PoolAlloc;
 use crate::utils::danger::DangerPtr;
 use alloc::boxed::Box;
+use alloc::vec;
 use alloc::vec::Vec;
-use hashbrown::HashMap;
 use hxposed_core::hxposed::*;
 use spin::mutex::SpinMutex;
-
 
 pub static CALLER_PROCESSES: SpinMutex<Vec<NtProcess>> = SpinMutex::new(Vec::new());
 
 #[repr(C)]
 pub struct ObjectTracker {
-    pub callbacks: HashMap<CallbackObject, NtCallback>,
-    pub threads: HashMap<ThreadObject, NtThread>,
-    pub tokens: HashMap<TokenObject, NtToken>,
-    pub processes: HashMap<ProcessObject, NtProcess>,
-    pub rmds: HashMap<RmdObject, RawMemoryDescriptor>,
+    pub callbacks: Vec<NtCallback>,
+    pub threads: Vec<NtThread>,
+    pub tokens: Vec<NtToken>,
+    pub processes: Vec<NtProcess>,
+    pub rmds: Vec<RawMemoryDescriptor>,
 }
 
 impl Drop for ObjectTracker {
     fn drop(&mut self) {
         // has to be explicitly teared down
-        for (_, rmd) in &self.rmds {
+        for rmd in &self.rmds {
             rmd.teardown();
         }
     }
@@ -39,11 +38,11 @@ impl ObjectTracker {
             ptr: Box::into_raw(Self::alloc()),
         };
 
-        me.callbacks = HashMap::new();
-        me.threads = HashMap::new();
-        me.tokens = HashMap::new();
-        me.processes = HashMap::new();
-        me.rmds = HashMap::new();
+        me.callbacks = Vec::new();
+        me.threads = Vec::new();
+        me.tokens = Vec::new();
+        me.processes = vec![NtProcess::current()];
+        me.rmds = Vec::new();
 
         me.ptr
     }
@@ -61,66 +60,88 @@ impl ObjectTracker {
         }
     }
 
-    pub fn add_rmd(&mut self, mdl: RawMemoryDescriptor) {
-        self.rmds.insert(mdl.pa.into(), mdl);
+    pub fn add_rmd(&mut self, mdl: RawMemoryDescriptor) -> u64 {
+        self.rmds.push(mdl);
+        (self.rmds.len() - 1) as _
     }
 
-    pub fn add_callback(&mut self, callback: NtCallback) {
-        self.callbacks.insert(callback.callback, callback);
+    pub fn add_callback(&mut self, callback: NtCallback) -> u64  {
+        self.callbacks.push(callback);
+        (self.callbacks.len() - 1) as _
     }
 
-    pub fn add_open_process(&mut self, process: NtProcess) {
-        self.processes.insert(process.nt_process as _, process);
+    pub fn add_open_process(&mut self, process: NtProcess) -> u64 {
+        self.processes.push(process);
+        (self.processes.len() - 1) as _
     }
 
-    pub fn add_open_thread(&mut self, thread: NtThread) {
-        self.threads.insert(thread.nt_thread as _, thread);
+    pub fn add_open_thread(&mut self, thread: NtThread) -> u64  {
+        self.threads.push(thread);
+        (self.threads.len() - 1) as _
     }
 
-    pub fn add_open_token(&mut self, token: NtToken) {
-        self.tokens.insert(token.nt_token as _, token);
+    pub fn add_open_token(&mut self, token: NtToken) -> u64  {
+        self.tokens.push(token);
+        (self.tokens.len() - 1) as _
     }
 
     pub fn get_rmd(&mut self, mdl_addr: RmdObject) -> Option<&mut RawMemoryDescriptor> {
-        self.rmds.get_mut(&mdl_addr)
+        self.rmds.get_mut(mdl_addr as usize)
     }
 
     pub fn get_open_thread(&mut self, thread: ThreadObject) -> Option<&mut NtThread> {
-        self.threads.get_mut(&thread)
+        self.threads.get_mut(thread as usize)
     }
 
     pub fn get_open_token(&mut self, token: TokenObject) -> Option<&mut NtToken> {
-        self.tokens.get_mut(&token)
+        self.tokens.get_mut(token as usize)
     }
 
-    pub fn get_open_process(&mut self, process: ProcessObject) -> Option<NtProcess> {
-        if process == 0 {
-            return Some(NtProcess::current())
-        }
-        self.processes.get_mut(&process).cloned()
+    pub fn get_open_process(&mut self, process: ProcessObject) -> Option<&mut NtProcess> {
+        self.processes.get_mut(process as usize)
     }
 
     pub fn get_callback(&mut self, mdl_addr: CallbackObject) -> Option<&mut NtCallback> {
-        self.callbacks.get_mut(&mdl_addr)
+        self.callbacks.get_mut(mdl_addr as usize)
     }
 
     pub fn pop_open_process(&mut self, process: ProcessObject) -> Option<NtProcess> {
-        self.processes.remove(&process)
+        if (process as usize) < self.processes.len() {
+            Some(self.processes.remove(process as usize))
+        } else {
+            None
+        }
     }
 
     pub fn pop_open_thread(&mut self, thread: ThreadObject) -> Option<NtThread> {
-        self.threads.remove(&thread)
+        if (thread as usize) < self.threads.len() {
+            Some(self.threads.remove(thread as usize))
+        } else {
+            None
+        }
     }
 
     pub fn pop_rmd(&mut self, mdl: RmdObject) -> Option<RawMemoryDescriptor> {
-        self.rmds.remove(&mdl)
+        if (mdl as usize) < self.rmds.len() {
+            Some(self.rmds.remove(mdl as usize))
+        } else {
+            None
+        }
     }
 
     pub fn pop_open_token(&mut self, token: ProcessObject) -> Option<NtToken> {
-        self.tokens.remove(&token)
+        if (token as usize) < self.tokens.len() {
+            Some(self.tokens.remove(token as usize))
+        } else {
+            None
+        }
     }
 
     pub fn pop_open_callback(&mut self, callback: CallbackObject) -> Option<NtCallback> {
-        self.callbacks.remove(&callback)
+        if (callback as usize) < self.callbacks.len() {
+            Some(self.callbacks.remove(callback as usize))
+        } else {
+            None
+        }
     }
 }

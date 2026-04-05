@@ -11,6 +11,7 @@ use core::hash::{Hash, Hasher};
 use hxposed_core::services::types::security_fields::{
     ImpersonationLevel, TokenPrivilege, TokenType,
 };
+use crate::utils::logger::{HxLogger, LogEvent, LogType};
 
 pub struct NtToken {
     pub nt_token: PACCESS_TOKEN,
@@ -30,6 +31,7 @@ impl Drop for NtToken {
     fn drop(&mut self) {
         if self.owns {
             unsafe {
+                HxLogger::serial_log(LogType::Trace, LogEvent::FreeObject(self.nt_token as _, if self.owns {1} else {0}));
                 NtObject::decrement_ref_count_raw(self.nt_token as _);
             }
         }
@@ -40,11 +42,15 @@ impl NtToken {
     pub fn from_ptr(token: PACCESS_TOKEN) -> Self {
         Self::open_token(token, false)
     }
-    pub fn from_ptr_owned(token: PACCESS_TOKEN) -> Self {
+    pub fn from_ptr_owning(token: PACCESS_TOKEN) -> Self {
+        unsafe {
+            NtObject::increment_ref_count_raw(token);
+        }
         Self::open_token(token, true)
     }
 
     fn open_token(ptr: PACCESS_TOKEN, owns: bool) -> Self {
+        HxLogger::serial_log(LogType::Trace, LogEvent::AcquireObject(ptr as _, if owns {1} else {0}));
         Self {
             nt_token: ptr,
             owns,
