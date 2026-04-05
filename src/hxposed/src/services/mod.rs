@@ -109,7 +109,7 @@ pub(crate) fn syscall_handler(registers: &mut Registers) {
         ..Default::default()
     };
 
-    HxLogger::serial_log(LogType::Trace, LogEvent::HyperCall(
+    HxLogger::serial_log(LogType::Trace, LogEvent::SystemCall(
         request.call.into_bits(),
         request.arg1,
         request.arg2,
@@ -139,7 +139,7 @@ pub(crate) fn syscall_handler(registers: &mut Registers) {
     
     let result = DISPATCH_TABLE[category][func](&request);
 
-    HxLogger::serial_log(LogType::Trace, LogEvent::HyperResult(result.arg1, result.arg2, result.arg3));
+    HxLogger::serial_log(LogType::Trace, LogEvent::CallResult(result.arg1, result.arg2, result.arg3));
 
     registers.write_response(result);
 }

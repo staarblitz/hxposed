@@ -1,5 +1,6 @@
 use crate::win::{KeGetCurrentProcessorNumber, KeQuerySystemTime};
 use alloc::boxed::Box;
+use spin::mutex::SpinMutex;
 use x86::io::outb;
 use crate::size_assert;
 
@@ -9,6 +10,8 @@ pub struct HxLogger {
     cursor: usize,
     cycle: u32
 }
+
+static SERIAL_LOCK: SpinMutex<()> = SpinMutex::new(());
 
 impl HxLogger {
 
@@ -20,11 +23,8 @@ impl HxLogger {
         }
     }
 
-    // <qemu:arg value="-chardev"/>
-    // <qemu:arg value="file,id=debuglog,path=/tmp/guest_debug.log,append=on"/>
-    // <qemu:arg value="-device"/>
-    // <qemu:arg value="isa-debugcon,iobase=0xe9,chardev=debuglog"/>
     fn serial_out(entry: &LogEntry) {
+        let _lock = SERIAL_LOCK.lock();
         // SAFETY: the struct is exactly 64 bytes and aligned
         let ptr = entry as *const LogEntry as *const u8;
 
@@ -34,6 +34,8 @@ impl HxLogger {
                 outb(0xe9, byte);
             }
         }
+
+        drop(_lock);
     }
 
     pub fn dump_to_serial(&self) {
@@ -48,7 +50,6 @@ impl HxLogger {
 
     pub fn log(&mut self, log_type: LogType, event: LogEvent) {
         if self.cursor >= self.buffer.len() {
-            //TODO: code handler for LogViewer
             self.cursor = 1;
             self.cycle += 1;
             self.buffer[0] = LogEntry::new(LogType::Info, LogEvent::LogRingReset(self.cycle));
@@ -76,7 +77,7 @@ impl HxLogger {
     }
 }
 
-#[repr(C, align(8))]
+#[repr(C, align(64))]
 #[derive(Default, Copy, Clone)]
 pub struct LogEntry {
     pub log_type: LogType,
@@ -111,31 +112,25 @@ impl LogEntry {
 pub enum LogEvent {
     #[default]
     None = 0,
-    VmxExitReason(u64),
-    RIP(u64, u64) = 2,
-    VCPU(u64) = 3,
-    UnknownExitReason(u64) = 4,
+    AcquireObject(u64, u64) = 1,
+    FreeObject(u64, u64) = 2,
     NoHxInfo = 5,
-    HyperCall(u64, u64, u64, u64) = 6,
-    HcDispatch(u64, u64) = 7,
-    CallError(u64, u64) = 8,
-    HyperResult(u64, u64, u64) = 9,
-    VirtualizingProcessor(u32) = 10,
-    ProcessorVirtualized(u32) = 11,
+    QueryObject(u64, u64) = 3,
+    TrackObject(u64, u64) = 4,
+    DetrackObject(u64, u64) = 10,
+    SystemCall(u64, u64, u64, u64) = 6,
+    SystemDispatch(u64, u64) = 7,
+    CallResult(u64, u64, u64) = 9,
     FailedToMap = 12,
-    DelayedStart = 13,
     HxPosedInit(u64, u64) = 14,
     FailedToAllocate = 17,
     Exception(u32) = 18,
     Catastrophic(u64, u32, u32) = 19,
-    ProcessorReady(u32, u64) = 20,
-    LaunchingProcessor = 21,
-    Vmclear(u64, u64) = 22,
-    Vmptrld(u64, u64) = 23,
-    Vmxon(u64, u64) = 24,
+    IncrementRefCount(u64, u64) = 20,
+    DecrementRefCount(u64, u64) = 21,
+    IncrementHandleCount(u64, u64) = 22,
+    DecrementHandleCount(u64, u64) = 23,
     Panic(u64, u64) = 25,
-    WritingAsyncBuffer(u64, u64) = 26,
-    WrittenAsyncBuffer(u64, u64) = 27,
     NtInfo(u64, u64, u64) = 28,
     BuildOffset(u32, u64) = 29,
     LogRingReset(u32) = 30
@@ -146,34 +141,28 @@ impl LogEvent {
     pub const fn into_raw(self) -> (u64, u64, u64, u64, u64) {
         match self {
             LogEvent::None => (0, 0, 0, 0, 0),
-            LogEvent::VmxExitReason(x) => (1, x, 0, 0, 0),
-            LogEvent::RIP(x, y) => (2, x, y, 0, 0),
-            LogEvent::VCPU(x) => (3, x, 0, 0, 0),
-            LogEvent::UnknownExitReason(x) => (4, x, 0, 0, 0),
+            LogEvent::TrackObject(x,y) => (3, x, y, 0,0),
+            LogEvent::QueryObject(x,y) => (4, x, y, 0,0),
+            LogEvent::DetrackObject(x, y) => (5, x, y, 0,0),
+            LogEvent::AcquireObject(x, y) => (1, x, y, 0, 0),
+            LogEvent::FreeObject(x,y) => (2, x, y, 0, 0),
             LogEvent::NoHxInfo => (5, 0, 0, 0, 0),
-            LogEvent::HyperCall(x, y, z, q) => (6, x, y, z, q),
-            LogEvent::HcDispatch(x, y) => (7, x, y, 0, 0),
-            LogEvent::CallError(x, y) => (8, x, y, 0, 0),
-            LogEvent::HyperResult(x, y, z) => (9, x, y, z, 0),
-            LogEvent::VirtualizingProcessor(x) => (10, x as _, 0, 0, 0),
-            LogEvent::ProcessorVirtualized(x) => (11, x as _, 0, 0, 0),
+            LogEvent::SystemCall(x, y, z, q) => (6, x, y, z, q),
+            LogEvent::SystemDispatch(x, y) => (7, x, y, 0, 0),
+            LogEvent::CallResult(x, y, z) => (9, x, y, z, 0),
             LogEvent::FailedToMap => (12, 0, 0, 0, 0),
-            LogEvent::DelayedStart => (13, 0, 0, 0, 0),
             LogEvent::HxPosedInit(x, y) => (14, x, y, 0, 0),
             LogEvent::FailedToAllocate => (17, 0, 0, 0, 0),
             LogEvent::Exception(x) => (18, x as _, 0, 0, 0),
             LogEvent::Catastrophic(x, y, z) => (19, x, y as _, z as _, 0),
-            LogEvent::ProcessorReady(x, y) => (20, x as _, y, 0, 0),
-            LogEvent::LaunchingProcessor => (21, 0, 0, 0, 0),
-            LogEvent::Vmclear(x, y) => (22, x, y, 0, 0),
-            LogEvent::Vmptrld(x, y) => (23, x, y, 0, 0),
-            LogEvent::Vmxon(x, y) => (24, x, y, 0, 0),
             LogEvent::Panic(x, y) => (25, x, y, 0, 0),
-            LogEvent::WritingAsyncBuffer(x, y) => (26, x, y, 0, 0),
-            LogEvent::WrittenAsyncBuffer(x, y) => (27, x, y, 0, 0),
             LogEvent::NtInfo(x, y, z) => (28, x, y, z, 0),
             LogEvent::BuildOffset(x,y) => (29, x as _, y, 0, 0),
-            LogEvent::LogRingReset(x) => (30, x as _,0,0,0)
+            LogEvent::LogRingReset(x) => (30, x as _,0,0,0),
+            LogEvent::IncrementRefCount(x,y) => (20, x as _, y as _, 0, 0),
+            LogEvent::DecrementRefCount(x,y) => (21, x as _, y as _, 0, 0),
+            LogEvent::IncrementHandleCount(x,y) => (22, x as _, y as _, 0, 0),
+            LogEvent::DecrementHandleCount(x,y) => (23, x as _, y as _, 0, 0),
         }
     }
 }
