@@ -11,82 +11,60 @@ using System.Threading.Tasks;
 
 namespace HxPosed.Core.Objects
 {
-    public class Process : IDisposable
+    public class Process : IObject
     {
         // no constructors!
         private Process() { }
-
+        ~Process() => Dispose();
         private bool _disposed = false;
 
         // maybe use SafeHandles?
 
-        public static Process? FromId(int id)
+        public static Process FromId(int id)
         {
-            var me = new Process();
-
-            try
+            var me = new Process
             {
-                me.Object = HxPosed.OpenObject(ServiceFunction.OpenProcess, id);
-            }
-            catch
-            {
-                GC.SuppressFinalize(me); // otherwise it will be finalized with wrong object addrs etc.
-                return null;
-            }
+                Object = HxPosed.OpenObject(ServiceFunction.OpenProcess, id),
+            };
 
             me.ExeName = HxPosed.GetProcessNtPath(me.Object);
 
             foreach (var thread in HxPosed.GetProcessThreaads(me.Object))
             {
-                me.Threads.Add(Thread.FromId(thread, id));
+                // the threads might have changed :/
+                try
+                {
+                    me.Threads.Add(Thread.FromId(thread, id));
+                }
+                catch
+                {
+
+                }
             }
 
-            var handle = Win32.OpenProcess(Win32.PROCESS_QUERY_INFORMATION, false, Win32.GetCurrentProcessId());
-            me.Handle = handle;
-
-            if (!Objects.Handle.TrySwapAndUpgrade(handle, me.Object))
-                goto cleanup;
-
-            me.Handle = handle;
-
             return me;
-
-        cleanup:
-            me.Dispose();
-            return null;
-        }
-
-        /// <summary>
-        /// Disposes the object
-        /// </summary>
-        public void Kill()
-        {
-            var result = Win32.TerminateProcess(Handle, 0);
-            Dispose();
-            if (!result)
-                throw new Win32Exception(Marshal.GetLastWin32Error());
         }
 
         public void Dispose()
         {
             if (_disposed) return;
-
-            // c# best practices
-            // best practices are boilerplate in this language
+            _disposed = true;
             GC.SuppressFinalize(this);
 
-            _disposed = true;
-
-            Win32.CloseHandle(Handle);
-            HxPosed.CloseObject(ServiceFunction.CloseProcess, Object);
+            if (Object != nint.Zero)
+            {
+                HxPosed.CloseObject(ServiceFunction.CloseToken, Object);
+            }
         }
 
-        ~Process()
+        public nint OpenHandle()
         {
-            if (!_disposed)
-            {
-                Dispose();
-            }
+            var thread = Win32.OpenProcess(Win32.PROCESS_QUERY_INFORMATION, false, Win32.GetCurrentProcessId());
+            if (thread == nint.Zero) throw new Win32Exception();
+
+            Handle.SwapAndUpgrade(thread, Object);
+
+            return thread;
         }
 
         private void SetProtection(ProcessProtection value)
@@ -101,25 +79,72 @@ namespace HxPosed.Core.Objects
             return protection;
         }
 
+        private void SetMitigationFlags(ProcessMitigationFlags value)
+        {
+            HxPosed.HxSetProcessMitigation(Object, ref value).ThrowIfError();
+        }
+
+        private ProcessMitigationFlags GetMitigationFlags()
+        {
+            var mitigation = new ProcessMitigationFlags();
+            HxPosed.HxGetProcessMitigation(Object, ref mitigation).ThrowIfError();
+            return mitigation;
+        }
+
+        private void SetSigners(ProcessSigners value)
+        {
+            HxPosed.HxSetProcessSigners(Object, ref value).ThrowIfError();
+        }
+
+        private ProcessSigners GetSigners()
+        {
+            var signers = new ProcessSigners();
+            HxPosed.HxGetProcessSigners(Object, ref signers).ThrowIfError();
+            return signers;
+        }
+
+        private Token GetPrimaryToken()
+        {
+            var token = nint.Zero;
+            HxPosed.HxGetProcessToken(Object, ref token).ThrowIfError();
+            return Token.FromRaw(token);
+        }
+
+        private void SetPrimaryToken()
+        {
+            var temp = PrimaryToken.Object;
+            HxPosed.HxSetProcessToken(Object, ref temp).ThrowIfError();
+        }
+
         public int Id { get; private set; }
         public string ExeName { get; private set; }
 
+        public Token PrimaryToken
+        {
+            get => GetPrimaryToken();
+            set => SetPrimaryToken();
+        }
+
         public ProcessProtection Protection
         {
-            get
-            {
-                return GetProtection();
-            }
-            set
-            {
-                SetProtection(value);
-            }
+            get => GetProtection();
+            set => SetProtection(value);
         }
-        public ProcessMitigationFlags Mitigation { get; private set; }
-        public ProcessSigners Signers { get; private set; }
+
+        public ProcessMitigationFlags Mitigation
+        {
+            get => GetMitigationFlags();
+            set => SetMitigationFlags(value);
+        }
+
+        public ProcessSigners Signers
+        {
+            get => GetSigners();
+            set => SetSigners(value);
+        }
+
         public ObservableCollection<Thread> Threads { get; set; } = [];
 
         public HxProcess Object { get; private set; }
-        public nint Handle { get; private set; }
     }
 }

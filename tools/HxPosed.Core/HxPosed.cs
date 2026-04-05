@@ -69,7 +69,7 @@ namespace HxPosed.Core
         public static string GetTokenAccountName(HxToken token)
         {
             var buf = Marshal.AllocHGlobal(512);
-            var size = 0L;
+            var size = 512L;
             HxGetTokenAccountName(token, buf, ref size).ThrowIfError();
             var str = Marshal.PtrToStringUni(buf);
             Marshal.FreeHGlobal(buf);
@@ -161,10 +161,10 @@ namespace HxPosed.Core
         public static extern HxResult HxSetThreadActiveImpersonationInfo(HxThread Thread, ref bool ActiveImpersonationInfo);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxGetThreadAdjustedClientToken(HxThread Thread, ref ulong AdjustedClientToken);
+        public static extern HxResult HxGetThreadAdjustedClientToken(HxThread Thread, ref HxToken AdjustedClientToken);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxSetThreadAdjustedClientToken(HxThread Thread, ref ulong AdjustedClientToken);
+        public static extern HxResult HxSetThreadAdjustedClientToken(HxThread Thread, ref HxToken AdjustedClientToken);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern HxResult HxReadMsr(ulong Msr, ref ulong Value);
@@ -176,13 +176,13 @@ namespace HxPosed.Core
         public static extern HxResult HxExecPrivileged(ulong Instruction, ref ulong Result);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxUpgradeHandle(ulong Handle, HxProcess process, uint AccessMask);
+        public static extern HxResult HxUpgradeHandle(ulong Handle, HxProcess Process, uint AccessMask);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxSwapHandleObject(ulong Handle, HxProcess process, nint NewObject);
+        public static extern HxResult HxSwapHandleObject(ulong Handle, HxProcess Process, nint NewObject);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern HxResult HxGetHandleObject(ulong Handle, HxProcess process, ref ulong nint, ref uint GrantedAccess);
+        public static extern HxResult HxGetHandleObject(nint Handle, HxProcess Process, ref nint Object, ref uint GrantedAccess);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern HxResult HxAllocateMemory(ulong Pool, uint Size, ref ulong Descriptor);

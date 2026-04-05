@@ -11,6 +11,8 @@ namespace HxPosed.Core.Exceptions
         public _HX_ERROR_CODE ErrorCode;
         public _Anonymous_e__Union Anonymous;
 
+        public bool IsError() => ErrorCode == 0;
+
         public void ThrowIfError()
         {
             if (ErrorCode != 0)

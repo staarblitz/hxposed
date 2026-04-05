@@ -1022,6 +1022,7 @@ namespace HxPosed.Core.Types
 
     public partial struct ProcessSigners
     {
+        public override string ToString() => $"0x{Level:x} - 0x{SectionLevel:x}";
         public byte Level;
         public byte SectionLevel;
     }

@@ -1,38 +1,47 @@
 ﻿using HxPosed.Core.Types;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.ComponentModel;
 
 namespace HxPosed.Core.Objects
 {
-    public class Thread : IDisposable
+    public class Thread : IObject
     {
         private Thread() { }
+
+        ~Thread() => Dispose();
 
         private bool _disposed = false;
 
         public static Thread FromId(int id, int processId)
         {
-            var me = new Thread
+            return new Thread
             {
                 Id = id,
                 ProcessId = processId,
                 Object = HxPosed.OpenObject(ServiceFunction.OpenThread, id),
             };
+        }
+        
 
-            var handle = Win32.OpenThread(Win32.THREAD_QUERY_INFORMATION, false, Win32.GetCurrentThreadId());
-            me.Handle = handle;
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            GC.SuppressFinalize(this);
 
-            if (!Objects.Handle.TrySwapAndUpgrade(handle, me.Object))
-                goto cleanup;
+            if (Object != nint.Zero)
+            {
+                HxPosed.CloseObject(ServiceFunction.CloseToken, Object);
+            }
+        }
 
-            return me;
+        public nint OpenHandle()
+        {
+            var thread = Win32.OpenThread(Win32.THREAD_QUERY_INFORMATION, false, Win32.GetCurrentThreadId());
+            if (thread == nint.Zero) throw new Win32Exception();
 
-        cleanup:
-            me.Dispose();
-            return null;
+            Handle.SwapAndUpgrade(thread, Object);
+
+            return thread;
         }
 
         private bool GetIsImpersonating()
@@ -41,30 +50,43 @@ namespace HxPosed.Core.Objects
             HxPosed.HxGetThreadActiveImpersonationInfo(Object, ref isImpersonating).ThrowIfError();
             return isImpersonating;
         }
-
-        public void Dispose()
+        private void SetIsImpersonating(bool value)
         {
-            if (_disposed) return;
-
-            _disposed = true;
-            Win32.CloseHandle(Handle);
-            HxPosed.CloseObject(ServiceFunction.CloseProcess, Object);
-            GC.SuppressFinalize(this);
+            HxPosed.HxSetThreadActiveImpersonationInfo(Object, ref value).ThrowIfError();
         }
 
-        ~Thread()
+        private Token? GetImpersonationToken()
         {
-            if (!_disposed)
-            {
-                Dispose();
-            }
+            if (!IsImpersonating) return null;
+
+            var token = nint.Zero;
+            HxPosed.HxGetThreadAdjustedClientToken(Object, ref token);
+            return Token.FromRaw(token);
+        }
+
+        private void SetImpersonationToken(Token? token)
+        {
+            if (token is null) return;
+
+            // this is bullshit
+            var temp = token.Object;
+            HxPosed.HxSetThreadAdjustedClientToken(Object, ref temp).ThrowIfError();
+        }
+
+        public Token? ImpersonationToken
+        {
+            get => GetImpersonationToken();
+            set => SetImpersonationToken(value);
         }
 
         public HxThread Object { get; private set; }
-        public nint Handle { get; private set; }
         public int Id { get; set; }
         public int ProcessId { get; set; }
 
-        public bool IsImpersonating => GetIsImpersonating();
+        public bool IsImpersonating
+        {
+            get => GetIsImpersonating();
+            set => SetIsImpersonating(value);
+        }
     }
 }
