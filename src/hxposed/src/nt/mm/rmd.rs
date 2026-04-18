@@ -192,7 +192,7 @@ impl RawMemoryDescriptor {
         // reloading cr3 already does that
         /*unsafe {
             asm!("invlpg ({})", in(reg) (virt.get_addr() as usize), options(att_syntax, nostack, preserves_flags));
-        }/*
+        }*/
 
         self.mapped_addrs.lock().push(MapDetails {
             mapped_process: process,
