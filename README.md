@@ -5,31 +5,27 @@ Demo: [YouTube](https://www.youtube.com/watch?v=EzxZ9oxnZNE)
 
 HxPosed grants you kernel level access to your own computer. So you can do anything. That includes playing with Windows internals. Which you most likely love if you are reading this.
 
-And yes, we mean it. There is no bullshit, no-nonsense. That is right. Here is what you get with HxPosed:
+Here is what you get with HxPosed:
 - A safe API written in Rust (available for C/C# too),
 - A beautifully documented kernel-access interface,
-- A no-nonsense "it just works" functionality.
+- And definitely not AI slop.
 
 ## See It In Action
-This is just a fraction of what HxPosed can offer to you.
 ### The Interface
 This is the way it was supposed to be all along. Here it comes:
 
 #### Open a process. Easy as it should be
 ```rust
 let mut process = match HxProcess::open(id) {
-    Ok(x) => x, // Good. Now we own *full* rights to the process.
+    Ok(x) => x, // Now we own *full* rights to the process.
     Err(e) => {
-        println!("Error opening process: {:?}", e); // Gracefully explains error source, error code and reason.
-        // Error source: HxPosed. Error Code: Not Found. Not Found What: Process
+        println!("Error opening process: {:?}", e);
+        // Error Code: Not Found. Not Found What: Process
         return;
     }
 };
 ```
 #### Change its internals
-- No offsets.
-- No structure definitions.
-- No NT version checks.
 ```rust
 match process
     .set_protection(
@@ -44,22 +40,17 @@ match process
 }
 ```
 #### Change privileges
-- No LUIDs.
-- No lookups.
 ```rust
-let process = HxProcess::current().unwrap(); // Open current process
-let mut token = process.get_primary_token().unwrap(); // Get the token for current process
+let process = HxProcess::current().unwrap();
+let mut token = process.get_primary_token().unwrap(); 
 println!("Token account name: {}", token.get_account_name().unwrap()); // Admin, User, PC whatever
 
-let system = HxToken::get_system_token(); // Open system token
+let system = HxToken::get_system_token();
 let system_privs = system.get_enabled_privileges().unwrap();
 
 token.set_enabled_privileges(system_privs).unwrap(); // Now I'm the SYSTEM
 ```
 #### Allocate from nonpaged pool
-- No IRPs.
-- No manual memory management.
-- No pointer type conversions.
 ```rust
 let mut descriptor = HxMemory::alloc::<u64>(MemoryType::NonPagedPool);
 
@@ -74,9 +65,7 @@ let mut descriptor = HxMemory::alloc::<u64>(MemoryType::NonPagedPool);
 // automatically freed
 ```
 ### And no, its not just Rust.
-It works for C, too.
-- All in one header file.
-- NT-style naming to feel right at home.
+It works for C as well.
 ```c
     HX_PROCESS sys;
     HX_RESULT result = HxOpenObject(HxSvcOpenProcess, 4, &sys);
@@ -98,9 +87,8 @@ It works for C, too.
 
     TerminateProcess(hProcess, 0); // or whatever. reminder that System is protected and you have to use HxSetProcessProtection to lift it
 ```
+
 And C#.
-- Dispose pattern.
-- Idiomatic C# (-ish).
 ```csharp
 using var process = Process.FromId(123);
 process.Protection = new ProcessProtection {
@@ -109,15 +97,6 @@ process.Protection = new ProcessProtection {
     Signer = (byte)ProcessProtectionSigner.WinTcb
 };
 ```
-
-Hope you got our point. We are trying to make things easier, not harder.
-From now on, you'll never worry about:
-- Memory ownership,
-- Undocumented NT functions,
-- `STATUS_INVALID_PARAMETER`s,
-- Digging out offsets and byte patterns.
-
-It *just works*. Because we know how frustrating it is when it *just doesn't*.
 
 ## Features
 ### Core features
@@ -395,17 +374,6 @@ There is 2 ways to help me:
 Of course, coding them yourself would be nicer. But if you are just an everyday guy who enjoys hxposed, the first option will work well too.
 
 Build instructions are given in the wiki.
-
-## What we have so far?
-- [x] All services implemented and tested.
-- [x] Hyper-V enlightment support.
-- [x] Cool fluent UI that fits Windows 11 design.
-- [x] Support for Intel.
-- [x] Libraries in different languages (C#, C and Rust) to interact with hypervisor.
-- [x] HxGuard to prevent abuse.
-- [x] Automated installer for ease.
-
-## What are you waiting for?
 
 ## Contact
 [Telegram](https://t.me/staarblitz)
